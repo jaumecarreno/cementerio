@@ -1,12 +1,12 @@
 # SaaS Cementerio MVP (GSF v1.0.14)
 
-MVP vertical multi-tenant del módulo Cementerio, implementado sobre:
+MVP vertical multi-tenant del modulo Cementerio, implementado con:
 - Python 3.12
 - Flask (app factory)
 - SQLAlchemy + Alembic
 - Flask-Login
 - Jinja2 + HTMX
-- PostgreSQL (docker-compose)
+- PostgreSQL
 
 ## Source of truth (spec)
 - `spec/GSF_v1.0.14.doc` (referencia principal)
@@ -19,18 +19,24 @@ MVP vertical multi-tenant del módulo Cementerio, implementado sobre:
 - Ficha de sepultura con tabs: `/cementerio/sepulturas/<id>`
 - Cobro de tasas: `/cementerio/tasas/cobro?sepultura_id=<id>`
 - Alta masiva: `/cementerio/sepulturas/alta-masiva`
+- Contratacion derecho funerario: `POST /cementerio/sepulturas/<id>/derecho/contratar`
+- Titulo de derecho funerario PDF: `GET /cementerio/contratos/<id>/titulo.pdf`
+- Generacion anual de tiquets: `flask --app app:create_app tickets-generate-year --year <YYYY>`
 
 Incluye:
 - Estados exactos de sepultura: `LLIURE`, `DISPONIBLE`, `OCUPADA`, `INACTIVA`, `PROPIA`
-- Regla de cobro por antigüedad (prefijo contiguo desde año más antiguo)
-- Diferenciación de pendientes:
-  - tiquets no facturados
-  - facturas impagadas
-- Regla pensionista no retroactiva
+- Tipos de contrato: `CONCESION`, `USO_INMEDIATO` (UI: LLOGUER)
+- Limites legales: 50/25 + legacy concesion 99 con flag
+- Regla de cobro por antiguedad (prefijo contiguo desde ano mas antiguo)
+- Diferenciacion de pendientes:
+  - tiquets no facturados (`PENDIENTE`)
+  - facturas impagadas (`IMPAGADA`)
+- Regla pensionista configurable por organizacion
+- Criterio de caja: factura de tasas en el momento del cobro
 - Aislamiento multi-tenant por `org_id`
 
 ## Estructura
-- `app/core`: config, auth, db, tenancy, modelos
+- `app/core`: config, auth, db, tenancy, modelos, permisos
 - `app/cemetery`: blueprint, rutas, servicios
 - `app/templates`: vistas server-rendered + HTMX
 - `migrations`: Alembic
@@ -53,7 +59,11 @@ Incluye:
    ```bash
    flask --app app:create_app seed-demo
    ```
-5. Levantar servidor:
+5. Generar tiquets anuales (opcional):
+   ```bash
+   flask --app app:create_app tickets-generate-year --year 2026 --org-code SMSFT
+   ```
+6. Levantar servidor:
    ```bash
    flask --app app:create_app run
    ```
@@ -83,10 +93,11 @@ pytest -q
 
 Cobertura funcional de tests:
 - Reglas de estado de sepultura
-- Regla de antigüedad en cobro
-- Descuento pensionista no retroactivo
-- Bloqueo de cobro para sepultura `PROPIA`
-- Límite legal contratos 50/25
+- Limites de contratos 50/25 y legacy 99
+- Generacion idempotente de tiquets anuales (solo concesion)
+- Regla de antiguedad en cobro
+- Descuento pensionista en cobro de anos previos
+- Cobro crea `Invoice(PAGADA)` + `Payment(user_id)`
 - Aislamiento tenant
-- Flujo vertical búsqueda -> ficha -> cobro
+- Flujo vertical busqueda -> ficha -> cobro
 - Alta masiva en estado `LLIURE`

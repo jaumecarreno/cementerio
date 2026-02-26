@@ -225,8 +225,8 @@ def create_funeral_right_contract(sepultura_id: int, payload: dict[str, str]) ->
         sepultura_id=sep.id,
         tipo=tipo,
         fecha_inicio=fecha_inicio,
-        fecha_fin=fecha_fin,
         legacy_99_years=legacy_99_years,
+        fecha_fin=fecha_fin,
         annual_fee_amount=annual_fee_amount,
         estado="ACTIVO",
     )

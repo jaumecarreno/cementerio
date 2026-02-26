@@ -2,32 +2,36 @@
 
 ## ASSUMPTION-001 Mockups incompletos en v2
 - `spec/mockups_v2` no contiene `page-3`.
-- Acción: búsqueda de sepulturas se toma de `spec/mockups/page-3.png`.
+- Accion: busqueda de sepulturas tomada de `spec/mockups/page-3.png`.
 
-## ASSUMPTION-002 Bilingüe mínimo
-- ES/CAT se implementa con diccionario local de claves y cambio por sesión.
-- Queda fuera un motor i18n completo con catálogos externos.
+## ASSUMPTION-002 Bilingue minimo
+- ES/CAT implementado con diccionario local y sesion.
+- Queda fuera un motor i18n completo.
 
-## ASSUMPTION-003 Expedientes y derechos funerarios
-- Se implementan entidades y navegación preparada.
-- Flujos completos de expedientes/transmisiones/expropiaciones quedan fuera del MVP funcional.
+## ASSUMPTION-003 USO_INMEDIATO en UI
+- El enum persistido sigue siendo `USO_INMEDIATO`.
+- En UI se etiqueta como `LLOGUER` para alineacion funcional.
 
-## ASSUMPTION-004 Cambio manual de estado
-- `OCUPADA` no se permite manualmente.
-- Se fuerza al crear contrato conforme a Spec 9.4.2.
+## ASSUMPTION-004 Legacy 99 anos
+- Nuevas concesiones >50 solo se permiten con `legacy_99_years=true`.
+- No se cambian datos legacy existentes.
 
-## ASSUMPTION-005 Recibo MVP
-- El recibo se entrega como vista HTML imprimible.
-- Formato fiscal definitivo queda para iteración posterior.
+## ASSUMPTION-005 Estado FACTURADO
+- `TicketEstado.FACTURADO` se mantiene por compatibilidad historica.
+- Nuevos flujos de mantenimiento operan con `PENDIENTE` y `COBRADO`.
 
-## ASSUMPTION-006 .doc/.docx/.pdf
-- Referencia principal funcional: `spec/GSF_v1.0.14.doc`.
-- `.docx` y `.pdf` se usan solo como apoyo de lectura.
+## ASSUMPTION-006 Criterio de caja
+- Para tasas de mantenimiento, la factura se emite en el momento del cobro.
+- El boton de facturar previo se deshabilita funcionalmente.
 
-## ASSUMPTION-007 Alcance de regla antigüedad
-- La validación de prefijo contiguo se aplica sobre tiquets no facturados seleccionables.
-- Las facturas impagadas se muestran separadas y no entran en esa selección.
+## ASSUMPTION-007 Titulo PDF
+- El titulo del derecho funerario se genera on-demand.
+- No se almacena binario del PDF en base de datos.
 
-## ASSUMPTION-008 Alta masiva y numeración
-- La numeración interna de alta masiva se calcula secuencialmente por rango de fila/columna en el formulario.
-- Si una ubicación ya existe, se omite sin abortar el lote.
+## ASSUMPTION-008 Descuento pensionista
+- El porcentaje se configura por organizacion (`organization.pensionista_discount_pct`).
+- Para anos previos a `pensionista_desde`, el descuento se aplica solo si el usuario lo marca.
+
+## ASSUMPTION-009 Alta de contrato
+- Solo se permite contratar sobre sepulturas en estado `DISPONIBLE`.
+- `OCUPADA` se sigue asignando por evento al crear contrato.

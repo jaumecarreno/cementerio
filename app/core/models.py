@@ -489,7 +489,7 @@ def ticket_after_update(_mapper, connection, target: TasaMantenimientoTicket) ->
 
 
 def seed_demo_data(session) -> None:
-    org = Organization(name="SMSFT Demo", code="SMSFT")
+    org = Organization(name="SMSFT Demo", code="SMSFT", pensionista_discount_pct=Decimal("10.00"))
     session.add(org)
     session.flush()
 
@@ -587,13 +587,42 @@ def seed_demo_data(session) -> None:
         tipo_lapida="Resina fenòlica",
         orientacion="Est",
     )
-    session.add_all([sep_1, sep_2, sep_3, sep_4, sep_5])
+    sep_6 = Sepultura(
+        org_id=org.id,
+        cemetery_id=cemetery.id,
+        bloque="B-22",
+        fila=1,
+        columna=1,
+        via="V-6",
+        numero=401,
+        modalidad="NÃ­nxol",
+        estado=SepulturaEstado.DISPONIBLE,
+        tipo_bloque="NÃ­nxols",
+        tipo_lapida="Resina fenÃ²lica",
+        orientacion="Nord",
+    )
+    sep_7 = Sepultura(
+        org_id=org.id,
+        cemetery_id=cemetery.id,
+        bloque="B-30",
+        fila=2,
+        columna=3,
+        via="V-7",
+        numero=510,
+        modalidad="NÃ­nxol",
+        estado=SepulturaEstado.DISPONIBLE,
+        tipo_bloque="NÃ­nxols",
+        tipo_lapida="Resina fenÃ²lica",
+        orientacion="Est",
+    )
+    session.add_all([sep_1, sep_2, sep_3, sep_4, sep_5, sep_6, sep_7])
     session.flush()
 
     titular_1 = Person(org_id=org.id, first_name="Marta", last_name="Soler", document_id="11111111A")
     titular_2 = Person(org_id=org.id, first_name="Joan", last_name="Riera", document_id="22222222B")
+    titular_3 = Person(org_id=org.id, first_name="Pere", last_name="Casals", document_id="44444444D")
     difunto_1 = Person(org_id=org.id, first_name="Antoni", last_name="Ferrer", document_id="33333333C")
-    session.add_all([titular_1, titular_2, difunto_1])
+    session.add_all([titular_1, titular_2, titular_3, difunto_1])
     session.flush()
 
     contrato_1 = DerechoFunerarioContrato(
@@ -602,6 +631,7 @@ def seed_demo_data(session) -> None:
         tipo=DerechoTipo.CONCESION,
         fecha_inicio=date(2012, 1, 1),
         fecha_fin=date(2037, 1, 1),
+        annual_fee_amount=Decimal("45.00"),
         estado="ACTIVO",
     )
     contrato_2 = DerechoFunerarioContrato(
@@ -610,9 +640,29 @@ def seed_demo_data(session) -> None:
         tipo=DerechoTipo.CONCESION,
         fecha_inicio=date(2018, 1, 1),
         fecha_fin=date(2043, 1, 1),
+        annual_fee_amount=Decimal("50.00"),
         estado="ACTIVO",
     )
-    session.add_all([contrato_1, contrato_2])
+    contrato_3 = DerechoFunerarioContrato(
+        org_id=org.id,
+        sepultura_id=sep_2.id,
+        tipo=DerechoTipo.USO_INMEDIATO,
+        fecha_inicio=date(2024, 1, 1),
+        fecha_fin=date(2030, 1, 1),
+        annual_fee_amount=Decimal("30.00"),
+        estado="ACTIVO",
+    )
+    contrato_legacy = DerechoFunerarioContrato(
+        org_id=org.id,
+        sepultura_id=sep_6.id,
+        tipo=DerechoTipo.CONCESION,
+        fecha_inicio=date(1980, 1, 1),
+        legacy_99_years=True,
+        fecha_fin=date(2079, 1, 1),
+        annual_fee_amount=Decimal("35.00"),
+        estado="ACTIVO",
+    )
+    session.add_all([contrato_1, contrato_2, contrato_3, contrato_legacy])
     session.flush()
 
     session.add_all(
@@ -630,6 +680,20 @@ def seed_demo_data(session) -> None:
                 contrato_id=contrato_2.id,
                 person_id=titular_2.id,
                 activo_desde=date(2018, 1, 1),
+                pensionista=False,
+            ),
+            Titularidad(
+                org_id=org.id,
+                contrato_id=contrato_3.id,
+                person_id=titular_2.id,
+                activo_desde=date(2024, 1, 1),
+                pensionista=False,
+            ),
+            Titularidad(
+                org_id=org.id,
+                contrato_id=contrato_legacy.id,
+                person_id=titular_3.id,
+                activo_desde=date(1980, 1, 1),
                 pensionista=False,
             ),
             Beneficiario(
