@@ -1,0 +1,34 @@
+<!-- Spec 9.4.1 - Previsualización de alta masiva -->
+<div class="box">
+  <h3>Previsualización</h3>
+  {% if preview %}
+    <p>Se crearán {{ preview.total }} sepulturas en estado "Lliure" (pendiente de revisión).</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Bloque</th>
+          <th>Fila</th>
+          <th>Columna</th>
+          <th>Vía</th>
+          <th>Número</th>
+          <th>Modalidad</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in preview.rows %}
+        <tr>
+          <td>{{ row.bloque }}</td>
+          <td>{{ row.fila }}</td>
+          <td>{{ row.columna }}</td>
+          <td>{{ row.via }}</td>
+          <td>{{ row.numero }}</td>
+          <td>{{ row.modalidad }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="small muted">Vista parcial (muestra de las primeras 15).</p>
+  {% else %}
+    <p class="muted">Sin previsualización todavía. Usa "Validar".</p>
+  {% endif %}
+</div>

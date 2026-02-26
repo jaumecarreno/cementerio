@@ -1,0 +1,189 @@
+<!-- Spec 9.4.3 / 9.4.4 / 9.4.5 - Ficha de sepultura -->
+{% extends "base.html" %}
+{% set active_cem = 'sepulturas' %}
+{% block title %}Sepultura {{ data.sepultura.location_label }}{% endblock %}
+{% block content %}
+<h1 class="page-title">Sepultura {{ data.sepultura.location_label }}</h1>
+
+<div class="box">
+  <div class="meta-row">
+    <div><strong>Modalidad:</strong> {{ data.sepultura.modalidad }}</div>
+    <div><strong>Estado:</strong> {{ data.sepultura.estado.value }}</div>
+    {% if data.contrato %}
+    <div><strong>Contrato:</strong> {{ data.contrato.tipo.value }} ({{ data.contrato.fecha_inicio }} - {{ data.contrato.fecha_fin }})</div>
+    {% endif %}
+  </div>
+  <div class="quick-actions">
+    <form class="inline-form" method="post" action="{{ url_for('cemetery.change_state', sepultura_id=data.sepultura.id) }}">
+      <select name="estado">
+        <option value="LLIURE">LLIURE</option>
+        <option value="DISPONIBLE">DISPONIBLE</option>
+        <option value="INACTIVA">INACTIVA</option>
+        <option value="PROPIA">PROPIA</option>
+      </select>
+      <button type="submit">Cambiar estado</button>
+    </form>
+    <a class="btn" href="{{ url_for('cemetery.fee_collection', sepultura_id=data.sepultura.id) }}">Cobrar tasas</a>
+    <a class="btn" href="#">Nuevo exp.</a>
+  </div>
+</div>
+
+<div class="cem-submenu">
+  <a class="tab-link {% if data.tab == 'resumen' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='resumen') }}">Resumen</a>
+  <a class="tab-link {% if data.tab == 'titulares' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='titulares') }}">Titulares</a>
+  <a class="tab-link {% if data.tab == 'beneficiarios' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='beneficiarios') }}">Beneficiarios</a>
+  <a class="tab-link {% if data.tab == 'movimientos' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='movimientos') }}">Movimientos</a>
+  <a class="tab-link {% if data.tab == 'tasas' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='tasas') }}">Tasas</a>
+  <a class="tab-link {% if data.tab == 'lapidas' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='lapidas') }}">Lápidas/Inscr.</a>
+</div>
+
+{% if data.tab == 'resumen' %}
+<div class="box">
+  <h3>Resumen</h3>
+  <p>Ubicación: {{ data.sepultura.location_label }}</p>
+  <p>Via: {{ data.sepultura.via }}</p>
+  <p>Tipo bloque: {{ data.sepultura.tipo_bloque }}</p>
+  <p>Tipo lápida: {{ data.sepultura.tipo_lapida }}</p>
+  <p>Orientación: {{ data.sepultura.orientacion }}</p>
+</div>
+{% elif data.tab == 'titulares' %}
+<div class="box">
+  <h3>Titulares</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Persona</th>
+        <th>Activo desde</th>
+        <th>Activo hasta</th>
+        <th>Pensionista</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t_item in data.titulares %}
+      <tr>
+        <td>{{ t_item.person.full_name }}</td>
+        <td>{{ t_item.activo_desde }}</td>
+        <td>{{ t_item.activo_hasta or '—' }}</td>
+        <td>{% if t_item.pensionista %}Sí ({{ t_item.pensionista_desde or 's/f' }}){% else %}No{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4">Sin titulares</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% elif data.tab == 'beneficiarios' %}
+<div class="box">
+  <h3>Beneficiarios</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Persona</th>
+        <th>Activo desde</th>
+        <th>Activo hasta</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for b_item in data.beneficiarios %}
+      <tr>
+        <td>{{ b_item.person.full_name }}</td>
+        <td>{{ b_item.activo_desde }}</td>
+        <td>{{ b_item.activo_hasta or '—' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="3">Sin beneficiarios</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% elif data.tab == 'tasas' %}
+<div class="box">
+  <h3>Tasas</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Año</th>
+        <th>Importe</th>
+        <th>Descuento</th>
+        <th>Estado</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ticket in data.tasas %}
+      <tr>
+        <td>{{ ticket.anio }}</td>
+        <td>{{ money(ticket.importe) }}</td>
+        <td>{{ ticket.descuento_tipo.value }}</td>
+        <td>{{ ticket.estado.value }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4">Sin tiquets</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="actions-row">
+    <a class="btn primary" href="{{ url_for('cemetery.fee_collection', sepultura_id=data.sepultura.id) }}">Ir a cobro de tasas</a>
+  </div>
+</div>
+{% elif data.tab == 'lapidas' %}
+<div class="box">
+  <h3>Lápidas/Inscripciones</h3>
+  <p>MVP preparado. Gestión completa pendiente para siguiente iteración.</p>
+</div>
+{% else %}
+<div class="box">
+  <h3>Movimientos (filtrable)</h3>
+  <form method="get" action="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id) }}">
+    <input type="hidden" name="tab" value="movimientos">
+    <div class="form-grid">
+      <div>
+        <label>Tipo</label>
+        <select name="tipo">
+          <option value="">Todos</option>
+          <option value="INHUMACION">INHUMACION</option>
+          <option value="EXHUMACION">EXHUMACION</option>
+          <option value="TASAS">TASAS</option>
+          <option value="LAPIDA">LAPIDA</option>
+          <option value="CAMBIO_ESTADO">CAMBIO_ESTADO</option>
+          <option value="CONTRATO">CONTRATO</option>
+          <option value="INSCRIPCION_LATERAL">INSCRIPCION_LATERAL</option>
+        </select>
+      </div>
+      <div>
+        <label>Desde</label>
+        <input type="date" name="desde" value="{{ request.args.get('desde', '') }}">
+      </div>
+      <div>
+        <label>Hasta</label>
+        <input type="date" name="hasta" value="{{ request.args.get('hasta', '') }}">
+      </div>
+      <div style="display:flex;align-items:flex-end;">
+        <button type="submit">Aplicar</button>
+      </div>
+    </div>
+  </form>
+  <table>
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Tipo</th>
+        <th>Detalle</th>
+        <th>Usuario</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for mov in data.movimientos %}
+      <tr>
+        <td>{{ mov.fecha.date() }}</td>
+        <td>{{ mov.tipo.value }}</td>
+        <td>{{ mov.detalle }}</td>
+        <td>{{ mov.user.full_name if mov.user else 'sistema' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4">Sin movimientos</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

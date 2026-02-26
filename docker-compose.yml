@@ -1,0 +1,31 @@
+services:
+  db:
+    image: postgres:16
+    container_name: cemetery_db
+    environment:
+      POSTGRES_DB: cemetery
+      POSTGRES_USER: cemetery
+      POSTGRES_PASSWORD: cemetery
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  web:
+    build: .
+    container_name: cemetery_web
+    depends_on:
+      - db
+    environment:
+      FLASK_APP: app:create_app
+      FLASK_ENV: development
+      SECRET_KEY: dev-secret-key
+      DATABASE_URL: postgresql+psycopg://cemetery:cemetery@db:5432/cemetery
+    ports:
+      - "5000:5000"
+    command: flask run --host=0.0.0.0 --port=5000
+    volumes:
+      - .:/app
+
+volumes:
+  pgdata:

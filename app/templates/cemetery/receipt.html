@@ -1,0 +1,20 @@
+<!-- Spec 9.1.3 - Emisión de recibo de cobro -->
+{% extends "base.html" %}
+{% set active_cem = 'tasas' %}
+{% block title %}Recibo {{ payment.receipt_number }}{% endblock %}
+{% block content %}
+<h1 class="page-title">Recibo de cobro</h1>
+
+<div class="box">
+  <p><strong>Recibo:</strong> {{ payment.receipt_number }}</p>
+  <p><strong>Factura:</strong> {{ payment.invoice.numero }}</p>
+  <p><strong>Fecha:</strong> {{ payment.paid_at }}</p>
+  <p><strong>Método:</strong> {{ payment.method }}</p>
+  <p><strong>Importe:</strong> {{ money(payment.amount) }}</p>
+</div>
+
+<div class="actions-row">
+  <button onclick="window.print()">Imprimir</button>
+  <a class="btn" href="{{ url_for('cemetery.fee_collection', sepultura_id=payment.invoice.sepultura_id) }}">Volver a cobro</a>
+</div>
+{% endblock %}

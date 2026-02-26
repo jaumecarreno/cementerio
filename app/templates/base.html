@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="{{ current_lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}GSF - Cementerio{% endblock %}</title>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  {% set active_global = active_global|default('cemetery') %}
+  {% set active_cem = active_cem|default('panel') %}
+  <div class="layout">
+    <div class="topbar">
+      <div class="brand-small">GSF - Gestión de Servicios Funerarios</div>
+      <div class="lang-switch">
+        <form method="post" action="{{ url_for('auth.set_lang') }}">
+          <input type="hidden" name="next" value="{{ request.path }}">
+          <button type="submit" name="lang" value="es" {% if current_lang=='es' %}class="primary"{% endif %}>ES</button>
+          <button type="submit" name="lang" value="ca" {% if current_lang=='ca' %}class="primary"{% endif %}>CAT</button>
+        </form>
+        {% if current_user.is_authenticated %}
+          <form method="post" action="{{ url_for('auth.logout') }}">
+            <button type="submit">Logout</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+    <div class="content">
+      <aside class="sidebar">
+        <a class="menu-link" href="#">{{ t('menu.home') }}</a>
+        <a class="menu-link" href="#">{{ t('menu.funeral_services') }}</a>
+        <a class="menu-link" href="#">{{ t('menu.crematorium') }}</a>
+        <a class="menu-link {% if active_global == 'cemetery' %}active{% endif %}" href="{{ url_for('cemetery.panel') }}">{{ t('menu.cemetery') }}</a>
+        <a class="menu-link" href="#">{{ t('menu.billing') }}</a>
+        <a class="menu-link" href="#">{{ t('menu.inventory') }}</a>
+        <a class="menu-link" href="#">{{ t('menu.reporting') }}</a>
+        <a class="menu-link" href="#">{{ t('menu.settings') }}</a>
+      </aside>
+      <main class="main">
+        <div class="cem-submenu">
+          <a class="tab-link {% if active_cem == 'panel' %}active{% endif %}" href="{{ url_for('cemetery.panel') }}">{{ t('cem.panel') }}</a>
+          <a class="tab-link {% if active_cem == 'sepulturas' %}active{% endif %}" href="{{ url_for('cemetery.search_graves') }}">{{ t('cem.graves') }}</a>
+          <a class="tab-link {% if active_cem == 'tasas' %}active{% endif %}" href="{{ url_for('cemetery.search_graves') }}">{{ t('cem.fees') }}</a>
+          <a class="tab-link {% if active_cem == 'expedientes' %}active{% endif %}" href="#">{{ t('cem.cases') }}</a>
+          <a class="tab-link {% if active_cem == 'titularidad' %}active{% endif %}" href="#">{{ t('cem.ownership') }}</a>
+          <a class="tab-link {% if active_cem == 'lapidas' %}active{% endif %}" href="#">{{ t('cem.engraving') }}</a>
+          <a class="tab-link {% if active_cem == 'derechos' %}active{% endif %}" href="#">{{ t('cem.rights') }}</a>
+        </div>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-wrap">
+              {% for category, message in messages %}
+                <div class="flash {{ category }}">{{ message }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+</body>
+</html>

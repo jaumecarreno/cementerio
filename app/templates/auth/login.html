@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login - GSF Cementerio</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="layout" style="max-width: 560px;">
+    <div class="topbar">
+      <div class="brand-small">GSF - Cementerio</div>
+    </div>
+    <main class="main">
+      <h1 class="page-title">Login</h1>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-wrap">
+            {% for category, message in messages %}
+              <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+      <form method="post" action="{{ url_for('auth.login_post') }}">
+        <div class="form-grid" style="grid-template-columns: 1fr;">
+          <div>
+            <label>Email</label>
+            <input type="email" name="email" required placeholder="admin@smsft.local">
+          </div>
+          <div>
+            <label>Password</label>
+            <input type="password" name="password" required placeholder="admin123">
+          </div>
+        </div>
+        <div class="actions-row">
+          <button type="submit" class="primary">Entrar</button>
+        </div>
+      </form>
+      <p class="small muted">Demo: admin@smsft.local / admin123</p>
+    </main>
+  </div>
+</body>
+</html>

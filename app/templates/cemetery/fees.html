@@ -1,0 +1,129 @@
+<!-- Spec 9.1.3 + 5.3.4 - Cobro de tasas de mantenimiento -->
+{% extends "base.html" %}
+{% set active_cem = 'tasas' %}
+{% block title %}Cementerio - Tasas - Cobro{% endblock %}
+{% block content %}
+<h1 class="page-title">Cementerio &gt; Tasas &gt; Cobro de mantenimiento (tiquets)</h1>
+
+<div class="box">
+  <div class="meta-row">
+    <div><strong>Sepultura:</strong> {{ data.sepultura.location_label }}</div>
+    {% if data.titularidad %}
+    <div>
+      <strong>Titular:</strong> {{ data.titularidad.person.full_name }}
+      {% if data.titularidad.pensionista %}
+      (Pensionista: Sí)
+      {% endif %}
+    </div>
+    {% endif %}
+    <div class="muted"><strong>Regla:</strong> no cobrar años nuevos con años antiguos pendientes.</div>
+  </div>
+</div>
+
+{% if not data.beneficiario and data.contrato %}
+<div class="warning">
+  La sepultura no tiene beneficiario. 
+  <a href="#" class="btn">Nombrar beneficiario (pendiente MVP)</a>
+</div>
+{% endif %}
+
+<form method="post" id="fees-form">
+  <input type="hidden" name="sepultura_id" value="{{ data.sepultura.id }}">
+  <div class="split">
+    <div class="box">
+      <h3>Tiquets no facturados (pendientes)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Sel.</th>
+            <th>Año</th>
+            <th>Importe</th>
+            <th>Descuento</th>
+            <th>Estado</th>
+            <th>Notas</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ticket in data.pending_tickets %}
+          <tr>
+            <td><input class="ticket-checkbox" type="checkbox" name="ticket_ids" value="{{ ticket.id }}" data-year="{{ ticket.anio }}"></td>
+            <td>{{ ticket.anio }}</td>
+            <td>{{ money(ticket.importe) }}</td>
+            <td>{{ ticket.descuento_tipo.value }}</td>
+            <td>{{ ticket.estado.value }}</td>
+            <td>No facturado</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6">Sin tiquets pendientes.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="box">
+      <h3>Facturas impagadas</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Factura</th>
+            <th>Fecha</th>
+            <th>Total</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for invoice in data.unpaid_invoices %}
+          <tr>
+            <td>{{ invoice.numero }}</td>
+            <td>{{ invoice.issued_at.date() if invoice.issued_at else '-' }}</td>
+            <td>{{ money(invoice.total_amount) }}</td>
+            <td>{{ invoice.estado.value }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4">Sin facturas impagadas.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="box">
+    <div class="meta-row">
+      <div><strong>Total a cobrar ahora:</strong> {{ money(data.total_pending) }}</div>
+      <div>
+        <label>Forma de pago</label>
+        <select name="payment_method">
+          <option value="EFECTIVO">Efectivo</option>
+          <option value="TARJETA">Tarjeta</option>
+          <option value="DOMICILIADO">Domiciliado</option>
+        </select>
+      </div>
+    </div>
+    <div class="actions-row">
+      <button class="btn" type="submit" formaction="{{ url_for('cemetery.fee_generate_invoice') }}">Generar factura</button>
+      <button class="btn primary" type="submit" formaction="{{ url_for('cemetery.fee_collect_and_receipt') }}">Cobrar y emitir recibo</button>
+    </div>
+  </div>
+</form>
+
+<script>
+  (function () {
+    const checkboxes = Array.from(document.querySelectorAll(".ticket-checkbox"));
+    function enforceOrder() {
+      let firstGapFound = false;
+      checkboxes.forEach((cb) => {
+        if (firstGapFound) {
+          cb.disabled = !cb.checked;
+          return;
+        }
+        cb.disabled = false;
+        if (!cb.checked) {
+          firstGapFound = true;
+        }
+      });
+    }
+    checkboxes.forEach((cb) => cb.addEventListener("change", enforceOrder));
+    enforceOrder();
+  })();
+</script>
+{% endblock %}

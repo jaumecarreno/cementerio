@@ -1,0 +1,71 @@
+<!-- Spec 9.0 + mockups_v2/page-2 - Panel de trabajo Cementerio -->
+{% extends "base.html" %}
+{% set active_cem = 'panel' %}
+{% block title %}{{ t('menu.cemetery') }} - {{ t('cem.panel') }}{% endblock %}
+{% block content %}
+<h1 class="page-title">{{ t('menu.cemetery') }} - {{ t('cem.panel') }}</h1>
+
+<div class="cards">
+  <div class="card">
+    <h4>Expedientes abiertos</h4>
+    <div class="num">{{ data.kpis.expedientes_abiertos }}</div>
+  </div>
+  <div class="card">
+    <h4>OT pendientes</h4>
+    <div class="num">{{ data.kpis.ot_pendientes }}</div>
+  </div>
+  <div class="card">
+    <h4>Tiquets impagados</h4>
+    <div class="num">{{ data.kpis.tiquets_impagados }}</div>
+  </div>
+  <div class="card">
+    <h4>Pend. notificar</h4>
+    <div class="num">{{ data.kpis.pendientes_notificar }}</div>
+  </div>
+</div>
+
+<div class="panel-grid">
+  <div class="box">
+    <h3>Expedientes recientes</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Nº</th>
+          <th>Tipo</th>
+          <th>Difunto</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for expediente, person in data.recent_expedientes %}
+        <tr>
+          <td>{{ expediente.numero }}</td>
+          <td>{{ expediente.tipo }}</td>
+          <td>{{ person.full_name if person else '—' }}</td>
+          <td>{{ expediente.estado }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="box">
+    <h3>Alertas</h3>
+    <ul>
+      {% for alert in data.alerts %}
+      <li>{{ alert }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+
+<div class="box">
+  <h3>Accesos rápidos</h3>
+  <div class="quick-actions">
+    <a class="btn" href="{{ url_for('cemetery.search_graves') }}">{{ t('action.search_grave') }}</a>
+    <a class="btn" href="{{ url_for('cemetery.search_graves') }}?redirect=fees">{{ t('action.collect_fees') }}</a>
+    <a class="btn" href="#">{{ t('cem.cases') }}: Inhumación</a>
+    <a class="btn" href="#">{{ t('cem.ownership') }}</a>
+    <a class="btn" href="{{ url_for('cemetery.mass_create') }}">{{ t('action.mass_create') }}</a>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,53 @@
+<!-- Spec 5.3.4 + 9.4.x - Buscador de sepulturas -->
+{% extends "base.html" %}
+{% set active_cem = 'sepulturas' %}
+{% block title %}Cementerio - Sepulturas - Buscar{% endblock %}
+{% block content %}
+<h1 class="page-title">Cementerio &gt; Sepulturas &gt; Buscar</h1>
+
+<div class="box">
+  <h3>Criterios de búsqueda</h3>
+  <form
+    method="post"
+    action="{{ url_for('cemetery.search_graves') }}"
+    hx-post="{{ url_for('cemetery.search_graves') }}"
+    hx-target="#search-results"
+    hx-swap="innerHTML"
+  >
+    <div class="form-grid">
+      <div>
+        <label>Bloque</label>
+        <input type="text" name="bloque" value="{{ filters.bloque }}">
+      </div>
+      <div>
+        <label>Número</label>
+        <input type="number" name="numero" value="{{ filters.numero }}">
+      </div>
+      <div>
+        <label>Fila</label>
+        <input type="number" name="fila" value="{{ filters.fila }}">
+      </div>
+      <div>
+        <label>Columna</label>
+        <input type="number" name="columna" value="{{ filters.columna }}">
+      </div>
+      <div>
+        <label>Titular</label>
+        <input type="text" name="titular" value="{{ filters.titular }}">
+      </div>
+      <div>
+        <label>Difunto</label>
+        <input type="text" name="difunto" value="{{ filters.difunto }}">
+      </div>
+    </div>
+    <div class="actions-row">
+      <a class="btn" href="{{ url_for('cemetery.search_graves') }}">Limpiar</a>
+      <button type="submit" class="primary">Buscar</button>
+    </div>
+  </form>
+</div>
+
+<div id="search-results">
+  {% include "cemetery/_search_results.html" %}
+</div>
+{% endblock %}
