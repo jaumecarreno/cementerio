@@ -32,11 +32,13 @@
     <a class="btn" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='derecho') }}">Contratar derecho funerario</a>
     {% endif %}
     <a class="btn" href="#">Nuevo exp.</a>
+    <a class="btn" href="{{ url_for('cemetery.ownership_cases') }}">Casos titularidad</a>
   </div>
 </div>
 
 <div class="cem-submenu">
   <a class="tab-link {% if data.tab == 'resumen' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='resumen') }}">Resumen</a>
+  <a class="tab-link {% if data.tab == 'titularidad' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='titularidad') }}">Titularidad</a>
   <a class="tab-link {% if data.tab == 'titulares' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='titulares') }}">Titulares</a>
   <a class="tab-link {% if data.tab == 'beneficiarios' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='beneficiarios') }}">Beneficiarios</a>
   <a class="tab-link {% if data.tab == 'movimientos' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='movimientos') }}">Movimientos</a>
@@ -53,6 +55,66 @@
   <p>Tipo bloque: {{ data.sepultura.tipo_bloque }}</p>
   <p>Tipo lapida: {{ data.sepultura.tipo_lapida }}</p>
   <p>Orientacion: {{ data.sepultura.orientacion }}</p>
+</div>
+{% elif data.tab == 'titularidad' %}
+<div class="box">
+  <h3>Titularidad</h3>
+  {% if data.contrato %}
+  <div class="meta-row">
+    <div><strong>Titular actual:</strong> {{ data.active_titular.person.full_name if data.active_titular else '-' }}</div>
+    <div><strong>Beneficiario activo:</strong> {{ data.active_beneficiario.person.full_name if data.active_beneficiario else '-' }}</div>
+    {% if data.active_titular and data.active_titular.is_provisional %}
+    <div><span class="flash warning">PROVISIONAL hasta {{ data.active_titular.provisional_until or '-' }}</span></div>
+    {% endif %}
+  </div>
+  <h4>Historico de titulares</h4>
+  <table>
+    <thead>
+      <tr>
+        <th>Persona</th>
+        <th>Desde</th>
+        <th>Hasta</th>
+        <th>Pensionista</th>
+        <th>Provisional</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t_item in data.titulares %}
+      <tr>
+        <td>{{ t_item.person.full_name }}</td>
+        <td>{{ t_item.start_date }}</td>
+        <td>{{ t_item.end_date or '-' }}</td>
+        <td>{% if t_item.is_pensioner %}Si ({{ t_item.pensioner_since_date or 's/f' }}){% else %}No{% endif %}</td>
+        <td>{% if t_item.is_provisional %}Si{% else %}No{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">Sin titulares</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="quick-actions">
+    <form class="inline-form" method="post" action="{{ url_for('cemetery.ownership_cases') }}">
+      <input type="hidden" name="contract_id" value="{{ data.contrato.id }}">
+      <select name="type" required>
+        <option value="MORTIS_CAUSA_TESTAMENTO">MORTIS_CAUSA_TESTAMENTO</option>
+        <option value="MORTIS_CAUSA_SIN_TESTAMENTO">MORTIS_CAUSA_SIN_TESTAMENTO</option>
+        <option value="INTER_VIVOS">INTER_VIVOS</option>
+        <option value="PROVISIONAL">PROVISIONAL</option>
+      </select>
+      <button class="btn primary" type="submit">Iniciar transmision</button>
+    </form>
+    <form class="inline-form" method="post" action="{{ url_for('cemetery.nominate_beneficiary', contract_id=data.contrato.id) }}">
+      <input type="hidden" name="sepultura_id" value="{{ data.sepultura.id }}">
+      <input type="text" name="first_name" placeholder="Nombre beneficiario" required>
+      <input type="text" name="last_name" placeholder="Apellidos">
+      <input type="text" name="document_id" placeholder="Documento">
+      <button class="btn" type="submit">Nombrar/Editar beneficiario</button>
+    </form>
+    <a class="btn" href="{{ url_for('cemetery.ownership_cases') }}">Ver casos</a>
+  </div>
+  {% else %}
+  <p>No hay contrato activo asociado a esta sepultura.</p>
+  {% endif %}
 </div>
 {% elif data.tab == 'titulares' %}
 <div class="box">
