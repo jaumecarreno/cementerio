@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
+from io import BytesIO
 
 from flask import g
 from sqlalchemy import func, or_
@@ -11,6 +12,7 @@ from app.core.extensions import db
 from app.core.models import (
     Beneficiario,
     Cemetery,
+    DerechoTipo,
     DerechoFunerarioContrato,
     Expediente,
     InscripcionLateral,
@@ -19,6 +21,7 @@ from app.core.models import (
     MovimientoSepultura,
     MovimientoTipo,
     OrdenTrabajo,
+    Organization,
     Payment,
     Person,
     Sepultura,
@@ -41,11 +44,35 @@ def org_id() -> int:
     return g.org.id
 
 
+def org_record() -> Organization:
+    return Organization.query.filter_by(id=org_id()).first()
+
+
 def org_cemetery() -> Cemetery:
     cemetery = Cemetery.query.filter_by(org_id=org_id()).order_by(Cemetery.id.asc()).first()
     if not cemetery:
         raise ValueError("No hay cementerio configurado para esta organización")
     return cemetery
+
+
+def _parse_iso_date(value: str, field_name: str) -> date:
+    raw = (value or "").strip()
+    if not raw:
+        raise ValueError(f"Falta {field_name}")
+    try:
+        return date.fromisoformat(raw)
+    except ValueError as exc:
+        raise ValueError(f"Formato de fecha invalido para {field_name}") from exc
+
+
+def _parse_decimal(value: str, field_name: str) -> Decimal:
+    raw = (value or "").strip().replace(",", ".")
+    if not raw:
+        raise ValueError(f"Falta {field_name}")
+    try:
+        return Decimal(raw).quantize(Decimal("0.01"))
+    except Exception as exc:  # pragma: no cover - DecimalException umbrella
+        raise ValueError(f"Importe invalido en {field_name}") from exc
 
 
 def panel_data() -> dict[str, object]:
@@ -139,6 +166,179 @@ def active_beneficiario_for_contract(contract_id: int) -> Beneficiario | None:
     )
 
 
+def _create_or_reuse_person(first_name: str, last_name: str, document_id: str | None) -> Person:
+    # Spec Cementiri 9.1.5 / 9.1.6 - reutilizacion de persona por documento
+    first_name = (first_name or "").strip()
+    last_name = (last_name or "").strip()
+    document_id = (document_id or "").strip() or None
+    if not first_name:
+        raise ValueError("El nombre de la persona es obligatorio")
+    if document_id:
+        existing = Person.query.filter_by(org_id=org_id(), document_id=document_id).first()
+        if existing:
+            return existing
+    person = Person(
+        org_id=org_id(),
+        first_name=first_name,
+        last_name=last_name,
+        document_id=document_id,
+    )
+    db.session.add(person)
+    db.session.flush()
+    return person
+
+
+def create_funeral_right_contract(sepultura_id: int, payload: dict[str, str]) -> DerechoFunerarioContrato:
+    # Spec Cementiri 9.1.7.x - contratacion del derecho funerario
+    sep = sepultura_by_id(sepultura_id)
+    if sep.estado != SepulturaEstado.DISPONIBLE:
+        raise ValueError("Solo se puede contratar en sepulturas en estado DISPONIBLE")
+    if active_contract_for_sepultura(sep.id):
+        raise ValueError("La sepultura ya tiene un contrato activo")
+
+    tipo_raw = (payload.get("tipo") or "").strip().upper()
+    try:
+        tipo = DerechoTipo[tipo_raw]
+    except KeyError as exc:
+        raise ValueError("Tipo de contrato invalido") from exc
+
+    fecha_inicio = _parse_iso_date(payload.get("fecha_inicio", ""), "fecha inicio")
+    fecha_fin = _parse_iso_date(payload.get("fecha_fin", ""), "fecha fin")
+    annual_fee_amount = _parse_decimal(payload.get("annual_fee_amount", ""), "importe anual")
+    legacy_99_years = (payload.get("legacy_99_years") or "").lower() in {"1", "on", "true", "yes"}
+
+    titular = _create_or_reuse_person(
+        payload.get("titular_first_name", ""),
+        payload.get("titular_last_name", ""),
+        payload.get("titular_document_id"),
+    )
+
+    contrato = DerechoFunerarioContrato(
+        org_id=org_id(),
+        sepultura_id=sep.id,
+        tipo=tipo,
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin,
+        legacy_99_years=legacy_99_years,
+        annual_fee_amount=annual_fee_amount,
+        estado="ACTIVO",
+    )
+    db.session.add(contrato)
+    db.session.flush()
+
+    pensionista = (payload.get("pensionista") or "").lower() in {"1", "on", "true", "yes"}
+    pensionista_desde = payload.get("pensionista_desde", "").strip()
+    pensionista_desde_date = None
+    if pensionista_desde:
+        pensionista_desde_date = _parse_iso_date(pensionista_desde, "fecha pensionista")
+
+    db.session.add(
+        Titularidad(
+            org_id=org_id(),
+            contrato_id=contrato.id,
+            person_id=titular.id,
+            activo_desde=fecha_inicio,
+            pensionista=pensionista,
+            pensionista_desde=pensionista_desde_date,
+        )
+    )
+
+    beneficiario_first_name = (payload.get("beneficiario_first_name") or "").strip()
+    if beneficiario_first_name:
+        beneficiario = _create_or_reuse_person(
+            beneficiario_first_name,
+            payload.get("beneficiario_last_name", ""),
+            payload.get("beneficiario_document_id"),
+        )
+        db.session.add(
+            Beneficiario(
+                org_id=org_id(),
+                contrato_id=contrato.id,
+                person_id=beneficiario.id,
+                activo_desde=fecha_inicio,
+            )
+        )
+
+    db.session.commit()
+    return contrato
+
+
+def contract_by_id(contract_id: int) -> DerechoFunerarioContrato:
+    contrato = DerechoFunerarioContrato.query.filter_by(org_id=org_id(), id=contract_id).first()
+    if not contrato:
+        raise ValueError("Contrato no encontrado")
+    return contrato
+
+
+def _pdf_escape(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def _simple_pdf(lines: list[str]) -> bytes:
+    text_ops = ["BT", "/F1 12 Tf", "50 800 Td"]
+    for line in lines:
+        text_ops.append(f"({_pdf_escape(line)}) Tj")
+        text_ops.append("0 -16 Td")
+    text_ops.append("ET")
+    stream = "\n".join(text_ops).encode("latin-1", errors="ignore")
+
+    objects: list[bytes] = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 4 0 R >> >> >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        f"<< /Length {len(stream)} >>\nstream\n".encode("ascii") + stream + b"\nendstream",
+    ]
+
+    pdf = BytesIO()
+    pdf.write(b"%PDF-1.4\n")
+    offsets = [0]
+    for idx, obj in enumerate(objects, start=1):
+        offsets.append(pdf.tell())
+        pdf.write(f"{idx} 0 obj\n".encode("ascii"))
+        pdf.write(obj)
+        pdf.write(b"\nendobj\n")
+
+    xref_start = pdf.tell()
+    pdf.write(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    pdf.write(b"0000000000 65535 f \n")
+    for off in offsets[1:]:
+        pdf.write(f"{off:010d} 00000 n \n".encode("ascii"))
+    pdf.write(f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\n".encode("ascii"))
+    pdf.write(f"startxref\n{xref_start}\n%%EOF".encode("ascii"))
+    return pdf.getvalue()
+
+
+def funeral_right_title_pdf(contract_id: int) -> bytes:
+    # Spec Cementiri 9.1.4 - generacion de titulo del derecho funerario
+    contrato = contract_by_id(contract_id)
+    sep = sepultura_by_id(contrato.sepultura_id)
+    titular = active_titular_for_contract(contrato.id)
+    beneficiario = active_beneficiario_for_contract(contrato.id)
+
+    lines = [
+        "GSF - Titulo de Derecho Funerario",
+        f"Contrato: {contrato.id}",
+        f"Tipo: {'LLOGUER' if contrato.tipo == DerechoTipo.USO_INMEDIATO else contrato.tipo.value}",
+        f"Sepultura: {sep.location_label}",
+        f"Fecha inicio: {contrato.fecha_inicio.isoformat()}",
+        f"Fecha fin: {contrato.fecha_fin.isoformat()}",
+        f"Titular: {titular.person.full_name if titular else 'N/A'}",
+        f"Beneficiario: {beneficiario.person.full_name if beneficiario else 'N/A'}",
+        f"Emitido: {datetime.now(timezone.utc).date().isoformat()}",
+    ]
+
+    db.session.add(
+        MovimientoSepultura(
+            org_id=org_id(),
+            sepultura_id=sep.id,
+            tipo=MovimientoTipo.CONTRATO,
+            detalle="Titulo emitido/duplicado",
+            user_id=getattr(getattr(g, "user", None), "id", None),
+        )
+    )
+    db.session.commit()
+    return _simple_pdf(lines)
 def search_sepulturas(filters: dict[str, str]) -> list[dict[str, object]]:
     oid = org_id()
     query = Sepultura.query.filter_by(org_id=oid)
@@ -465,16 +665,20 @@ def sepultura_tabs_data(sepultura_id: int, tab: str, mov_filters: dict[str, str]
     titulares = []
     beneficiarios = []
     tasas = []
+    active_titular = None
+    active_beneficiario = None
     if contrato:
+        active_titular = active_titular_for_contract(contrato.id)
+        active_beneficiario = active_beneficiario_for_contract(contrato.id)
         titulares = Titularidad.query.filter_by(org_id=org_id(), contrato_id=contrato.id).order_by(
             Titularidad.activo_desde.desc()
-        )
+        ).all()
         beneficiarios = Beneficiario.query.filter_by(org_id=org_id(), contrato_id=contrato.id).order_by(
             Beneficiario.activo_desde.desc()
-        )
+        ).all()
         tasas = TasaMantenimientoTicket.query.filter_by(org_id=org_id(), contrato_id=contrato.id).order_by(
             TasaMantenimientoTicket.anio.desc()
-        )
+        ).all()
 
     movements_query = MovimientoSepultura.query.filter_by(org_id=org_id(), sepultura_id=sep.id)
     if mov_filters.get("tipo"):
@@ -493,6 +697,8 @@ def sepultura_tabs_data(sepultura_id: int, tab: str, mov_filters: dict[str, str]
         "sepultura": sep,
         "contrato": contrato,
         "tab": tab,
+        "active_titular": active_titular,
+        "active_beneficiario": active_beneficiario,
         "titulares": titulares,
         "beneficiarios": beneficiarios,
         "movimientos": movimientos,

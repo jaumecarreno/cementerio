@@ -2,14 +2,16 @@ from __future__ import annotations
 
 from datetime import date
 
-from flask import abort, flash, redirect, render_template, request, url_for
+from flask import abort, flash, make_response, redirect, render_template, request, url_for
 from flask_login import login_required
 
 from app.cemetery import cemetery_bp
 from app.cemetery.services import (
     change_sepultura_state,
     collect_tickets,
+    create_funeral_right_contract,
     create_mass_sepulturas,
+    funeral_right_title_pdf,
     generate_invoice_for_tickets,
     panel_data,
     preview_mass_create,
@@ -59,7 +61,7 @@ def search_graves():
 @login_required
 @require_membership
 def grave_detail(sepultura_id: int):
-    # Spec 9.4.3 / 9.4.4 / 9.4.5 - Ficha de sepultura con tabs
+    # Spec 9.4.3 / 9.4.4 / 9.4.5 / 9.1.7 - Ficha de sepultura con tabs
     tab = request.args.get("tab", "movimientos")
     mov_filters = {
         "tipo": request.args.get("tipo", "").strip(),
@@ -71,6 +73,35 @@ def grave_detail(sepultura_id: int):
     except ValueError:
         abort(404)
     return render_template("cemetery/detail.html", data=data, SepulturaEstado=SepulturaEstado, money=money)
+
+
+@cemetery_bp.post("/sepulturas/<int:sepultura_id>/derecho/contratar")
+@login_required
+@require_membership
+def contract_create(sepultura_id: int):
+    # Spec Cementiri 9.1.7 - Contratacion del derecho funerario
+    payload = {k: v for k, v in request.form.items()}
+    try:
+        create_funeral_right_contract(sepultura_id, payload)
+        flash("Contrato creado correctamente", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.grave_detail", sepultura_id=sepultura_id, tab="derecho"))
+
+
+@cemetery_bp.get("/contratos/<int:contract_id>/titulo.pdf")
+@login_required
+@require_membership
+def contract_title_pdf(contract_id: int):
+    # Spec Cementiri 9.1.4 - Generacion del titulo del derecho funerario
+    try:
+        pdf = funeral_right_title_pdf(contract_id)
+    except ValueError:
+        abort(404)
+    response = make_response(pdf)
+    response.headers["Content-Type"] = "application/pdf"
+    response.headers["Content-Disposition"] = f'inline; filename="titulo-contrato-{contract_id}.pdf"'
+    return response
 
 
 @cemetery_bp.post("/sepulturas/<int:sepultura_id>/estado")

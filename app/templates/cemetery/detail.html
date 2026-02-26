@@ -1,4 +1,4 @@
-<!-- Spec 9.4.3 / 9.4.4 / 9.4.5 - Ficha de sepultura -->
+<!-- Spec 9.4.3 / 9.4.4 / 9.4.5 / 9.1.7 - Ficha de sepultura -->
 {% extends "base.html" %}
 {% set active_cem = 'sepulturas' %}
 {% block title %}Sepultura {{ data.sepultura.location_label }}{% endblock %}
@@ -10,7 +10,11 @@
     <div><strong>Modalidad:</strong> {{ data.sepultura.modalidad }}</div>
     <div><strong>Estado:</strong> {{ data.sepultura.estado.value }}</div>
     {% if data.contrato %}
-    <div><strong>Contrato:</strong> {{ data.contrato.tipo.value }} ({{ data.contrato.fecha_inicio }} - {{ data.contrato.fecha_fin }})</div>
+    <div>
+      <strong>Contrato:</strong>
+      {{ 'LLOGUER' if data.contrato.tipo.value == 'USO_INMEDIATO' else data.contrato.tipo.value }}
+      ({{ data.contrato.fecha_inicio }} - {{ data.contrato.fecha_fin }})
+    </div>
     {% endif %}
   </div>
   <div class="quick-actions">
@@ -24,6 +28,9 @@
       <button type="submit">Cambiar estado</button>
     </form>
     <a class="btn" href="{{ url_for('cemetery.fee_collection', sepultura_id=data.sepultura.id) }}">Cobrar tasas</a>
+    {% if not data.contrato %}
+    <a class="btn" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='derecho') }}">Contratar derecho funerario</a>
+    {% endif %}
     <a class="btn" href="#">Nuevo exp.</a>
   </div>
 </div>
@@ -34,17 +41,18 @@
   <a class="tab-link {% if data.tab == 'beneficiarios' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='beneficiarios') }}">Beneficiarios</a>
   <a class="tab-link {% if data.tab == 'movimientos' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='movimientos') }}">Movimientos</a>
   <a class="tab-link {% if data.tab == 'tasas' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='tasas') }}">Tasas</a>
-  <a class="tab-link {% if data.tab == 'lapidas' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='lapidas') }}">Lápidas/Inscr.</a>
+  <a class="tab-link {% if data.tab == 'derecho' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='derecho') }}">Derecho funerario</a>
+  <a class="tab-link {% if data.tab == 'lapidas' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='lapidas') }}">Lapidas/Inscr.</a>
 </div>
 
 {% if data.tab == 'resumen' %}
 <div class="box">
   <h3>Resumen</h3>
-  <p>Ubicación: {{ data.sepultura.location_label }}</p>
+  <p>Ubicacion: {{ data.sepultura.location_label }}</p>
   <p>Via: {{ data.sepultura.via }}</p>
   <p>Tipo bloque: {{ data.sepultura.tipo_bloque }}</p>
-  <p>Tipo lápida: {{ data.sepultura.tipo_lapida }}</p>
-  <p>Orientación: {{ data.sepultura.orientacion }}</p>
+  <p>Tipo lapida: {{ data.sepultura.tipo_lapida }}</p>
+  <p>Orientacion: {{ data.sepultura.orientacion }}</p>
 </div>
 {% elif data.tab == 'titulares' %}
 <div class="box">
@@ -63,8 +71,8 @@
       <tr>
         <td>{{ t_item.person.full_name }}</td>
         <td>{{ t_item.activo_desde }}</td>
-        <td>{{ t_item.activo_hasta or '—' }}</td>
-        <td>{% if t_item.pensionista %}Sí ({{ t_item.pensionista_desde or 's/f' }}){% else %}No{% endif %}</td>
+        <td>{{ t_item.activo_hasta or '-' }}</td>
+        <td>{% if t_item.pensionista %}Si ({{ t_item.pensionista_desde or 's/f' }}){% else %}No{% endif %}</td>
       </tr>
       {% else %}
       <tr><td colspan="4">Sin titulares</td></tr>
@@ -88,7 +96,7 @@
       <tr>
         <td>{{ b_item.person.full_name }}</td>
         <td>{{ b_item.activo_desde }}</td>
-        <td>{{ b_item.activo_hasta or '—' }}</td>
+        <td>{{ b_item.activo_hasta or '-' }}</td>
       </tr>
       {% else %}
       <tr><td colspan="3">Sin beneficiarios</td></tr>
@@ -102,7 +110,7 @@
   <table>
     <thead>
       <tr>
-        <th>Año</th>
+        <th>Anio</th>
         <th>Importe</th>
         <th>Descuento</th>
         <th>Estado</th>
@@ -125,10 +133,97 @@
     <a class="btn primary" href="{{ url_for('cemetery.fee_collection', sepultura_id=data.sepultura.id) }}">Ir a cobro de tasas</a>
   </div>
 </div>
+{% elif data.tab == 'derecho' %}
+<div class="box">
+  <h3>Derecho funerario</h3>
+  {% if data.contrato %}
+  <div class="meta-row">
+    <div><strong>Tipo:</strong> {{ 'LLOGUER' if data.contrato.tipo.value == 'USO_INMEDIATO' else data.contrato.tipo.value }}</div>
+    <div><strong>Inicio:</strong> {{ data.contrato.fecha_inicio }}</div>
+    <div><strong>Fin:</strong> {{ data.contrato.fecha_fin }}</div>
+    <div><strong>Importe anual base:</strong> {{ money(data.contrato.annual_fee_amount) }}</div>
+    <div><strong>Legacy 99:</strong> {% if data.contrato.legacy_99_years %}Si{% else %}No{% endif %}</div>
+  </div>
+  <div class="meta-row">
+    <div><strong>Titular actual:</strong> {{ data.active_titular.person.full_name if data.active_titular else '-' }}</div>
+    <div><strong>Beneficiario actual:</strong> {{ data.active_beneficiario.person.full_name if data.active_beneficiario else '-' }}</div>
+  </div>
+  <div class="quick-actions">
+    <a class="btn primary" href="{{ url_for('cemetery.contract_title_pdf', contract_id=data.contrato.id) }}" target="_blank">Descargar titulo (PDF)</a>
+    <button class="btn" disabled>Ampliacion (pendiente)</button>
+    <button class="btn" disabled>Prorroga (pendiente)</button>
+  </div>
+  {% else %}
+  <form method="post" action="{{ url_for('cemetery.contract_create', sepultura_id=data.sepultura.id) }}">
+    <div class="form-grid">
+      <div>
+        <label>Tipo</label>
+        <select name="tipo" required>
+          <option value="CONCESION">CONCESION</option>
+          <option value="USO_INMEDIATO">LLOGUER (USO_INMEDIATO)</option>
+        </select>
+      </div>
+      <div>
+        <label>Importe anual base</label>
+        <input type="text" name="annual_fee_amount" placeholder="45.00" required>
+      </div>
+      <div>
+        <label>Fecha inicio</label>
+        <input type="date" name="fecha_inicio" required>
+      </div>
+      <div>
+        <label>Fecha fin</label>
+        <input type="date" name="fecha_fin" required>
+      </div>
+      <div>
+        <label>Nombre titular</label>
+        <input type="text" name="titular_first_name" required>
+      </div>
+      <div>
+        <label>Apellidos titular</label>
+        <input type="text" name="titular_last_name">
+      </div>
+      <div>
+        <label>Documento titular</label>
+        <input type="text" name="titular_document_id">
+      </div>
+      <div>
+        <label>Beneficiario (nombre, opcional)</label>
+        <input type="text" name="beneficiario_first_name">
+      </div>
+      <div>
+        <label>Beneficiario (apellidos)</label>
+        <input type="text" name="beneficiario_last_name">
+      </div>
+      <div>
+        <label>Documento beneficiario</label>
+        <input type="text" name="beneficiario_document_id">
+      </div>
+      <div>
+        <label>
+          <input type="checkbox" name="pensionista"> Titular pensionista
+        </label>
+      </div>
+      <div>
+        <label>Pensionista desde</label>
+        <input type="date" name="pensionista_desde">
+      </div>
+      <div>
+        <label>
+          <input type="checkbox" name="legacy_99_years"> Concesion legacy (hasta 99 anos)
+        </label>
+      </div>
+    </div>
+    <div class="actions-row">
+      <button class="btn primary" type="submit">Contratar derecho funerario</button>
+    </div>
+  </form>
+  {% endif %}
+</div>
 {% elif data.tab == 'lapidas' %}
 <div class="box">
-  <h3>Lápidas/Inscripciones</h3>
-  <p>MVP preparado. Gestión completa pendiente para siguiente iteración.</p>
+  <h3>Lapidas/Inscripciones</h3>
+  <p>MVP preparado. Gestion completa pendiente para siguiente iteracion.</p>
 </div>
 {% else %}
 <div class="box">
