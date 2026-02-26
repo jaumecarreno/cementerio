@@ -7,22 +7,34 @@ from flask_login import current_user, login_required
 
 from app.cemetery import cemetery_bp
 from app.cemetery.services import (
+    add_case_party,
+    add_case_publication,
+    approve_ownership_case,
+    change_ownership_case_status,
     change_sepultura_state,
     collect_tickets,
+    close_ownership_case,
+    create_ownership_case,
     create_funeral_right_contract,
     create_mass_sepulturas,
     funeral_right_title_pdf,
     generate_maintenance_tickets_for_year,
+    list_ownership_cases,
     nominate_contract_beneficiary,
+    ownership_case_detail,
+    ownership_case_resolution_pdf,
     org_record,
     panel_data,
     preview_mass_create,
+    reject_ownership_case,
     search_sepulturas,
     sepultura_by_id,
     sepultura_tabs_data,
     sepultura_tickets_and_invoices,
+    upload_case_document,
+    verify_case_document,
 )
-from app.core.models import SepulturaEstado
+from app.core.models import OwnershipTransferStatus, OwnershipTransferType, SepulturaEstado
 from app.core.permissions import require_membership, require_role
 from app.core.utils import money
 
@@ -93,6 +105,173 @@ def grave_detail(sepultura_id: int):
     except ValueError:
         abort(404)
     return render_template("cemetery/detail.html", data=data, SepulturaEstado=SepulturaEstado, money=money)
+
+
+@cemetery_bp.route("/titularidad/casos", methods=["GET", "POST"])
+@login_required
+@require_membership
+def ownership_cases():
+    if request.method == "POST":
+        payload = {k: v for k, v in request.form.items()}
+        try:
+            created = create_ownership_case(payload, current_user.id)
+            flash(f"Caso {created.case_number} creado", "success")
+            return redirect(url_for("cemetery.ownership_case_detail_page", case_id=created.id))
+        except ValueError as exc:
+            flash(str(exc), "error")
+    filters = {
+        "type": request.args.get("type", "").strip(),
+        "status": request.args.get("status", "").strip(),
+        "opened_from": request.args.get("opened_from", "").strip(),
+        "opened_to": request.args.get("opened_to", "").strip(),
+        "contract_id": request.args.get("contract_id", "").strip(),
+        "sepultura_id": request.args.get("sepultura_id", "").strip(),
+        "party_name": request.args.get("party_name", "").strip(),
+    }
+    rows = list_ownership_cases(filters)
+    if _is_htmx():
+        return render_template("cemetery/_ownership_cases_table.html", rows=rows)
+    return render_template(
+        "cemetery/ownership_cases.html",
+        rows=rows,
+        filters=filters,
+        OwnershipTransferType=OwnershipTransferType,
+        OwnershipTransferStatus=OwnershipTransferStatus,
+    )
+
+
+@cemetery_bp.get("/titularidad/casos/<int:case_id>")
+@login_required
+@require_membership
+def ownership_case_detail_page(case_id: int):
+    try:
+        data = ownership_case_detail(case_id)
+    except ValueError:
+        abort(404)
+    return render_template(
+        "cemetery/ownership_case_detail.html",
+        data=data,
+        OwnershipTransferType=OwnershipTransferType,
+        OwnershipTransferStatus=OwnershipTransferStatus,
+    )
+
+
+@cemetery_bp.post("/titularidad/casos/<int:case_id>/status")
+@login_required
+@require_membership
+def ownership_case_change_status(case_id: int):
+    status = request.form.get("status", "")
+    try:
+        change_ownership_case_status(case_id, status, current_user.id)
+        flash("Estado actualizado", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.ownership_case_detail_page", case_id=case_id))
+
+
+@cemetery_bp.post("/titularidad/casos/<int:case_id>/approve")
+@login_required
+@require_membership
+def ownership_case_approve(case_id: int):
+    try:
+        approve_ownership_case(case_id, current_user.id)
+        flash("Caso aprobado", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.ownership_case_detail_page", case_id=case_id))
+
+
+@cemetery_bp.post("/titularidad/casos/<int:case_id>/reject")
+@login_required
+@require_membership
+def ownership_case_reject(case_id: int):
+    reason = request.form.get("reason", "")
+    try:
+        reject_ownership_case(case_id, reason, current_user.id)
+        flash("Caso rechazado", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.ownership_case_detail_page", case_id=case_id))
+
+
+@cemetery_bp.post("/titularidad/casos/<int:case_id>/close")
+@login_required
+@require_membership
+def ownership_case_close(case_id: int):
+    payload = {k: v for k, v in request.form.items()}
+    try:
+        close_ownership_case(case_id, payload, current_user.id)
+        flash("Caso cerrado y titularidad aplicada", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.ownership_case_detail_page", case_id=case_id))
+
+
+@cemetery_bp.post("/titularidad/casos/<int:case_id>/parties")
+@login_required
+@require_membership
+def ownership_case_add_party(case_id: int):
+    payload = {k: v for k, v in request.form.items()}
+    try:
+        add_case_party(case_id, payload)
+        flash("Parte guardada", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.ownership_case_detail_page", case_id=case_id))
+
+
+@cemetery_bp.post("/titularidad/casos/<int:case_id>/publications")
+@login_required
+@require_membership
+def ownership_case_add_publication(case_id: int):
+    payload = {k: v for k, v in request.form.items()}
+    try:
+        add_case_publication(case_id, payload)
+        flash("Publicacion guardada", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.ownership_case_detail_page", case_id=case_id))
+
+
+@cemetery_bp.post("/titularidad/casos/<int:case_id>/documents/<int:doc_id>/upload")
+@login_required
+@require_membership
+def ownership_case_upload_document(case_id: int, doc_id: int):
+    file_obj = request.files.get("file")
+    try:
+        upload_case_document(case_id, doc_id, file_obj, current_user.id)
+        flash("Documento subido", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.ownership_case_detail_page", case_id=case_id))
+
+
+@cemetery_bp.post("/titularidad/casos/<int:case_id>/documents/<int:doc_id>/verify")
+@login_required
+@require_membership
+def ownership_case_verify_document(case_id: int, doc_id: int):
+    action = request.form.get("action", "verify")
+    notes = request.form.get("notes", "")
+    try:
+        verify_case_document(case_id, doc_id, action, notes, current_user.id)
+        flash("Documento actualizado", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.ownership_case_detail_page", case_id=case_id))
+
+
+@cemetery_bp.get("/titularidad/casos/<int:case_id>/resolucion.pdf")
+@login_required
+@require_membership
+def ownership_case_resolution_pdf_route(case_id: int):
+    try:
+        content, filename = ownership_case_resolution_pdf(case_id)
+    except ValueError:
+        abort(404)
+    response = make_response(content)
+    response.headers["Content-Type"] = "application/pdf"
+    response.headers["Content-Disposition"] = f'inline; filename="{filename}"'
+    return response
 
 
 @cemetery_bp.post("/sepulturas/<int:sepultura_id>/derecho/contratar")

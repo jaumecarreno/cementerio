@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% set active_cem = 'titularidad' %}
+{% block title %}Cementerio - Titularidad - Casos{% endblock %}
+{% block content %}
+<h1 class="page-title">Cementerio &gt; Titularidad &gt; Casos</h1>
+
+<div class="box">
+  <h3>Iniciar transmision</h3>
+  <form method="post" action="{{ url_for('cemetery.ownership_cases') }}">
+    <div class="form-grid">
+      <div>
+        <label>Contrato</label>
+        <input type="number" name="contract_id" min="1" required>
+      </div>
+      <div>
+        <label>Tipo</label>
+        <select name="type" required>
+          {% for type in OwnershipTransferType %}
+          <option value="{{ type.value }}">{{ type.value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Inicio provisional (si aplica)</label>
+        <input type="date" name="provisional_start_date">
+      </div>
+      <div>
+        <label>Notas</label>
+        <input type="text" name="notes">
+      </div>
+    </div>
+    <div class="actions-row">
+      <button class="btn primary" type="submit">Crear caso</button>
+    </div>
+  </form>
+</div>
+
+<div class="box">
+  <h3>Filtros</h3>
+  <form
+    method="get"
+    action="{{ url_for('cemetery.ownership_cases') }}"
+    hx-get="{{ url_for('cemetery.ownership_cases') }}"
+    hx-target="#ownership-cases-table"
+    hx-swap="innerHTML"
+  >
+    <div class="form-grid">
+      <div>
+        <label>Tipo</label>
+        <select name="type">
+          <option value="">Todos</option>
+          {% for type in OwnershipTransferType %}
+          <option value="{{ type.value }}" {% if filters.type == type.value %}selected{% endif %}>{{ type.value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Estado</label>
+        <select name="status">
+          <option value="">Todos</option>
+          {% for status in OwnershipTransferStatus %}
+          <option value="{{ status.value }}" {% if filters.status == status.value %}selected{% endif %}>{{ status.value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Desde</label>
+        <input type="date" name="opened_from" value="{{ filters.opened_from }}">
+      </div>
+      <div>
+        <label>Hasta</label>
+        <input type="date" name="opened_to" value="{{ filters.opened_to }}">
+      </div>
+      <div>
+        <label>Contrato</label>
+        <input type="text" name="contract_id" value="{{ filters.contract_id }}">
+      </div>
+      <div>
+        <label>Sepultura ID</label>
+        <input type="text" name="sepultura_id" value="{{ filters.sepultura_id }}">
+      </div>
+      <div>
+        <label>Titular/nuevo titular</label>
+        <input type="text" name="party_name" value="{{ filters.party_name }}">
+      </div>
+    </div>
+    <div class="actions-row">
+      <a class="btn" href="{{ url_for('cemetery.ownership_cases') }}">Limpiar</a>
+      <button class="btn primary" type="submit">Filtrar</button>
+    </div>
+  </form>
+</div>
+
+<div id="ownership-cases-table">
+  {% include "cemetery/_ownership_cases_table.html" %}
+</div>
+{% endblock %}

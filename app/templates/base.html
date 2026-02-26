@@ -59,7 +59,7 @@
           <a class="tab-link {% if active_cem == 'sepulturas' %}active{% endif %}" href="{{ url_for('cemetery.search_graves') }}">{{ t('cem.graves') }}</a>
           <a class="tab-link {% if active_cem == 'tasas' %}active{% endif %}" href="{{ url_for('cemetery.search_graves') }}">{{ t('cem.fees') }}</a>
           <a class="tab-link {% if active_cem == 'expedientes' %}active{% endif %}" href="#">{{ t('cem.cases') }}</a>
-          <a class="tab-link {% if active_cem == 'titularidad' %}active{% endif %}" href="#">{{ t('cem.ownership') }}</a>
+          <a class="tab-link {% if active_cem == 'titularidad' %}active{% endif %}" href="{{ url_for('cemetery.ownership_cases') }}">{{ t('cem.ownership') }}</a>
           <a class="tab-link {% if active_cem == 'lapidas' %}active{% endif %}" href="#">{{ t('cem.engraving') }}</a>
           <a class="tab-link {% if active_cem == 'derechos' %}active{% endif %}" href="#">{{ t('cem.rights') }}</a>
         </div>
