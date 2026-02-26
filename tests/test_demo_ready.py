@@ -48,6 +48,7 @@ def test_navigation_main_menu_routes_no_404(app, client, login_admin):
         "/cementerio/sepulturas/buscar",
         "/cementerio/expedientes",
         "/cementerio/titularidad",
+        "/cementerio/personas",
         "/cementerio/lapidas",
         "/cementerio/reporting",
         "/config",
