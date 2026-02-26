@@ -7,6 +7,7 @@
 {% block title %}Expedientes{% endblock %}
 {% block content %}
 <h1 class="page-title">Expedientes</h1>
+{% set create_tipo = request.args.get('create_tipo', 'INHUMACION').upper() %}
 
 <div class="box">
   <h3>Crear expediente</h3>
@@ -15,10 +16,10 @@
       <div>
         <label>Tipo</label>
         <select name="tipo" required>
-          <option value="INHUMACION">INHUMACION</option>
-          <option value="EXHUMACION">EXHUMACION</option>
-          <option value="RESCATE">RESCATE</option>
-          <option value="FINALIZACION">FINALIZACION</option>
+          <option value="INHUMACION" {% if create_tipo == 'INHUMACION' %}selected{% endif %}>INHUMACION</option>
+          <option value="EXHUMACION" {% if create_tipo == 'EXHUMACION' %}selected{% endif %}>EXHUMACION</option>
+          <option value="RESCATE" {% if create_tipo == 'RESCATE' %}selected{% endif %}>RESCATE</option>
+          <option value="FINALIZACION" {% if create_tipo == 'FINALIZACION' %}selected{% endif %}>FINALIZACION</option>
         </select>
       </div>
       <div>

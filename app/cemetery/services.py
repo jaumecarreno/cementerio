@@ -221,6 +221,13 @@ def panel_data() -> dict[str, object]:
         .limit(5)
         .all()
     )
+    recent_movements = (
+        MovimientoSepultura.query.options(joinedload(MovimientoSepultura.sepultura))
+        .filter_by(org_id=oid)
+        .order_by(MovimientoSepultura.fecha.desc())
+        .limit(30)
+        .all()
+    )
 
     lliures = Sepultura.query.filter_by(org_id=oid, estado=SepulturaEstado.LLIURE).count()
     alerts: list[str] = []
@@ -247,8 +254,75 @@ def panel_data() -> dict[str, object]:
             "pendientes_notificar": pendientes_notificar,
         },
         "recent_expedientes": recent_expedientes,
+        "recent_activity_by_titular": _recent_activity_by_titular(oid, recent_movements),
         "alerts": alerts,
     }
+
+
+def _recent_activity_by_titular(
+    oid: int, movements: list[MovimientoSepultura]
+) -> list[dict[str, object]]:
+    if not movements:
+        return []
+
+    sepultura_ids = sorted({movement.sepultura_id for movement in movements})
+    contracts = (
+        DerechoFunerarioContrato.query.filter_by(org_id=oid, estado="ACTIVO")
+        .filter(DerechoFunerarioContrato.sepultura_id.in_(sepultura_ids))
+        .order_by(DerechoFunerarioContrato.id.desc())
+        .all()
+    )
+    contract_by_sepultura: dict[int, DerechoFunerarioContrato] = {}
+    for contract in contracts:
+        contract_by_sepultura.setdefault(contract.sepultura_id, contract)
+
+    owner_by_contract: dict[int, OwnershipRecord] = {}
+    contract_ids = [contract.id for contract in contract_by_sepultura.values()]
+    if contract_ids:
+        owners = (
+            OwnershipRecord.query.options(joinedload(OwnershipRecord.person))
+            .filter_by(org_id=oid)
+            .filter(OwnershipRecord.contract_id.in_(contract_ids))
+            .filter(or_(OwnershipRecord.end_date.is_(None), OwnershipRecord.end_date >= date.today()))
+            .order_by(OwnershipRecord.contract_id.asc(), OwnershipRecord.start_date.desc())
+            .all()
+        )
+        for owner in owners:
+            owner_by_contract.setdefault(owner.contract_id, owner)
+
+    grouped: dict[tuple[str, int], dict[str, object]] = {}
+    group_order: list[tuple[str, int]] = []
+
+    for movement in movements:
+        contract = contract_by_sepultura.get(movement.sepultura_id)
+        owner = owner_by_contract.get(contract.id) if contract else None
+        if owner and owner.person:
+            key = ("person", owner.person_id)
+            titular_label = owner.person.full_name
+        else:
+            key = ("unassigned", 0)
+            titular_label = "Sin titular"
+
+        if key not in grouped:
+            grouped[key] = {"titular": titular_label, "movements": []}
+            group_order.append(key)
+
+        sepultura_label = (
+            movement.sepultura.location_label
+            if movement.sepultura
+            else f"Sepultura #{movement.sepultura_id}"
+        )
+        movement_type = movement.tipo.value if hasattr(movement.tipo, "value") else str(movement.tipo)
+        grouped[key]["movements"].append(
+            {
+                "fecha": movement.fecha,
+                "tipo": movement_type,
+                "detalle": movement.detalle,
+                "sepultura": sepultura_label,
+            }
+        )
+
+    return [grouped[key] for key in group_order]
 
 
 def active_contract_for_sepultura(sepultura_id: int) -> DerechoFunerarioContrato | None:

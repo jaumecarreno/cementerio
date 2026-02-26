@@ -5,7 +5,7 @@ from flask import session
 SUPPORTED_LANGS = {"es", "ca"}
 
 I18N: dict[str, dict[str, str]] = {
-    "menu.home": {"es": "Inicio", "ca": "Inici"},
+    "menu.home": {"es": "Dashboard", "ca": "Dashboard"},
     "menu.funeral_services": {"es": "Servicios funerarios", "ca": "Serveis funeraris"},
     "menu.crematorium": {"es": "Crematorio", "ca": "Crematori"},
     "menu.cemetery": {"es": "Cementerio", "ca": "Cementiri"},

@@ -5,6 +5,46 @@
 {% block content %}
 <h1 class="page-title">{{ t('menu.cemetery') }} - {{ t('cem.panel') }}</h1>
 
+<div class="box">
+  <div class="dashboard-top-actions">
+    <a class="btn primary" href="{{ url_for('cemetery.expedientes', create_tipo='INHUMACION') }}">Nueva inhumación</a>
+    <a class="btn primary" href="{{ url_for('cemetery.expedientes', create_tipo='EXHUMACION') }}">Nueva Exhumación</a>
+    <a class="btn" href="{{ url_for('cemetery.search_graves') }}">Buscar</a>
+  </div>
+  <h3>Actividad reciente</h3>
+  {% if data.recent_activity_by_titular %}
+  <div class="activity-groups">
+    {% for group in data.recent_activity_by_titular %}
+    <div class="activity-group">
+      <h4>{{ group.titular }}</h4>
+      <table>
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Cambio</th>
+            <th>Sepultura</th>
+            <th>Detalle</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in group.movements %}
+          <tr>
+            <td>{{ item.fecha.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>{{ item.tipo }}</td>
+            <td>{{ item.sepultura }}</td>
+            <td>{{ item.detalle }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">Sin actividad reciente</p>
+  {% endif %}
+</div>
+
 <div class="cards">
   <div class="card">
     <h4>Expedientes abiertos</h4>
