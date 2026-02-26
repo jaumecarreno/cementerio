@@ -5,7 +5,7 @@ from decimal import Decimal
 from enum import Enum
 
 from flask_login import UserMixin
-from sqlalchemy import CheckConstraint, Enum as SAEnum, ForeignKey, Index, UniqueConstraint, event, inspect
+from sqlalchemy import CheckConstraint, Enum as SAEnum, ForeignKey, Index, UniqueConstraint, event, inspect, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 from werkzeug.security import generate_password_hash
 
@@ -51,6 +51,11 @@ class MovimientoTipo(str, Enum):
     CAMBIO_ESTADO = "CAMBIO_ESTADO"
     CONTRATO = "CONTRATO"
     INSCRIPCION_LATERAL = "INSCRIPCION_LATERAL"
+    INICIO_TRANSMISION = "INICIO_TRANSMISION"
+    DOCUMENTO_SUBIDO = "DOCUMENTO_SUBIDO"
+    APROBACION = "APROBACION"
+    RECHAZO = "RECHAZO"
+    CAMBIO_TITULARIDAD = "CAMBIO_TITULARIDAD"
 
 
 class InvoiceEstado(str, Enum):
@@ -58,6 +63,42 @@ class InvoiceEstado(str, Enum):
     EMITIDA = "EMITIDA"
     IMPAGADA = "IMPAGADA"
     PAGADA = "PAGADA"
+
+
+class OwnershipTransferType(str, Enum):
+    MORTIS_CAUSA_TESTAMENTO = "MORTIS_CAUSA_TESTAMENTO"
+    MORTIS_CAUSA_SIN_TESTAMENTO = "MORTIS_CAUSA_SIN_TESTAMENTO"
+    INTER_VIVOS = "INTER_VIVOS"
+    PROVISIONAL = "PROVISIONAL"
+
+
+class OwnershipTransferStatus(str, Enum):
+    DRAFT = "DRAFT"
+    DOCS_PENDING = "DOCS_PENDING"
+    UNDER_REVIEW = "UNDER_REVIEW"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    CLOSED = "CLOSED"
+
+
+class OwnershipPartyRole(str, Enum):
+    CAUSANT = "CAUSANT"
+    ANTERIOR_TITULAR = "ANTERIOR_TITULAR"
+    NUEVO_TITULAR = "NUEVO_TITULAR"
+    REPRESENTANTE = "REPRESENTANTE"
+    OTRO = "OTRO"
+
+
+class CaseDocumentStatus(str, Enum):
+    MISSING = "MISSING"
+    PROVIDED = "PROVIDED"
+    VERIFIED = "VERIFIED"
+    REJECTED = "REJECTED"
+
+
+class BeneficiaryCloseDecision(str, Enum):
+    KEEP = "KEEP"
+    REPLACE = "REPLACE"
 
 
 class Organization(db.Model):
@@ -237,9 +278,15 @@ class DerechoFunerarioContrato(db.Model):
     created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
 
     sepultura = relationship("Sepultura", back_populates="contratos")
-    titularidades = relationship("Titularidad", back_populates="contrato", cascade="all, delete-orphan")
-    beneficiarios = relationship("Beneficiario", back_populates="contrato", cascade="all, delete-orphan")
+    ownership_records = relationship("OwnershipRecord", back_populates="contract", cascade="all, delete-orphan")
+    beneficiaries = relationship("Beneficiario", back_populates="contract", cascade="all, delete-orphan")
     tickets = relationship("TasaMantenimientoTicket", back_populates="contrato", cascade="all, delete-orphan")
+    ownership_transfer_cases = relationship(
+        "OwnershipTransferCase",
+        back_populates="contract",
+        cascade="all, delete-orphan",
+    )
+    contract_events = relationship("ContractEvent", back_populates="contract", cascade="all, delete-orphan")
 
     @property
     def duration_years(self) -> int:
@@ -264,26 +311,77 @@ class DerechoFunerarioContrato(db.Model):
         return value
 
 
-class Titularidad(db.Model):
-    # Spec 9.1.5 - titularidad y transmisión
-    __tablename__ = "titularidad"
+class OwnershipRecord(db.Model):
+    # Spec 9.1.5 - titularidad actual e historica
+    __tablename__ = "ownership_record"
+    __table_args__ = (
+        CheckConstraint("end_date IS NULL OR end_date >= start_date", name="ck_ownership_dates"),
+        Index(
+            "ix_ownership_record_org_contract_current",
+            "org_id",
+            "contract_id",
+            unique=True,
+            sqlite_where=text("end_date IS NULL"),
+            postgresql_where=text("end_date IS NULL"),
+        ),
+        Index(
+            "ix_ownership_record_org_contract_start",
+            "org_id",
+            "contract_id",
+            "start_date",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
-    contrato_id: Mapped[int] = mapped_column(ForeignKey("derecho_funerario_contrato.id"), nullable=False)
+    contract_id: Mapped[int] = mapped_column(ForeignKey("derecho_funerario_contrato.id"), nullable=False)
     person_id: Mapped[int] = mapped_column(ForeignKey("person.id"), nullable=False)
-    activo_desde: Mapped[date] = mapped_column(nullable=False)
-    activo_hasta: Mapped[date | None] = mapped_column(nullable=True)
-    pensionista: Mapped[bool] = mapped_column(nullable=False, default=False)
-    pensionista_desde: Mapped[date | None] = mapped_column(nullable=True)
+    start_date: Mapped[date] = mapped_column(nullable=False)
+    end_date: Mapped[date | None] = mapped_column(nullable=True)
+    is_pensioner: Mapped[bool] = mapped_column(nullable=False, default=False)
+    pensioner_since_date: Mapped[date | None] = mapped_column(nullable=True)
+    is_provisional: Mapped[bool] = mapped_column(nullable=False, default=False)
+    provisional_until: Mapped[date | None] = mapped_column(nullable=True)
+    notes: Mapped[str] = mapped_column(db.String(255), nullable=False, default="")
 
-    contrato = relationship("DerechoFunerarioContrato", back_populates="titularidades")
+    contract = relationship("DerechoFunerarioContrato", back_populates="ownership_records")
     person = relationship("Person")
+
+    # Backward-compatible attribute aliases while old templates/services are migrated.
+    @property
+    def activo_desde(self) -> date:
+        return self.start_date
+
+    @property
+    def contrato_id(self) -> int:
+        return self.contract_id
+
+    @property
+    def activo_hasta(self) -> date | None:
+        return self.end_date
+
+    @property
+    def pensionista(self) -> bool:
+        return self.is_pensioner
+
+    @property
+    def pensionista_desde(self) -> date | None:
+        return self.pensioner_since_date
 
 
 class Beneficiario(db.Model):
     # Spec 9.1.6 - nombramiento de beneficiario
     __tablename__ = "beneficiario"
+    __table_args__ = (
+        Index(
+            "ix_beneficiario_org_contract_current",
+            "org_id",
+            "contrato_id",
+            unique=True,
+            sqlite_where=text("activo_hasta IS NULL"),
+            postgresql_where=text("activo_hasta IS NULL"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
@@ -292,8 +390,141 @@ class Beneficiario(db.Model):
     activo_desde: Mapped[date] = mapped_column(nullable=False)
     activo_hasta: Mapped[date | None] = mapped_column(nullable=True)
 
-    contrato = relationship("DerechoFunerarioContrato", back_populates="beneficiarios")
+    contract = relationship("DerechoFunerarioContrato", back_populates="beneficiaries")
     person = relationship("Person")
+
+
+class OwnershipTransferCase(db.Model):
+    __tablename__ = "ownership_transfer_case"
+    __table_args__ = (
+        UniqueConstraint("org_id", "case_number", name="uq_ownership_case_org_number"),
+        UniqueConstraint("org_id", "resolution_number", name="uq_ownership_case_org_resolution"),
+        Index("ix_ownership_case_org_status_opened", "org_id", "status", "opened_at"),
+        Index("ix_ownership_case_org_type_status", "org_id", "type", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
+    case_number: Mapped[str] = mapped_column(db.String(20), nullable=False)
+    contract_id: Mapped[int] = mapped_column(ForeignKey("derecho_funerario_contrato.id"), nullable=False, index=True)
+    type: Mapped[OwnershipTransferType] = mapped_column(
+        SAEnum(OwnershipTransferType, name="ownership_transfer_type"),
+        nullable=False,
+    )
+    status: Mapped[OwnershipTransferStatus] = mapped_column(
+        SAEnum(OwnershipTransferStatus, name="ownership_transfer_status"),
+        nullable=False,
+        default=OwnershipTransferStatus.DRAFT,
+    )
+    opened_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
+    closed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"), nullable=True)
+    assigned_to_user_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"), nullable=True)
+    resolution_number: Mapped[str | None] = mapped_column(db.String(20), nullable=True)
+    resolution_pdf_path: Mapped[str | None] = mapped_column(db.String(255), nullable=True)
+    beneficiary_close_decision: Mapped[BeneficiaryCloseDecision | None] = mapped_column(
+        SAEnum(BeneficiaryCloseDecision, name="beneficiary_close_decision"),
+        nullable=True,
+    )
+    provisional_start_date: Mapped[date | None] = mapped_column(nullable=True)
+    provisional_until: Mapped[date | None] = mapped_column(nullable=True)
+    notes: Mapped[str] = mapped_column(db.String(500), nullable=False, default="")
+    internal_notes: Mapped[str] = mapped_column(db.String(1000), nullable=False, default="")
+    rejection_reason: Mapped[str | None] = mapped_column(db.String(500), nullable=True)
+
+    contract = relationship("DerechoFunerarioContrato", back_populates="ownership_transfer_cases")
+    created_by = relationship("User", foreign_keys=[created_by_user_id])
+    assigned_to = relationship("User", foreign_keys=[assigned_to_user_id])
+    parties = relationship("OwnershipTransferParty", back_populates="case", cascade="all, delete-orphan")
+    documents = relationship("CaseDocument", back_populates="case", cascade="all, delete-orphan")
+    publications = relationship("Publication", back_populates="case", cascade="all, delete-orphan")
+    contract_events = relationship("ContractEvent", back_populates="case", cascade="all, delete-orphan")
+
+
+class OwnershipTransferParty(db.Model):
+    __tablename__ = "ownership_transfer_party"
+    __table_args__ = (
+        Index("ix_ownership_party_org_case_role", "org_id", "case_id", "role"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("ownership_transfer_case.id"), nullable=False, index=True)
+    role: Mapped[OwnershipPartyRole] = mapped_column(
+        SAEnum(OwnershipPartyRole, name="ownership_party_role"),
+        nullable=False,
+    )
+    person_id: Mapped[int] = mapped_column(ForeignKey("person.id"), nullable=False)
+    percentage: Mapped[Decimal | None] = mapped_column(db.Numeric(5, 2), nullable=True)
+    notes: Mapped[str] = mapped_column(db.String(500), nullable=False, default="")
+
+    case = relationship("OwnershipTransferCase", back_populates="parties")
+    person = relationship("Person")
+
+
+class CaseDocument(db.Model):
+    __tablename__ = "case_document"
+    __table_args__ = (
+        Index("ix_case_document_org_case_type", "org_id", "case_id", "doc_type"),
+        Index("ix_case_document_org_case_required_status", "org_id", "case_id", "required", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("ownership_transfer_case.id"), nullable=False, index=True)
+    doc_type: Mapped[str] = mapped_column(db.String(50), nullable=False)
+    required: Mapped[bool] = mapped_column(nullable=False, default=False)
+    status: Mapped[CaseDocumentStatus] = mapped_column(
+        SAEnum(CaseDocumentStatus, name="case_document_status"),
+        nullable=False,
+        default=CaseDocumentStatus.MISSING,
+    )
+    file_path: Mapped[str | None] = mapped_column(db.String(255), nullable=True)
+    uploaded_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    verified_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    verified_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"), nullable=True)
+    notes: Mapped[str] = mapped_column(db.String(500), nullable=False, default="")
+
+    case = relationship("OwnershipTransferCase", back_populates="documents")
+    verified_by = relationship("User")
+
+
+class Publication(db.Model):
+    __tablename__ = "publication"
+    __table_args__ = (
+        Index("ix_publication_org_case_published", "org_id", "case_id", "published_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("ownership_transfer_case.id"), nullable=False, index=True)
+    published_at: Mapped[date] = mapped_column(nullable=False)
+    channel: Mapped[str] = mapped_column(db.String(50), nullable=False)
+    reference_text: Mapped[str] = mapped_column(db.String(500), nullable=False, default="")
+    notes: Mapped[str] = mapped_column(db.String(500), nullable=False, default="")
+
+    case = relationship("OwnershipTransferCase", back_populates="publications")
+
+
+class ContractEvent(db.Model):
+    __tablename__ = "contract_event"
+    __table_args__ = (
+        Index("ix_contract_event_org_contract_at", "org_id", "contract_id", "event_at"),
+        Index("ix_contract_event_org_case_at", "org_id", "case_id", "event_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
+    contract_id: Mapped[int] = mapped_column(ForeignKey("derecho_funerario_contrato.id"), nullable=False)
+    case_id: Mapped[int | None] = mapped_column(ForeignKey("ownership_transfer_case.id"), nullable=True)
+    event_type: Mapped[str] = mapped_column(db.String(50), nullable=False)
+    event_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
+    details: Mapped[str] = mapped_column(db.String(500), nullable=False, default="")
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"), nullable=True)
+
+    contract = relationship("DerechoFunerarioContrato", back_populates="contract_events")
+    case = relationship("OwnershipTransferCase", back_populates="contract_events")
+    user = relationship("User")
 
 
 class MovimientoSepultura(db.Model):
@@ -667,34 +898,34 @@ def seed_demo_data(session) -> None:
 
     session.add_all(
         [
-            Titularidad(
+            OwnershipRecord(
                 org_id=org.id,
-                contrato_id=contrato_1.id,
+                contract_id=contrato_1.id,
                 person_id=titular_1.id,
-                activo_desde=date(2012, 1, 1),
-                pensionista=True,
-                pensionista_desde=date(2025, 1, 1),
+                start_date=date(2012, 1, 1),
+                is_pensioner=True,
+                pensioner_since_date=date(2025, 1, 1),
             ),
-            Titularidad(
+            OwnershipRecord(
                 org_id=org.id,
-                contrato_id=contrato_2.id,
+                contract_id=contrato_2.id,
                 person_id=titular_2.id,
-                activo_desde=date(2018, 1, 1),
-                pensionista=False,
+                start_date=date(2018, 1, 1),
+                is_pensioner=False,
             ),
-            Titularidad(
+            OwnershipRecord(
                 org_id=org.id,
-                contrato_id=contrato_3.id,
+                contract_id=contrato_3.id,
                 person_id=titular_2.id,
-                activo_desde=date(2024, 1, 1),
-                pensionista=False,
+                start_date=date(2024, 1, 1),
+                is_pensioner=False,
             ),
-            Titularidad(
+            OwnershipRecord(
                 org_id=org.id,
-                contrato_id=contrato_legacy.id,
+                contract_id=contrato_legacy.id,
                 person_id=titular_3.id,
-                activo_desde=date(1980, 1, 1),
-                pensionista=False,
+                start_date=date(1980, 1, 1),
+                is_pensioner=False,
             ),
             Beneficiario(
                 org_id=org.id,
@@ -834,6 +1065,184 @@ def seed_demo_data(session) -> None:
                 sepultura_id=sep_1.id,
                 texto="Record etern",
                 estado="PENDIENTE_NOTIFICAR",
+            ),
+        ]
+    )
+
+    successor_1 = Person(org_id=org.id, first_name="Carla", last_name="Mora", document_id="88888888H")
+    successor_2 = Person(org_id=org.id, first_name="Sonia", last_name="Pons", document_id="99999999J")
+    successor_3 = Person(org_id=org.id, first_name="Marc", last_name="Vila", document_id="10101010K")
+    session.add_all([successor_1, successor_2, successor_3])
+    session.flush()
+
+    case_1 = OwnershipTransferCase(
+        org_id=org.id,
+        case_number="TR-2026-0001",
+        contract_id=contrato_1.id,
+        type=OwnershipTransferType.INTER_VIVOS,
+        status=OwnershipTransferStatus.DRAFT,
+        created_by_user_id=admin.id,
+        assigned_to_user_id=operario.id,
+        notes="Caso demo inter-vivos",
+    )
+    case_2 = OwnershipTransferCase(
+        org_id=org.id,
+        case_number="TR-2026-0002",
+        contract_id=contrato_2.id,
+        type=OwnershipTransferType.MORTIS_CAUSA_TESTAMENTO,
+        status=OwnershipTransferStatus.DOCS_PENDING,
+        created_by_user_id=admin.id,
+        notes="Caso demo mortis-causa testamento",
+    )
+    case_3 = OwnershipTransferCase(
+        org_id=org.id,
+        case_number="TR-2026-0003",
+        contract_id=contrato_3.id,
+        type=OwnershipTransferType.PROVISIONAL,
+        status=OwnershipTransferStatus.APPROVED,
+        created_by_user_id=admin.id,
+        provisional_start_date=date(2026, 1, 1),
+        provisional_until=date(2036, 1, 1),
+        resolution_number="RES-2026-0001",
+        resolution_pdf_path=None,
+        notes="Caso demo provisional",
+    )
+    case_4 = OwnershipTransferCase(
+        org_id=org.id,
+        case_number="TR-2026-0004",
+        contract_id=contrato_legacy.id,
+        type=OwnershipTransferType.MORTIS_CAUSA_SIN_TESTAMENTO,
+        status=OwnershipTransferStatus.REJECTED,
+        created_by_user_id=admin.id,
+        rejection_reason="Documentacion incompleta",
+        notes="Caso demo mortis-causa sin testamento",
+    )
+    session.add_all([case_1, case_2, case_3, case_4])
+    session.flush()
+    case_3.resolution_pdf_path = (
+        f"storage/cemetery/ownership_cases/{org.id}/{case_3.id}/resolucion-{case_3.resolution_number}.pdf"
+    )
+
+    session.add_all(
+        [
+            OwnershipTransferParty(
+                org_id=org.id,
+                case_id=case_1.id,
+                role=OwnershipPartyRole.ANTERIOR_TITULAR,
+                person_id=titular_1.id,
+            ),
+            OwnershipTransferParty(
+                org_id=org.id,
+                case_id=case_1.id,
+                role=OwnershipPartyRole.NUEVO_TITULAR,
+                person_id=successor_1.id,
+            ),
+            OwnershipTransferParty(
+                org_id=org.id,
+                case_id=case_2.id,
+                role=OwnershipPartyRole.ANTERIOR_TITULAR,
+                person_id=titular_2.id,
+            ),
+            OwnershipTransferParty(
+                org_id=org.id,
+                case_id=case_2.id,
+                role=OwnershipPartyRole.NUEVO_TITULAR,
+                person_id=successor_3.id,
+            ),
+            OwnershipTransferParty(
+                org_id=org.id,
+                case_id=case_3.id,
+                role=OwnershipPartyRole.ANTERIOR_TITULAR,
+                person_id=titular_2.id,
+            ),
+            OwnershipTransferParty(
+                org_id=org.id,
+                case_id=case_3.id,
+                role=OwnershipPartyRole.NUEVO_TITULAR,
+                person_id=successor_2.id,
+            ),
+        ]
+    )
+
+    for case in [case_1, case_2, case_3, case_4]:
+        checklist = {
+            OwnershipTransferType.MORTIS_CAUSA_TESTAMENTO: [
+                ("CERT_DEFUNCION", True),
+                ("TITULO_SEPULTURA", True),
+                ("SOLICITUD_CAMBIO_TITULARIDAD", True),
+                ("CERT_ULTIMAS_VOLUNTADES", True),
+                ("TESTAMENTO_O_ACEPTACION_HERENCIA", True),
+                ("CESION_DERECHOS", False),
+                ("SOLICITUD_BENEFICIARIO", False),
+                ("DNI_NUEVO_BENEFICIARIO", False),
+            ],
+            OwnershipTransferType.MORTIS_CAUSA_SIN_TESTAMENTO: [
+                ("CERT_DEFUNCION", True),
+                ("TITULO_SEPULTURA", True),
+                ("SOLICITUD_CAMBIO_TITULARIDAD", True),
+                ("CERT_ULTIMAS_VOLUNTADES", True),
+                ("LIBRO_FAMILIA_O_TESTIGOS", False),
+                ("CESION_DERECHOS", False),
+                ("SOLICITUD_BENEFICIARIO", False),
+                ("DNI_NUEVO_BENEFICIARIO", False),
+            ],
+            OwnershipTransferType.INTER_VIVOS: [
+                ("SOLICITUD_CAMBIO_TITULARIDAD", True),
+                ("TITULO_SEPULTURA", True),
+                ("DNI_TITULAR_ACTUAL", True),
+                ("DNI_NUEVO_TITULAR", True),
+                ("SOLICITUD_BENEFICIARIO", False),
+                ("DNI_NUEVO_BENEFICIARIO", False),
+            ],
+            OwnershipTransferType.PROVISIONAL: [
+                ("SOLICITUD_CAMBIO_TITULARIDAD", True),
+                ("ACEPTACION_SMSFT", True),
+                ("PUBLICACION_BOP", True),
+                ("PUBLICACION_DIARIO", True),
+                ("SOLICITUD_BENEFICIARIO", False),
+                ("DNI_NUEVO_BENEFICIARIO", False),
+            ],
+        }[case.type]
+        for doc_type, required in checklist:
+            status = CaseDocumentStatus.MISSING
+            if case.status == OwnershipTransferStatus.APPROVED and required:
+                status = CaseDocumentStatus.VERIFIED
+            session.add(
+                CaseDocument(
+                    org_id=org.id,
+                    case_id=case.id,
+                    doc_type=doc_type,
+                    required=required,
+                    status=status,
+                    uploaded_at=utcnow() if status != CaseDocumentStatus.MISSING else None,
+                    verified_at=utcnow() if status == CaseDocumentStatus.VERIFIED else None,
+                    verified_by_user_id=admin.id if status == CaseDocumentStatus.VERIFIED else None,
+                )
+            )
+
+    session.add_all(
+        [
+            Publication(
+                org_id=org.id,
+                case_id=case_3.id,
+                published_at=date(2026, 2, 1),
+                channel="BOP",
+                reference_text="BOP-2026-100",
+            ),
+            Publication(
+                org_id=org.id,
+                case_id=case_3.id,
+                published_at=date(2026, 2, 5),
+                channel="DIARIO",
+                reference_text="Diari Terrassa 05/02/2026",
+            ),
+            ContractEvent(
+                org_id=org.id,
+                contract_id=contrato_1.id,
+                case_id=case_1.id,
+                event_type="INICIO_TRANSMISION",
+                details="Caso demo TR-2026-0001",
+                user_id=admin.id,
             ),
         ]
     )

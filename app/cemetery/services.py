@@ -4,9 +4,13 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from io import BytesIO
+from pathlib import Path
 
-from flask import g
+from flask import current_app, g
 from sqlalchemy import func, or_
+from sqlalchemy.orm import joinedload
+from werkzeug.datastructures import FileStorage
+from werkzeug.utils import secure_filename
 
 from app.core.extensions import db
 from app.core.models import (
@@ -18,19 +22,29 @@ from app.core.models import (
     InscripcionLateral,
     Invoice,
     InvoiceEstado,
+    OwnershipPartyRole,
+    OwnershipRecord,
+    OwnershipTransferCase,
+    OwnershipTransferParty,
+    OwnershipTransferStatus,
+    OwnershipTransferType,
+    BeneficiaryCloseDecision,
+    CaseDocument,
+    CaseDocumentStatus,
+    ContractEvent,
     MovimientoSepultura,
     MovimientoTipo,
     OrdenTrabajo,
     Organization,
     Payment,
     Person,
+    Publication,
     Sepultura,
     SepulturaDifunto,
     SepulturaEstado,
     TasaMantenimientoTicket,
     TicketDescuentoTipo,
     TicketEstado,
-    Titularidad,
 )
 
 
@@ -45,6 +59,63 @@ class TicketGenerationResult:
     created: int = 0
     existing: int = 0
     skipped_non_concession: int = 0
+
+
+CASE_STATUS_TRANSITIONS: dict[OwnershipTransferStatus, set[OwnershipTransferStatus]] = {
+    OwnershipTransferStatus.DRAFT: {OwnershipTransferStatus.DOCS_PENDING},
+    OwnershipTransferStatus.DOCS_PENDING: {
+        OwnershipTransferStatus.UNDER_REVIEW,
+        OwnershipTransferStatus.REJECTED,
+    },
+    OwnershipTransferStatus.UNDER_REVIEW: {
+        OwnershipTransferStatus.DOCS_PENDING,
+        OwnershipTransferStatus.APPROVED,
+        OwnershipTransferStatus.REJECTED,
+    },
+    OwnershipTransferStatus.REJECTED: {OwnershipTransferStatus.DOCS_PENDING},
+    OwnershipTransferStatus.APPROVED: {OwnershipTransferStatus.CLOSED},
+    OwnershipTransferStatus.CLOSED: set(),
+}
+
+
+CASE_CHECKLIST: dict[OwnershipTransferType, list[tuple[str, bool]]] = {
+    OwnershipTransferType.MORTIS_CAUSA_TESTAMENTO: [
+        ("CERT_DEFUNCION", True),
+        ("TITULO_SEPULTURA", True),
+        ("SOLICITUD_CAMBIO_TITULARIDAD", True),
+        ("CERT_ULTIMAS_VOLUNTADES", True),
+        ("TESTAMENTO_O_ACEPTACION_HERENCIA", True),
+        ("CESION_DERECHOS", False),
+        ("SOLICITUD_BENEFICIARIO", False),
+        ("DNI_NUEVO_BENEFICIARIO", False),
+    ],
+    OwnershipTransferType.MORTIS_CAUSA_SIN_TESTAMENTO: [
+        ("CERT_DEFUNCION", True),
+        ("TITULO_SEPULTURA", True),
+        ("SOLICITUD_CAMBIO_TITULARIDAD", True),
+        ("CERT_ULTIMAS_VOLUNTADES", True),
+        ("LIBRO_FAMILIA_O_TESTIGOS", False),
+        ("CESION_DERECHOS", False),
+        ("SOLICITUD_BENEFICIARIO", False),
+        ("DNI_NUEVO_BENEFICIARIO", False),
+    ],
+    OwnershipTransferType.INTER_VIVOS: [
+        ("SOLICITUD_CAMBIO_TITULARIDAD", True),
+        ("TITULO_SEPULTURA", True),
+        ("DNI_TITULAR_ACTUAL", True),
+        ("DNI_NUEVO_TITULAR", True),
+        ("SOLICITUD_BENEFICIARIO", False),
+        ("DNI_NUEVO_BENEFICIARIO", False),
+    ],
+    OwnershipTransferType.PROVISIONAL: [
+        ("SOLICITUD_CAMBIO_TITULARIDAD", True),
+        ("ACEPTACION_SMSFT", True),
+        ("PUBLICACION_BOP", True),
+        ("PUBLICACION_DIARIO", True),
+        ("SOLICITUD_BENEFICIARIO", False),
+        ("DNI_NUEVO_BENEFICIARIO", False),
+    ],
+}
 
 
 def org_id() -> int:
@@ -80,6 +151,21 @@ def _parse_decimal(value: str, field_name: str) -> Decimal:
         return Decimal(raw).quantize(Decimal("0.01"))
     except Exception as exc:  # pragma: no cover - DecimalException umbrella
         raise ValueError(f"Importe invalido en {field_name}") from exc
+
+
+def _parse_optional_iso_date(value: str | None) -> date | None:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    return date.fromisoformat(raw)
+
+
+def _add_years(base: date, years: int) -> date:
+    try:
+        return base.replace(year=base.year + years)
+    except ValueError:
+        # Leap day edge-case: move to Feb 28.
+        return base.replace(month=2, day=28, year=base.year + years)
 
 
 def panel_data() -> dict[str, object]:
@@ -153,12 +239,12 @@ def active_contract_for_sepultura(sepultura_id: int) -> DerechoFunerarioContrato
     )
 
 
-def active_titular_for_contract(contract_id: int) -> Titularidad | None:
+def active_titular_for_contract(contract_id: int) -> OwnershipRecord | None:
     today = date.today()
     return (
-        Titularidad.query.filter_by(org_id=org_id(), contrato_id=contract_id)
-        .filter(or_(Titularidad.activo_hasta.is_(None), Titularidad.activo_hasta >= today))
-        .order_by(Titularidad.activo_desde.desc())
+        OwnershipRecord.query.filter_by(org_id=org_id(), contract_id=contract_id)
+        .filter(or_(OwnershipRecord.end_date.is_(None), OwnershipRecord.end_date >= today))
+        .order_by(OwnershipRecord.start_date.desc())
         .first()
     )
 
@@ -240,13 +326,13 @@ def create_funeral_right_contract(sepultura_id: int, payload: dict[str, str]) ->
         pensionista_desde_date = _parse_iso_date(pensionista_desde, "fecha pensionista")
 
     db.session.add(
-        Titularidad(
+        OwnershipRecord(
             org_id=org_id(),
-            contrato_id=contrato.id,
+            contract_id=contrato.id,
             person_id=titular.id,
-            activo_desde=fecha_inicio,
-            pensionista=pensionista,
-            pensionista_desde=pensionista_desde_date,
+            start_date=fecha_inicio,
+            is_pensioner=pensionista,
+            pensioner_since_date=pensionista_desde_date,
         )
     )
 
@@ -290,6 +376,8 @@ def nominate_contract_beneficiary(contract_id: int, payload: dict[str, str]) -> 
     )
 
     active = active_beneficiario_for_contract(contrato.id)
+    if active and active.person_id == person.id:
+        return active
     if active and active.person_id != person.id:
         active.activo_hasta = date.today()
         db.session.add(active)
@@ -380,12 +468,12 @@ def _active_titular_for_contract_on(
     contract_id: int,
     reference_date: date,
     organization_id: int,
-) -> Titularidad | None:
+) -> OwnershipRecord | None:
     return (
-        Titularidad.query.filter_by(org_id=organization_id, contrato_id=contract_id)
-        .filter(Titularidad.activo_desde <= reference_date)
-        .filter(or_(Titularidad.activo_hasta.is_(None), Titularidad.activo_hasta >= reference_date))
-        .order_by(Titularidad.activo_desde.desc())
+        OwnershipRecord.query.filter_by(org_id=organization_id, contract_id=contract_id)
+        .filter(OwnershipRecord.start_date <= reference_date)
+        .filter(or_(OwnershipRecord.end_date.is_(None), OwnershipRecord.end_date >= reference_date))
+        .order_by(OwnershipRecord.start_date.desc())
         .first()
     )
 
@@ -425,9 +513,9 @@ def generate_maintenance_tickets_for_year(year: int, organization: Organization)
         discount_pct = Decimal(organization.pensionista_discount_pct or Decimal("0.00"))
         apply_pensionista = bool(
             titular
-            and titular.pensionista
-            and titular.pensionista_desde
-            and year >= titular.pensionista_desde.year
+            and titular.is_pensioner
+            and titular.pensioner_since_date
+            and year >= titular.pensioner_since_date.year
         )
         base_amount = Decimal(contract.annual_fee_amount or Decimal("0.00"))
         amount = _apply_discount(base_amount, discount_pct) if apply_pensionista else base_amount
@@ -636,17 +724,17 @@ def generate_invoice_for_tickets(sepultura_id: int, selected_ids: list[int]) -> 
 def _ticket_amount_with_discount(
     ticket: TasaMantenimientoTicket,
     contrato: DerechoFunerarioContrato,
-    titularidad: Titularidad | None,
+    titularidad: OwnershipRecord | None,
     discount_ticket_ids: set[int],
     discount_pct: Decimal,
 ) -> tuple[Decimal, TicketDescuentoTipo]:
     base_amount = Decimal(contrato.annual_fee_amount or 0).quantize(Decimal("0.01"))
     if base_amount <= 0:
         base_amount = Decimal(ticket.importe).quantize(Decimal("0.01"))
-    if not titularidad or not titularidad.pensionista or not titularidad.pensionista_desde:
+    if not titularidad or not titularidad.is_pensioner or not titularidad.pensioner_since_date:
         return base_amount, TicketDescuentoTipo.NONE
 
-    since_year = titularidad.pensionista_desde.year
+    since_year = titularidad.pensioner_since_date.year
     should_apply = ticket.anio >= since_year or ticket.id in discount_ticket_ids
     if should_apply:
         return _apply_discount(base_amount, discount_pct), TicketDescuentoTipo.PENSIONISTA
@@ -797,8 +885,8 @@ def sepultura_tabs_data(sepultura_id: int, tab: str, mov_filters: dict[str, str]
     if contrato:
         active_titular = active_titular_for_contract(contrato.id)
         active_beneficiario = active_beneficiario_for_contract(contrato.id)
-        titulares = Titularidad.query.filter_by(org_id=org_id(), contrato_id=contrato.id).order_by(
-            Titularidad.activo_desde.desc()
+        titulares = OwnershipRecord.query.filter_by(org_id=org_id(), contract_id=contrato.id).order_by(
+            OwnershipRecord.start_date.desc()
         ).all()
         beneficiarios = Beneficiario.query.filter_by(org_id=org_id(), contrato_id=contrato.id).order_by(
             Beneficiario.activo_desde.desc()
@@ -831,3 +919,533 @@ def sepultura_tabs_data(sepultura_id: int, tab: str, mov_filters: dict[str, str]
         "movimientos": movimientos,
         "tasas": tasas,
     }
+
+
+def _get_case_or_404(case_id: int) -> OwnershipTransferCase:
+    case = (
+        OwnershipTransferCase.query.options(
+            joinedload(OwnershipTransferCase.contract).joinedload(DerechoFunerarioContrato.sepultura),
+            joinedload(OwnershipTransferCase.parties).joinedload(OwnershipTransferParty.person),
+            joinedload(OwnershipTransferCase.documents),
+            joinedload(OwnershipTransferCase.publications),
+            joinedload(OwnershipTransferCase.assigned_to),
+        )
+        .filter_by(org_id=org_id(), id=case_id)
+        .first()
+    )
+    if not case:
+        raise ValueError("Caso no encontrado")
+    return case
+
+
+def _case_party(case: OwnershipTransferCase, role: OwnershipPartyRole) -> OwnershipTransferParty | None:
+    return next((p for p in case.parties if p.role == role), None)
+
+
+def _log_contract_event(
+    contract_id: int,
+    case_id: int | None,
+    event_type: str,
+    details: str,
+    user_id: int | None,
+) -> None:
+    db.session.add(
+        ContractEvent(
+            org_id=org_id(),
+            contract_id=contract_id,
+            case_id=case_id,
+            event_type=event_type,
+            details=details,
+            user_id=user_id,
+        )
+    )
+
+
+def _log_case_movement(
+    contract: DerechoFunerarioContrato,
+    movement_type: MovimientoTipo,
+    detail: str,
+    user_id: int | None,
+) -> None:
+    db.session.add(
+        MovimientoSepultura(
+            org_id=org_id(),
+            sepultura_id=contract.sepultura_id,
+            tipo=movement_type,
+            detalle=detail,
+            user_id=user_id,
+        )
+    )
+
+
+def _next_transfer_number(prefix: str, year: int) -> str:
+    value_prefix = f"{prefix}-{year}-"
+    count = (
+        db.session.query(func.count(OwnershipTransferCase.id))
+        .filter(OwnershipTransferCase.org_id == org_id())
+        .filter(OwnershipTransferCase.case_number.like(f"{value_prefix}%"))
+        .scalar()
+    )
+    return f"{value_prefix}{count + 1:04d}"
+
+
+def _next_resolution_number(year: int) -> str:
+    value_prefix = f"RES-{year}-"
+    count = (
+        db.session.query(func.count(OwnershipTransferCase.id))
+        .filter(OwnershipTransferCase.org_id == org_id())
+        .filter(OwnershipTransferCase.resolution_number.like(f"{value_prefix}%"))
+        .scalar()
+    )
+    return f"{value_prefix}{count + 1:04d}"
+
+
+def _parse_transfer_type(value: str) -> OwnershipTransferType:
+    raw = (value or "").strip().upper()
+    try:
+        return OwnershipTransferType[raw]
+    except KeyError as exc:
+        raise ValueError("Tipo de transmision invalido") from exc
+
+
+def _parse_transfer_status(value: str) -> OwnershipTransferStatus:
+    raw = (value or "").strip().upper()
+    try:
+        return OwnershipTransferStatus[raw]
+    except KeyError as exc:
+        raise ValueError("Estado de caso invalido") from exc
+
+
+def _transition_case_status(case: OwnershipTransferCase, new_status: OwnershipTransferStatus) -> None:
+    allowed = CASE_STATUS_TRANSITIONS.get(case.status, set())
+    if new_status not in allowed:
+        raise ValueError(f"Transicion invalida: {case.status.value} -> {new_status.value}")
+    case.status = new_status
+    db.session.add(case)
+
+
+def _seed_case_documents(case: OwnershipTransferCase) -> None:
+    checklist = CASE_CHECKLIST.get(case.type, [])
+    for doc_type, required in checklist:
+        db.session.add(
+            CaseDocument(
+                org_id=case.org_id,
+                case_id=case.id,
+                doc_type=doc_type,
+                required=required,
+                status=CaseDocumentStatus.MISSING,
+            )
+        )
+
+
+def _case_storage_root(case: OwnershipTransferCase) -> Path:
+    return (
+        Path(current_app.instance_path)
+        / "storage"
+        / "cemetery"
+        / "ownership_cases"
+        / str(case.org_id)
+        / str(case.id)
+    )
+
+
+def _ensure_resolution_pdf(case: OwnershipTransferCase) -> None:
+    if not case.resolution_number:
+        case.resolution_number = _next_resolution_number(datetime.now(timezone.utc).year)
+    previous_holder = _case_party(case, OwnershipPartyRole.ANTERIOR_TITULAR)
+    new_holder = _case_party(case, OwnershipPartyRole.NUEVO_TITULAR)
+    contract = case.contract
+    sepultura = contract.sepultura if contract else None
+
+    lines = [
+        "Resolucion de transmision de titularidad",
+        f"Numero resolucion: {case.resolution_number}",
+        f"Caso: {case.case_number}",
+        f"Tipo: {case.type.value}",
+        f"Fecha: {datetime.now(timezone.utc).date().isoformat()}",
+        f"Contrato: {contract.id if contract else '-'}",
+        f"Sepultura: {sepultura.location_label if sepultura else '-'}",
+        f"Titular anterior: {previous_holder.person.full_name if previous_holder else '-'}",
+        f"Nuevo titular: {new_holder.person.full_name if new_holder else '-'}",
+    ]
+    pdf = _simple_pdf(lines)
+    root = _case_storage_root(case)
+    root.mkdir(parents=True, exist_ok=True)
+    filename = f"resolucion-{case.resolution_number}.pdf"
+    absolute = root / filename
+    absolute.write_bytes(pdf)
+    case.resolution_pdf_path = absolute.relative_to(Path(current_app.instance_path)).as_posix()
+    db.session.add(case)
+
+
+def list_ownership_cases(filters: dict[str, str]) -> list[OwnershipTransferCase]:
+    query = (
+        OwnershipTransferCase.query.options(
+            joinedload(OwnershipTransferCase.contract).joinedload(DerechoFunerarioContrato.sepultura),
+            joinedload(OwnershipTransferCase.parties).joinedload(OwnershipTransferParty.person),
+            joinedload(OwnershipTransferCase.assigned_to),
+        )
+        .filter(OwnershipTransferCase.org_id == org_id())
+        .order_by(OwnershipTransferCase.opened_at.desc(), OwnershipTransferCase.id.desc())
+    )
+    type_raw = (filters.get("type") or "").strip().upper()
+    if type_raw:
+        try:
+            query = query.filter(OwnershipTransferCase.type == OwnershipTransferType[type_raw])
+        except KeyError:
+            return []
+    status_raw = (filters.get("status") or "").strip().upper()
+    if status_raw:
+        try:
+            query = query.filter(OwnershipTransferCase.status == OwnershipTransferStatus[status_raw])
+        except KeyError:
+            return []
+    contract_id = (filters.get("contract_id") or "").strip()
+    if contract_id.isdigit():
+        query = query.filter(OwnershipTransferCase.contract_id == int(contract_id))
+    sepultura_id = (filters.get("sepultura_id") or "").strip()
+    if sepultura_id.isdigit():
+        query = query.join(DerechoFunerarioContrato, DerechoFunerarioContrato.id == OwnershipTransferCase.contract_id)
+        query = query.filter(DerechoFunerarioContrato.sepultura_id == int(sepultura_id))
+    opened_from = (filters.get("opened_from") or "").strip()
+    if opened_from:
+        try:
+            query = query.filter(
+                OwnershipTransferCase.opened_at >= datetime.fromisoformat(f"{opened_from}T00:00:00")
+            )
+        except ValueError:
+            return []
+    opened_to = (filters.get("opened_to") or "").strip()
+    if opened_to:
+        try:
+            query = query.filter(
+                OwnershipTransferCase.opened_at <= datetime.fromisoformat(f"{opened_to}T23:59:59")
+            )
+        except ValueError:
+            return []
+
+    cases = query.all()
+    name_filter = (filters.get("party_name") or "").strip().lower()
+    if not name_filter:
+        return cases
+    rows: list[OwnershipTransferCase] = []
+    for case in cases:
+        names = " ".join([party.person.full_name.lower() for party in case.parties])
+        if name_filter in names:
+            rows.append(case)
+    return rows
+
+
+def create_ownership_case(payload: dict[str, str], user_id: int | None) -> OwnershipTransferCase:
+    raw_contract = str(payload.get("contract_id") or "").strip()
+    if not raw_contract.isdigit():
+        raise ValueError("Contrato invalido")
+    contract_id = int(raw_contract)
+    contract = contract_by_id(contract_id)
+
+    transfer_type = _parse_transfer_type(payload.get("type", ""))
+    case = OwnershipTransferCase(
+        org_id=org_id(),
+        case_number=_next_transfer_number("TR", datetime.now(timezone.utc).year),
+        contract_id=contract.id,
+        type=transfer_type,
+        status=OwnershipTransferStatus.DRAFT,
+        created_by_user_id=user_id,
+        assigned_to_user_id=(payload.get("assigned_to_user_id") or None),
+        notes=(payload.get("notes") or "").strip(),
+        internal_notes=(payload.get("internal_notes") or "").strip(),
+    )
+    if case.assigned_to_user_id and str(case.assigned_to_user_id).isdigit():
+        case.assigned_to_user_id = int(case.assigned_to_user_id)
+    else:
+        case.assigned_to_user_id = None
+
+    if transfer_type == OwnershipTransferType.PROVISIONAL:
+        provisional_start = _parse_optional_iso_date(payload.get("provisional_start_date")) or date.today()
+        case.provisional_start_date = provisional_start
+        case.provisional_until = _add_years(provisional_start, 10)
+
+    db.session.add(case)
+    db.session.flush()
+    _seed_case_documents(case)
+
+    active_owner = active_titular_for_contract(contract.id)
+    if active_owner:
+        db.session.add(
+            OwnershipTransferParty(
+                org_id=org_id(),
+                case_id=case.id,
+                role=OwnershipPartyRole.ANTERIOR_TITULAR,
+                person_id=active_owner.person_id,
+            )
+        )
+    _log_case_movement(contract, MovimientoTipo.INICIO_TRANSMISION, f"Inicio de transmision {case.case_number}", user_id)
+    _log_contract_event(contract.id, case.id, "INICIO_TRANSMISION", f"Caso {case.case_number} creado", user_id)
+    db.session.commit()
+    return case
+
+
+def ownership_case_detail(case_id: int) -> dict[str, object]:
+    case = _get_case_or_404(case_id)
+    current_owner = active_titular_for_contract(case.contract_id)
+    active_beneficiary = active_beneficiario_for_contract(case.contract_id)
+    required_pending = [d for d in case.documents if d.required and d.status != CaseDocumentStatus.VERIFIED]
+    return {
+        "case": case,
+        "contract": case.contract,
+        "sepultura": case.contract.sepultura,
+        "current_owner": current_owner,
+        "active_beneficiary": active_beneficiary,
+        "required_pending": required_pending,
+    }
+
+
+def add_case_party(case_id: int, payload: dict[str, str]) -> OwnershipTransferParty:
+    case = _get_case_or_404(case_id)
+    role_raw = (payload.get("role") or "").strip().upper()
+    try:
+        role = OwnershipPartyRole[role_raw]
+    except KeyError as exc:
+        raise ValueError("Rol de parte invalido") from exc
+
+    person_id_raw = (payload.get("person_id") or "").strip()
+    if person_id_raw.isdigit():
+        person = Person.query.filter_by(id=int(person_id_raw), org_id=org_id()).first()
+        if not person:
+            raise ValueError("Persona no encontrada")
+    else:
+        person = _create_or_reuse_person(
+            payload.get("first_name", ""),
+            payload.get("last_name", ""),
+            payload.get("document_id"),
+        )
+
+    if role != OwnershipPartyRole.OTRO:
+        OwnershipTransferParty.query.filter_by(org_id=org_id(), case_id=case.id, role=role).delete()
+
+    percentage_raw = (payload.get("percentage") or "").strip().replace(",", ".")
+    percentage = Decimal(percentage_raw) if percentage_raw else None
+    party = OwnershipTransferParty(
+        org_id=org_id(),
+        case_id=case.id,
+        role=role,
+        person_id=person.id,
+        percentage=percentage,
+        notes=(payload.get("notes") or "").strip(),
+    )
+    db.session.add(party)
+    db.session.commit()
+    return party
+
+
+def add_case_publication(case_id: int, payload: dict[str, str]) -> Publication:
+    case = _get_case_or_404(case_id)
+    if case.type != OwnershipTransferType.PROVISIONAL:
+        raise ValueError("Solo los casos provisionales admiten publicaciones")
+    published_at_raw = (payload.get("published_at") or "").strip()
+    if not published_at_raw:
+        raise ValueError("Fecha de publicacion obligatoria")
+    publication = Publication(
+        org_id=org_id(),
+        case_id=case.id,
+        published_at=date.fromisoformat(published_at_raw),
+        channel=(payload.get("channel") or "").strip().upper(),
+        reference_text=(payload.get("reference_text") or "").strip(),
+        notes=(payload.get("notes") or "").strip(),
+    )
+    if not publication.channel:
+        raise ValueError("Canal de publicacion obligatorio")
+    db.session.add(publication)
+    db.session.commit()
+    return publication
+
+
+def upload_case_document(case_id: int, doc_id: int, file_obj: FileStorage, user_id: int | None) -> CaseDocument:
+    case = _get_case_or_404(case_id)
+    document = CaseDocument.query.filter_by(org_id=org_id(), case_id=case.id, id=doc_id).first()
+    if not document:
+        raise ValueError("Documento no encontrado")
+    if not file_obj or not file_obj.filename:
+        raise ValueError("Debes seleccionar un fichero")
+
+    filename = secure_filename(file_obj.filename) or f"document-{document.id}.bin"
+    root = _case_storage_root(case) / "documents" / str(document.id)
+    root.mkdir(parents=True, exist_ok=True)
+    absolute = root / filename
+    file_obj.save(absolute)
+    document.file_path = absolute.relative_to(Path(current_app.instance_path)).as_posix()
+    document.uploaded_at = datetime.now(timezone.utc)
+    document.status = CaseDocumentStatus.PROVIDED
+    db.session.add(document)
+    _log_case_movement(case.contract, MovimientoTipo.DOCUMENTO_SUBIDO, f"Documento {document.doc_type} subido", user_id)
+    _log_contract_event(
+        case.contract_id,
+        case.id,
+        "DOCUMENTO_SUBIDO",
+        f"{document.doc_type}: {document.file_path}",
+        user_id,
+    )
+    db.session.commit()
+    return document
+
+
+def verify_case_document(case_id: int, doc_id: int, action: str, notes: str, user_id: int | None) -> CaseDocument:
+    case = _get_case_or_404(case_id)
+    document = CaseDocument.query.filter_by(org_id=org_id(), case_id=case.id, id=doc_id).first()
+    if not document:
+        raise ValueError("Documento no encontrado")
+    normalized = (action or "").strip().lower()
+    if normalized not in {"verify", "reject"}:
+        raise ValueError("Accion invalida")
+    if normalized == "verify":
+        document.status = CaseDocumentStatus.VERIFIED
+        document.verified_at = datetime.now(timezone.utc)
+        document.verified_by_user_id = user_id
+    else:
+        document.status = CaseDocumentStatus.REJECTED
+        document.verified_at = None
+        document.verified_by_user_id = None
+    if notes:
+        document.notes = notes.strip()
+    db.session.add(document)
+    db.session.commit()
+    return document
+
+
+def change_ownership_case_status(case_id: int, new_status_raw: str, user_id: int | None) -> OwnershipTransferCase:
+    case = _get_case_or_404(case_id)
+    new_status = _parse_transfer_status(new_status_raw)
+    _transition_case_status(case, new_status)
+    db.session.commit()
+    return case
+
+
+def approve_ownership_case(case_id: int, user_id: int | None) -> OwnershipTransferCase:
+    case = _get_case_or_404(case_id)
+    _transition_case_status(case, OwnershipTransferStatus.APPROVED)
+    _ensure_resolution_pdf(case)
+    _log_case_movement(case.contract, MovimientoTipo.APROBACION, f"Caso {case.case_number} aprobado", user_id)
+    _log_contract_event(case.contract_id, case.id, "APROBACION", f"Caso {case.case_number} aprobado", user_id)
+    db.session.commit()
+    return case
+
+
+def reject_ownership_case(case_id: int, reason: str, user_id: int | None) -> OwnershipTransferCase:
+    case = _get_case_or_404(case_id)
+    _transition_case_status(case, OwnershipTransferStatus.REJECTED)
+    case.rejection_reason = (reason or "").strip()
+    if not case.rejection_reason:
+        raise ValueError("Motivo de rechazo obligatorio")
+    _log_case_movement(case.contract, MovimientoTipo.RECHAZO, f"Caso {case.case_number} rechazado", user_id)
+    _log_contract_event(
+        case.contract_id,
+        case.id,
+        "RECHAZO",
+        f"Caso {case.case_number} rechazado: {case.rejection_reason}",
+        user_id,
+    )
+    db.session.commit()
+    return case
+
+
+def _validate_case_ready_to_close(case: OwnershipTransferCase) -> None:
+    if case.status != OwnershipTransferStatus.APPROVED:
+        raise ValueError("Solo se pueden cerrar casos en estado APPROVED")
+    pending_required = [d for d in case.documents if d.required and d.status != CaseDocumentStatus.VERIFIED]
+    if pending_required:
+        raise ValueError("Faltan documentos obligatorios verificados")
+    new_owner = _case_party(case, OwnershipPartyRole.NUEVO_TITULAR)
+    if not new_owner:
+        raise ValueError("Debes informar la parte NUEVO_TITULAR")
+    if case.type == OwnershipTransferType.PROVISIONAL:
+        has_bop = any((pub.channel or "").upper() == "BOP" for pub in case.publications)
+        has_other = any((pub.channel or "").upper() != "BOP" for pub in case.publications)
+        if not (has_bop and has_other):
+            raise ValueError("El caso provisional requiere publicacion en BOP y en otro canal")
+
+
+def close_ownership_case(case_id: int, payload: dict[str, str], user_id: int | None) -> OwnershipTransferCase:
+    case = _get_case_or_404(case_id)
+    _validate_case_ready_to_close(case)
+
+    _transition_case_status(case, OwnershipTransferStatus.CLOSED)
+    today = date.today()
+    now = datetime.now(timezone.utc)
+    previous_owner = active_titular_for_contract(case.contract_id)
+    if previous_owner:
+        previous_owner.end_date = today
+        db.session.add(previous_owner)
+
+    new_owner_party = _case_party(case, OwnershipPartyRole.NUEVO_TITULAR)
+    is_pensioner = (payload.get("is_pensioner") or "").lower() in {"1", "on", "true", "yes"}
+    pensioner_since_date = _parse_optional_iso_date(payload.get("pensioner_since_date"))
+    new_record = OwnershipRecord(
+        org_id=org_id(),
+        contract_id=case.contract_id,
+        person_id=new_owner_party.person_id,
+        start_date=today,
+        is_pensioner=is_pensioner,
+        pensioner_since_date=pensioner_since_date,
+        is_provisional=case.type == OwnershipTransferType.PROVISIONAL,
+        provisional_until=case.provisional_until if case.type == OwnershipTransferType.PROVISIONAL else None,
+    )
+    db.session.add(new_record)
+
+    active_beneficiary = active_beneficiario_for_contract(case.contract_id)
+    decision_raw = (payload.get("beneficiary_close_decision") or "").strip().upper()
+    if active_beneficiary and not decision_raw:
+        raise ValueError("Debes indicar si mantienes o sustituyes beneficiario")
+    if decision_raw:
+        try:
+            decision = BeneficiaryCloseDecision[decision_raw]
+        except KeyError as exc:
+            raise ValueError("Decision de beneficiario invalida") from exc
+        case.beneficiary_close_decision = decision
+        if decision == BeneficiaryCloseDecision.REPLACE:
+            beneficiary_person_id_raw = (payload.get("beneficiary_person_id") or "").strip()
+            if beneficiary_person_id_raw.isdigit():
+                new_beneficiary_person = Person.query.filter_by(
+                    org_id=org_id(),
+                    id=int(beneficiary_person_id_raw),
+                ).first()
+            else:
+                new_beneficiary_person = _create_or_reuse_person(
+                    payload.get("beneficiary_first_name", ""),
+                    payload.get("beneficiary_last_name", ""),
+                    payload.get("beneficiary_document_id"),
+                )
+            if not new_beneficiary_person:
+                raise ValueError("Debes indicar el nuevo beneficiario")
+            if active_beneficiary:
+                active_beneficiary.activo_hasta = today
+                db.session.add(active_beneficiary)
+            db.session.add(
+                Beneficiario(
+                    org_id=org_id(),
+                    contrato_id=case.contract_id,
+                    person_id=new_beneficiary_person.id,
+                    activo_desde=today,
+                )
+            )
+    case.closed_at = now
+    if not case.resolution_pdf_path:
+        _ensure_resolution_pdf(case)
+    previous_name = previous_owner.person.full_name if previous_owner else "-"
+    new_name = new_owner_party.person.full_name
+    detail = f"Cambio titularidad {previous_name} -> {new_name} ({case.case_number})"
+    _log_case_movement(case.contract, MovimientoTipo.CAMBIO_TITULARIDAD, detail, user_id)
+    _log_contract_event(case.contract_id, case.id, "CAMBIO_TITULARIDAD", detail, user_id)
+    db.session.commit()
+    return case
+
+
+def ownership_case_resolution_pdf(case_id: int) -> tuple[bytes, str]:
+    case = _get_case_or_404(case_id)
+    if not case.resolution_pdf_path:
+        raise ValueError("El caso no tiene resolucion")
+    absolute = Path(current_app.instance_path) / case.resolution_pdf_path
+    if not absolute.exists():
+        _ensure_resolution_pdf(case)
+        db.session.commit()
+        absolute = Path(current_app.instance_path) / case.resolution_pdf_path
+    return absolute.read_bytes(), absolute.name
