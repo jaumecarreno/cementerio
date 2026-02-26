@@ -41,8 +41,8 @@
       {% for party in data.case.parties %}
       <tr>
         <td>{{ party.role.value }}</td>
-        <td>{{ party.person.full_name }}</td>
-        <td>{{ party.person.document_id or '-' }}</td>
+        <td><a href="{{ url_for('cemetery.person_edit', person_id=party.person.id) }}">{{ party.person.full_name }}</a></td>
+        <td>{{ party.person.dni_nif or '-' }}</td>
         <td>{{ party.percentage or '-' }}</td>
       </tr>
       {% else %}
@@ -63,16 +63,15 @@
         </select>
       </div>
       <div>
-        <label>Nombre</label>
-        <input type="text" name="first_name" required>
-      </div>
-      <div>
-        <label>Apellidos</label>
-        <input type="text" name="last_name">
-      </div>
-      <div>
-        <label>Documento</label>
-        <input type="text" name="document_id">
+        {% with
+          picker_id='case-party-' ~ data.case.id,
+          field_name='person_id',
+          label='Persona',
+          selected_person=None,
+          required=True
+        %}
+          {% include "components/person_picker.html" %}
+        {% endwith %}
       </div>
       <div>
         <label>% (opcional)</label>
@@ -223,19 +222,16 @@
           <option value="REPLACE">Sustituir</option>
         </select>
       </div>
-      <div>
-        <label>Nuevo beneficiario nombre</label>
-        <input type="text" name="beneficiary_first_name">
-      </div>
-      <div>
-        <label>Nuevo beneficiario apellidos</label>
-        <input type="text" name="beneficiary_last_name">
-      </div>
-      <div>
-        <label>Nuevo beneficiario documento</label>
-        <input type="text" name="beneficiary_document_id">
-      </div>
     </div>
+    {% with
+      picker_id='case-beneficiary-' ~ data.case.id,
+      field_name='beneficiary_person_id',
+      label='Nuevo beneficiario (si decision = REPLACE)',
+      selected_person=None,
+      required=False
+    %}
+      {% include "components/person_picker.html" %}
+    {% endwith %}
     <div class="actions-row">
       <button class="btn primary" type="submit">Cerrar caso</button>
     </div>

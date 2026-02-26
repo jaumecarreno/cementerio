@@ -335,6 +335,28 @@ select {
   font-size: 22px;
 }
 
+.person-picker {
+  border: 1px dashed var(--border);
+  background: var(--surface-2);
+  padding: 10px;
+  margin: 10px 0;
+}
+
+.person-picker-selected {
+  margin: 8px 0;
+  color: var(--muted);
+}
+
+.person-picker-results {
+  margin-top: 8px;
+}
+
+.person-picker-create {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
 .small {
   font-size: 18px;
 }

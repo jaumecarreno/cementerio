@@ -23,12 +23,20 @@
 {% if not data.beneficiario and data.contrato %}
 <div class="warning">
   <p><strong>Atencion:</strong> la sepultura no tiene beneficiario.</p>
-  <form class="inline-form" method="post" action="{{ url_for('cemetery.nominate_beneficiary', contract_id=data.contrato.id) }}">
+  <form method="post" action="{{ url_for('cemetery.nominate_beneficiary', contract_id=data.contrato.id) }}">
     <input type="hidden" name="sepultura_id" value="{{ data.sepultura.id }}">
-    <input type="text" name="first_name" placeholder="Nombre" required>
-    <input type="text" name="last_name" placeholder="Apellidos">
-    <input type="text" name="document_id" placeholder="Documento">
-    <button class="btn" type="submit">Nombrar beneficiario</button>
+    {% with
+      picker_id='fees-beneficiario-' ~ data.sepultura.id,
+      field_name='person_id',
+      label='Beneficiario',
+      selected_person=None,
+      required=True
+    %}
+      {% include "components/person_picker.html" %}
+    {% endwith %}
+    <div class="actions-row">
+      <button class="btn" type="submit">Nombrar beneficiario</button>
+    </div>
   </form>
 </div>
 {% endif %}

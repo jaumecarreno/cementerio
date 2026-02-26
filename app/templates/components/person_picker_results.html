@@ -1,0 +1,30 @@
+{% if query_text and rows %}
+<table>
+  <thead>
+    <tr>
+      <th>Nombre</th>
+      <th>DNI/NIF</th>
+      <th>Accion</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for person in rows %}
+    <tr>
+      <td>{{ person.full_name }}</td>
+      <td>{{ person.dni_nif or '-' }}</td>
+      <td>
+        <button
+          class="btn"
+          type="button"
+          onclick="window.CemPersonPicker.select({{ picker_id|tojson }}, {{ person.id }}, {{ person.full_name|tojson }}, {{ (person.dni_nif or '')|tojson }})"
+        >Seleccionar</button>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% elif query_text %}
+<div class="small muted">Sin resultados para "{{ query_text }}".</div>
+{% else %}
+<div class="small muted">Escribe un criterio y pulsa buscar.</div>
+{% endif %}

@@ -60,6 +60,7 @@
           <a class="tab-link {% if active_cem == 'tasas' %}active{% endif %}" href="{{ url_for('cemetery.search_graves') }}">{{ t('cem.fees') }}</a>
           <a class="tab-link {% if active_cem == 'expedientes' %}active{% endif %}" href="{{ url_for('cemetery.expedientes') }}">{{ t('cem.cases') }}</a>
           <a class="tab-link {% if active_cem == 'titularidad' %}active{% endif %}" href="{{ url_for('cemetery.ownership_cases_alias') }}">{{ t('cem.ownership') }}</a>
+          <a class="tab-link {% if active_cem == 'personas' %}active{% endif %}" href="{{ url_for('cemetery.people_list') }}">Personas</a>
           <a class="tab-link {% if active_cem == 'lapidas' %}active{% endif %}" href="{{ url_for('cemetery.lapidas') }}">{{ t('cem.engraving') }}</a>
           <a class="tab-link {% if active_cem == 'derechos' %}active{% endif %}" href="{{ url_for('cemetery.search_graves') }}">{{ t('cem.rights') }}</a>
           <a class="tab-link {% if active_cem == 'reporting' %}active{% endif %}" href="{{ url_for('cemetery.reporting') }}">Reporting</a>
@@ -88,6 +89,49 @@
       </main>
     </div>
   </div>
+  <script>
+    (function () {
+      function formatSelectedLabel(fullName, dniNif) {
+        if (dniNif) {
+          return "Seleccionado: " + fullName + " (" + dniNif + ")";
+        }
+        return "Seleccionado: " + fullName;
+      }
+
+      window.CemPersonPicker = {
+        select: function (pickerId, personId, fullName, dniNif) {
+          const hidden = document.getElementById(pickerId + "-person-id");
+          const selected = document.getElementById(pickerId + "-selected");
+          const results = document.getElementById(pickerId + "-results");
+          if (!hidden || !selected) return;
+          hidden.value = String(personId || "");
+          selected.textContent = personId ? formatSelectedLabel(fullName, dniNif) : "Sin persona seleccionada";
+          if (results) {
+            results.innerHTML = "";
+          }
+        },
+        clear: function (pickerId) {
+          this.select(pickerId, "", "", "");
+        },
+      };
+
+      document.addEventListener("submit", function (event) {
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement)) return;
+        const requiredPickers = form.querySelectorAll(".person-picker[data-required='1']");
+        for (const picker of requiredPickers) {
+          const hidden = picker.querySelector("input[type='hidden'][name]");
+          const status = picker.querySelector(".person-picker-selected");
+          if (!hidden || hidden.value) continue;
+          event.preventDefault();
+          if (status) {
+            status.textContent = "Debes seleccionar o crear una persona.";
+          }
+          break;
+        }
+      });
+    })();
+  </script>
   <script>
     (function () {
       const storageKey = "gsf-theme";

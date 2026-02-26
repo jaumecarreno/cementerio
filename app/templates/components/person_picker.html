@@ -1,0 +1,79 @@
+{# Reusable HTMX picker for Person #}
+{% set selected = selected_person if selected_person else None %}
+<div class="person-picker" id="{{ picker_id }}" data-required="{{ '1' if required else '0' }}">
+  <label>{{ label }}</label>
+  <input type="hidden" id="{{ picker_id }}-person-id" name="{{ field_name }}" value="{{ selected.id if selected else '' }}">
+  <div class="person-picker-selected" id="{{ picker_id }}-selected">
+    {% if selected %}
+      Seleccionado: {{ selected.full_name }}{% if selected.dni_nif %} ({{ selected.dni_nif }}){% endif %}
+    {% else %}
+      Sin persona seleccionada.
+    {% endif %}
+  </div>
+
+  <div class="inline-form">
+    <input type="text" id="{{ picker_id }}-q" name="q" placeholder="Buscar por nombre, apellidos o DNI/NIF">
+    <button
+      class="btn"
+      type="button"
+      hx-get="{{ url_for('cemetery.person_picker_search') }}"
+      hx-target="#{{ picker_id }}-results"
+      hx-swap="innerHTML"
+      hx-include="#{{ picker_id }}-q"
+      hx-vals='{{ {"picker_id": picker_id, "field_name": field_name}|tojson }}'
+    >Buscar</button>
+    <button class="btn" type="button" onclick="window.CemPersonPicker.clear({{ picker_id|tojson }})">Limpiar</button>
+  </div>
+
+  <div id="{{ picker_id }}-results" class="person-picker-results"></div>
+
+  <div class="person-picker-create" id="{{ picker_id }}-create-fields">
+    <div class="meta-row">
+      <strong>Crear persona nueva</strong>
+    </div>
+    <input type="hidden" name="picker_id" value="{{ picker_id }}">
+    <input type="hidden" name="field_name" value="{{ field_name }}">
+    <div class="form-grid">
+      <div>
+        <label>Nombre</label>
+        <input type="text" name="nombre" placeholder="Nombre" autocomplete="off">
+      </div>
+      <div>
+        <label>Apellidos</label>
+        <input type="text" name="apellidos" placeholder="Apellidos" autocomplete="off">
+      </div>
+      <div>
+        <label>DNI/NIF</label>
+        <input type="text" name="dni_nif" placeholder="DNI/NIF" autocomplete="off">
+      </div>
+      <div>
+        <label>Telefono</label>
+        <input type="text" name="telefono" placeholder="Telefono" autocomplete="off">
+      </div>
+      <div>
+        <label>Email</label>
+        <input type="text" name="email" placeholder="Email" autocomplete="off">
+      </div>
+      <div>
+        <label>Direccion</label>
+        <input type="text" name="direccion" placeholder="Direccion" autocomplete="off">
+      </div>
+      <div>
+        <label>Notas</label>
+        <input type="text" name="notas" placeholder="Notas" autocomplete="off">
+      </div>
+    </div>
+    <div class="actions-row">
+      <button
+        class="btn"
+        type="button"
+        hx-post="{{ url_for('cemetery.person_picker_create') }}"
+        hx-target="#{{ picker_id }}-create-result"
+        hx-swap="innerHTML"
+        hx-include="#{{ picker_id }}-create-fields input"
+      >Crear y seleccionar</button>
+    </div>
+  </div>
+
+  <div id="{{ picker_id }}-create-result"></div>
+</div>
