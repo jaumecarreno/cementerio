@@ -6,7 +6,7 @@ from enum import Enum
 
 from flask_login import UserMixin
 from sqlalchemy import CheckConstraint, Enum as SAEnum, ForeignKey, Index, UniqueConstraint, event, inspect, text
-from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym, validates
 from werkzeug.security import generate_password_hash
 
 from app.core.extensions import db
@@ -227,14 +227,30 @@ class SepulturaUbicacion(db.Model):
 class Person(db.Model):
     # Spec 5.1 - sujeto reutilizable (titular/beneficiario/difunto)
     __tablename__ = "person"
-    __table_args__ = (UniqueConstraint("org_id", "document_id", name="uq_person_org_document"),)
+    __table_args__ = (
+        Index(
+            "ix_person_org_dni_nif_not_null",
+            "org_id",
+            "dni_nif",
+            unique=True,
+            sqlite_where=text("dni_nif IS NOT NULL"),
+            postgresql_where=text("dni_nif IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
     first_name: Mapped[str] = mapped_column(db.String(60), nullable=False)
     last_name: Mapped[str] = mapped_column(db.String(120), nullable=False, default="")
-    document_id: Mapped[str | None] = mapped_column(db.String(30), nullable=True)
+    dni_nif: Mapped[str | None] = mapped_column(db.String(30), nullable=True)
+    telefono: Mapped[str] = mapped_column(db.String(40), nullable=False, default="")
+    email: Mapped[str] = mapped_column(db.String(120), nullable=False, default="")
+    direccion: Mapped[str] = mapped_column(db.String(255), nullable=False, default="")
+    notas: Mapped[str] = mapped_column(db.String(500), nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
+
+    # Backward-compatible alias used by older services/templates/tests.
+    document_id = synonym("dni_nif")
 
     @property
     def full_name(self) -> str:
@@ -874,10 +890,38 @@ def seed_demo_data(session) -> None:
     session.add_all([sep_1, sep_2, sep_3, sep_4, sep_5, sep_6, sep_7])
     session.flush()
 
-    titular_1 = Person(org_id=org.id, first_name="Marta", last_name="Soler", document_id="11111111A")
-    titular_2 = Person(org_id=org.id, first_name="Joan", last_name="Riera", document_id="22222222B")
-    titular_3 = Person(org_id=org.id, first_name="Pere", last_name="Casals", document_id="44444444D")
-    difunto_1 = Person(org_id=org.id, first_name="Antoni", last_name="Ferrer", document_id="33333333C")
+    titular_1 = Person(
+        org_id=org.id,
+        first_name="Marta",
+        last_name="Soler",
+        dni_nif="11111111A",
+        telefono="600111111",
+        email="marta.soler@example.com",
+        direccion="Carrer Major 10, Terrassa",
+    )
+    titular_2 = Person(
+        org_id=org.id,
+        first_name="Joan",
+        last_name="Riera",
+        dni_nif="22222222B",
+        telefono="600222222",
+        direccion="Carrer de la Font 4, Terrassa",
+    )
+    titular_3 = Person(
+        org_id=org.id,
+        first_name="Pere",
+        last_name="Casals",
+        dni_nif="44444444D",
+        telefono="600444444",
+        email="pere.casals@example.com",
+    )
+    difunto_1 = Person(
+        org_id=org.id,
+        first_name="Antoni",
+        last_name="Ferrer",
+        dni_nif="33333333C",
+        notas="Registro historico de difunto para demo",
+    )
     session.add_all([titular_1, titular_2, titular_3, difunto_1])
     session.flush()
 
@@ -1113,10 +1157,58 @@ def seed_demo_data(session) -> None:
         ]
     )
 
-    successor_1 = Person(org_id=org.id, first_name="Carla", last_name="Mora", document_id="88888888H")
-    successor_2 = Person(org_id=org.id, first_name="Sonia", last_name="Pons", document_id="99999999J")
-    successor_3 = Person(org_id=org.id, first_name="Marc", last_name="Vila", document_id="10101010K")
-    session.add_all([successor_1, successor_2, successor_3])
+    successor_1 = Person(
+        org_id=org.id,
+        first_name="Carla",
+        last_name="Mora",
+        dni_nif="88888888H",
+        email="carla.mora@example.com",
+    )
+    successor_2 = Person(
+        org_id=org.id,
+        first_name="Sonia",
+        last_name="Pons",
+        dni_nif="99999999J",
+    )
+    successor_3 = Person(
+        org_id=org.id,
+        first_name="Marc",
+        last_name="Vila",
+        dni_nif="10101010K",
+        telefono="600101010",
+    )
+    extra_person_1 = Person(
+        org_id=org.id,
+        first_name="Lucia",
+        last_name="Navarro",
+        dni_nif="12121212L",
+        telefono="600121212",
+        email="lucia.navarro@example.com",
+    )
+    extra_person_2 = Person(
+        org_id=org.id,
+        first_name="Ramon",
+        last_name="Ibanez",
+        telefono="600131313",
+        direccion="Avinguda Barcelona 22, Terrassa",
+    )
+    extra_person_3 = Person(
+        org_id=org.id,
+        first_name="Elisabet",
+        last_name="Puig",
+        dni_nif="14141414M",
+        notas="Contacto habitual para tramites",
+    )
+    session.add_all(
+        [
+            successor_1,
+            successor_2,
+            successor_3,
+            extra_person_1,
+            extra_person_2,
+            extra_person_3,
+        ]
+    )
     session.flush()
 
     case_1 = OwnershipTransferCase(
