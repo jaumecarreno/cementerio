@@ -12,18 +12,24 @@
     <div>
       <strong>Titular:</strong> {{ data.titularidad.person.full_name }}
       {% if data.titularidad.pensionista %}
-      (Pensionista: Sí)
+      (Pensionista: Si)
       {% endif %}
     </div>
     {% endif %}
-    <div class="muted"><strong>Regla:</strong> no cobrar años nuevos con años antiguos pendientes.</div>
+    <div class="muted"><strong>Regla:</strong> no cobrar anos nuevos con anos antiguos pendientes.</div>
   </div>
 </div>
 
 {% if not data.beneficiario and data.contrato %}
 <div class="warning">
-  La sepultura no tiene beneficiario. 
-  <a href="#" class="btn">Nombrar beneficiario (pendiente MVP)</a>
+  <p><strong>Atencion:</strong> la sepultura no tiene beneficiario.</p>
+  <form class="inline-form" method="post" action="{{ url_for('cemetery.nominate_beneficiary', contract_id=data.contrato.id) }}">
+    <input type="hidden" name="sepultura_id" value="{{ data.sepultura.id }}">
+    <input type="text" name="first_name" placeholder="Nombre" required>
+    <input type="text" name="last_name" placeholder="Apellidos">
+    <input type="text" name="document_id" placeholder="Documento">
+    <button class="btn" type="submit">Nombrar beneficiario</button>
+  </form>
 </div>
 {% endif %}
 
@@ -36,25 +42,37 @@
         <thead>
           <tr>
             <th>Sel.</th>
-            <th>Año</th>
+            <th>Anio</th>
             <th>Importe</th>
             <th>Descuento</th>
+            <th>Aplicar desc.</th>
             <th>Estado</th>
             <th>Notas</th>
           </tr>
         </thead>
         <tbody>
           {% for ticket in data.pending_tickets %}
+          {% set can_toggle_discount = data.titularidad and data.titularidad.pensionista and data.titularidad.pensionista_desde and ticket.anio < data.titularidad.pensionista_desde.year %}
+          {% set auto_discount = data.titularidad and data.titularidad.pensionista and data.titularidad.pensionista_desde and ticket.anio >= data.titularidad.pensionista_desde.year %}
           <tr>
             <td><input class="ticket-checkbox" type="checkbox" name="ticket_ids" value="{{ ticket.id }}" data-year="{{ ticket.anio }}"></td>
             <td>{{ ticket.anio }}</td>
             <td>{{ money(ticket.importe) }}</td>
             <td>{{ ticket.descuento_tipo.value }}</td>
+            <td>
+              {% if can_toggle_discount %}
+              <input type="checkbox" name="discount_ticket_ids" value="{{ ticket.id }}">
+              {% elif auto_discount %}
+              Auto
+              {% else %}
+              -
+              {% endif %}
+            </td>
             <td>{{ ticket.estado.value }}</td>
             <td>No facturado</td>
           </tr>
           {% else %}
-          <tr><td colspan="6">Sin tiquets pendientes.</td></tr>
+          <tr><td colspan="7">Sin tiquets pendientes.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -89,18 +107,16 @@
 
   <div class="box">
     <div class="meta-row">
-      <div><strong>Total a cobrar ahora:</strong> {{ money(data.total_pending) }}</div>
+      <div><strong>Total pendiente:</strong> {{ money(data.total_pending) }}</div>
       <div>
         <label>Forma de pago</label>
         <select name="payment_method">
           <option value="EFECTIVO">Efectivo</option>
           <option value="TARJETA">Tarjeta</option>
-          <option value="DOMICILIADO">Domiciliado</option>
         </select>
       </div>
     </div>
     <div class="actions-row">
-      <button class="btn" type="submit" formaction="{{ url_for('cemetery.fee_generate_invoice') }}">Generar factura</button>
       <button class="btn primary" type="submit" formaction="{{ url_for('cemetery.fee_collect_and_receipt') }}">Cobrar y emitir recibo</button>
     </div>
   </div>

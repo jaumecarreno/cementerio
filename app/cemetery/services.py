@@ -277,6 +277,34 @@ def contract_by_id(contract_id: int) -> DerechoFunerarioContrato:
     return contrato
 
 
+def nominate_contract_beneficiary(contract_id: int, payload: dict[str, str]) -> Beneficiario:
+    # Spec Cementiri 9.1.6 - nombramiento de beneficiario
+    contrato = contract_by_id(contract_id)
+    first_name = (payload.get("first_name") or "").strip()
+    if not first_name:
+        raise ValueError("El nombre del beneficiario es obligatorio")
+    person = _create_or_reuse_person(
+        first_name,
+        payload.get("last_name", ""),
+        payload.get("document_id"),
+    )
+
+    active = active_beneficiario_for_contract(contrato.id)
+    if active and active.person_id != person.id:
+        active.activo_hasta = date.today()
+        db.session.add(active)
+
+    beneficiary = Beneficiario(
+        org_id=org_id(),
+        contrato_id=contrato.id,
+        person_id=person.id,
+        activo_desde=date.today(),
+    )
+    db.session.add(beneficiary)
+    db.session.commit()
+    return beneficiary
+
+
 def _pdf_escape(value: str) -> str:
     return value.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
 
@@ -601,45 +629,63 @@ def _selected_pending_tickets(contract_id: int, selected_ids: list[int]) -> list
 
 
 def generate_invoice_for_tickets(sepultura_id: int, selected_ids: list[int]) -> Invoice:
+    # Spec 9.1.3 - criterio de caja: no se factura antes del cobro
+    raise ValueError("Operacion no disponible por criterio de caja")
+
+
+def _ticket_amount_with_discount(
+    ticket: TasaMantenimientoTicket,
+    contrato: DerechoFunerarioContrato,
+    titularidad: Titularidad | None,
+    discount_ticket_ids: set[int],
+    discount_pct: Decimal,
+) -> tuple[Decimal, TicketDescuentoTipo]:
+    base_amount = Decimal(contrato.annual_fee_amount or 0).quantize(Decimal("0.01"))
+    if base_amount <= 0:
+        base_amount = Decimal(ticket.importe).quantize(Decimal("0.01"))
+    if not titularidad or not titularidad.pensionista or not titularidad.pensionista_desde:
+        return base_amount, TicketDescuentoTipo.NONE
+
+    since_year = titularidad.pensionista_desde.year
+    should_apply = ticket.anio >= since_year or ticket.id in discount_ticket_ids
+    if should_apply:
+        return _apply_discount(base_amount, discount_pct), TicketDescuentoTipo.PENSIONISTA
+    return base_amount, TicketDescuentoTipo.NONE
+
+
+def collect_tickets(
+    sepultura_id: int,
+    selected_ids: list[int],
+    method: str = "EFECTIVO",
+    user_id: int | None = None,
+    discount_ticket_ids: set[int] | None = None,
+) -> tuple[Invoice, Payment]:
     data = sepultura_tickets_and_invoices(sepultura_id)
     contrato = data["contrato"]
     if contrato is None:
         raise ValueError("La sepultura no tiene contrato activo")
     if data["sepultura"].estado == SepulturaEstado.PROPIA:
-        raise ValueError("Las sepulturas Pròpia no generan tiquets de contribución")
+        raise ValueError("Las sepulturas Propia no generan tiquets de contribucion")
     selected = _selected_pending_tickets(contrato.id, selected_ids)
     validate_oldest_prefix_selection(data["pending_tickets"], selected_ids)
-    total = sum((ticket.importe for ticket in selected), Decimal("0.00"))
-    invoice = Invoice(
-        org_id=org_id(),
-        contrato_id=contrato.id,
-        sepultura_id=sepultura_id,
-        numero=_next_invoice_number(),
-        estado=InvoiceEstado.IMPAGADA,
-        total_amount=total,
-        issued_at=datetime.now(timezone.utc),
-    )
-    db.session.add(invoice)
-    db.session.flush()
 
+    discount_ticket_ids = discount_ticket_ids or set()
+    titularidad = data["titularidad"]
+    discount_pct = Decimal(org_record().pensionista_discount_pct or Decimal("0.00"))
+
+    total = Decimal("0.00")
     for ticket in selected:
-        ticket.estado = TicketEstado.FACTURADO
-        ticket.invoice_id = invoice.id
-        db.session.add(ticket)
-    db.session.commit()
-    return invoice
+        amount, discount_tipo = _ticket_amount_with_discount(
+            ticket=ticket,
+            contrato=contrato,
+            titularidad=titularidad,
+            discount_ticket_ids=discount_ticket_ids,
+            discount_pct=discount_pct,
+        )
+        ticket.importe = amount
+        ticket.descuento_tipo = discount_tipo
+        total += amount
 
-
-def collect_tickets(sepultura_id: int, selected_ids: list[int], method: str = "EFECTIVO") -> tuple[Invoice, Payment]:
-    data = sepultura_tickets_and_invoices(sepultura_id)
-    contrato = data["contrato"]
-    if contrato is None:
-        raise ValueError("La sepultura no tiene contrato activo")
-    if data["sepultura"].estado == SepulturaEstado.PROPIA:
-        raise ValueError("Las sepulturas Pròpia no generan tiquets de contribución")
-    selected = _selected_pending_tickets(contrato.id, selected_ids)
-    validate_oldest_prefix_selection(data["pending_tickets"], selected_ids)
-    total = sum((ticket.importe for ticket in selected), Decimal("0.00"))
     invoice = Invoice(
         org_id=org_id(),
         contrato_id=contrato.id,
@@ -655,6 +701,7 @@ def collect_tickets(sepultura_id: int, selected_ids: list[int], method: str = "E
     payment = Payment(
         org_id=org_id(),
         invoice_id=invoice.id,
+        user_id=user_id,
         amount=total,
         method=method,
         receipt_number=_next_receipt_number(),

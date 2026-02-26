@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 
 from flask import abort, flash, make_response, redirect, render_template, request, url_for
-from flask_login import login_required
+from flask_login import current_user, login_required
 
 from app.cemetery import cemetery_bp
 from app.cemetery.services import (
@@ -12,8 +12,8 @@ from app.cemetery.services import (
     create_funeral_right_contract,
     create_mass_sepulturas,
     funeral_right_title_pdf,
-    generate_invoice_for_tickets,
     generate_maintenance_tickets_for_year,
+    nominate_contract_beneficiary,
     org_record,
     panel_data,
     preview_mass_create,
@@ -166,18 +166,18 @@ def _selected_ticket_ids() -> list[int]:
     return [int(v) for v in values if v.isdigit()]
 
 
+def _selected_discount_ticket_ids() -> set[int]:
+    values = request.form.getlist("discount_ticket_ids")
+    return {int(v) for v in values if v.isdigit()}
+
+
 @cemetery_bp.post("/tasas/cobro/facturar")
 @login_required
 @require_membership
 def fee_generate_invoice():
-    # Spec 9.1.3 - Generar factura para tiquets pendientes
+    # Spec 9.1.3 - Criterio de caja: facturar en el momento del cobro
     sepultura_id = request.form.get("sepultura_id", type=int)
-    selected_ids = _selected_ticket_ids()
-    try:
-        invoice = generate_invoice_for_tickets(sepultura_id, selected_ids)
-        flash(f"Factura generada: {invoice.numero}", "success")
-    except ValueError as exc:
-        flash(str(exc), "error")
+    flash("No disponible. Con criterio de caja se factura al cobrar.", "error")
     return redirect(url_for("cemetery.fee_collection", sepultura_id=sepultura_id))
 
 
@@ -188,14 +188,36 @@ def fee_collect_and_receipt():
     # Spec 9.1.3 - Cobrar y emitir recibo en mostrador
     sepultura_id = request.form.get("sepultura_id", type=int)
     selected_ids = _selected_ticket_ids()
+    discount_ticket_ids = _selected_discount_ticket_ids()
     payment_method = request.form.get("payment_method", "EFECTIVO")
     try:
-        invoice, payment = collect_tickets(sepultura_id, selected_ids, payment_method)
+        invoice, payment = collect_tickets(
+            sepultura_id=sepultura_id,
+            selected_ids=selected_ids,
+            method=payment_method,
+            user_id=current_user.id,
+            discount_ticket_ids=discount_ticket_ids,
+        )
         flash(f"Cobro registrado. Factura {invoice.numero} / Recibo {payment.receipt_number}", "success")
         return redirect(url_for("cemetery.receipt", payment_id=payment.id))
     except ValueError as exc:
         flash(str(exc), "error")
         return redirect(url_for("cemetery.fee_collection", sepultura_id=sepultura_id))
+
+
+@cemetery_bp.post("/contratos/<int:contract_id>/beneficiario/nombrar")
+@login_required
+@require_membership
+def nominate_beneficiary(contract_id: int):
+    # Spec Cementiri 9.1.6 - Nomenament de beneficiari desde cobro de tasas
+    payload = {k: v for k, v in request.form.items()}
+    sepultura_id = request.form.get("sepultura_id", type=int)
+    try:
+        nominate_contract_beneficiary(contract_id, payload)
+        flash("Beneficiario guardado", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.fee_collection", sepultura_id=sepultura_id))
 
 
 @cemetery_bp.get("/tasas/recibo/<int:payment_id>")
