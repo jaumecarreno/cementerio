@@ -1,37 +1,37 @@
-# Assumptions
+# Assumptions - Titularidad/Transmisiones
 
-## ASSUMPTION-001 Mockups incompletos en v2
-- `spec/mockups_v2` no contiene `page-3`.
-- Accion: busqueda de sepulturas tomada de `spec/mockups/page-3.png`.
+## ASSUMPTION-010 Checklist documental MVP
+La spec define requisitos por tipo de transmision, pero no normaliza catalogo tecnico de `doc_type`.
+Se implementa un checklist fijo reversible por tipo:
 
-## ASSUMPTION-002 Bilingue minimo
-- ES/CAT implementado con diccionario local y sesion.
-- Queda fuera un motor i18n completo.
+- `MORTIS_CAUSA_TESTAMENTO`:
+  - required: `CERT_DEFUNCION`, `TITULO_SEPULTURA`, `SOLICITUD_CAMBIO_TITULARIDAD`, `CERT_ULTIMAS_VOLUNTADES`, `TESTAMENTO_O_ACEPTACION_HERENCIA`
+  - opcional: `CESION_DERECHOS`, `SOLICITUD_BENEFICIARIO`, `DNI_NUEVO_BENEFICIARIO`
+- `MORTIS_CAUSA_SIN_TESTAMENTO`:
+  - required: `CERT_DEFUNCION`, `TITULO_SEPULTURA`, `SOLICITUD_CAMBIO_TITULARIDAD`, `CERT_ULTIMAS_VOLUNTADES`
+  - opcional: `LIBRO_FAMILIA_O_TESTIGOS`, `CESION_DERECHOS`, `SOLICITUD_BENEFICIARIO`, `DNI_NUEVO_BENEFICIARIO`
+- `INTER_VIVOS`:
+  - required: `SOLICITUD_CAMBIO_TITULARIDAD`, `TITULO_SEPULTURA`, `DNI_TITULAR_ACTUAL`, `DNI_NUEVO_TITULAR`
+  - opcional: `SOLICITUD_BENEFICIARIO`, `DNI_NUEVO_BENEFICIARIO`
+- `PROVISIONAL`:
+  - required: `SOLICITUD_CAMBIO_TITULARIDAD`, `ACEPTACION_SMSFT`, `PUBLICACION_BOP`, `PUBLICACION_DIARIO`
+  - opcional: `SOLICITUD_BENEFICIARIO`, `DNI_NUEVO_BENEFICIARIO`
 
-## ASSUMPTION-003 USO_INMEDIATO en UI
-- El enum persistido sigue siendo `USO_INMEDIATO`.
-- En UI se etiqueta como `LLOGUER` para alineacion funcional.
+## ASSUMPTION-011 Inter-vivos sin validacion de parentesco automatica
+La spec limita a familiares de hasta 2o grado, pero no existe modelo de parentesco.
+En MVP no se valida parentesco automaticamente ni documentalmente.
 
-## ASSUMPTION-004 Legacy 99 anos
-- Nuevas concesiones >50 solo se permiten con `legacy_99_years=true`.
-- No se cambian datos legacy existentes.
+## ASSUMPTION-012 Provisional sin bloqueo operativo
+Se guarda vigencia (`provisional_until`) y publicaciones.
+No se implementan bloqueos de inhumacion/exhumacion en esta PR.
 
-## ASSUMPTION-005 Estado FACTURADO
-- `TicketEstado.FACTURADO` se mantiene por compatibilidad historica.
-- Nuevos flujos de mantenimiento operan con `PENDIENTE` y `COBRADO`.
+## ASSUMPTION-013 Resolucion PDF simple
+El PDF de resolucion es un documento simple on-demand con contenido minimo.
+No incorpora plantilla oficial firmada ni firma digital en MVP.
 
-## ASSUMPTION-006 Criterio de caja
-- Para tasas de mantenimiento, la factura se emite en el momento del cobro.
-- El boton de facturar previo se deshabilita funcionalmente.
+## ASSUMPTION-014 Storage local
+Documentos de caso y resoluciones se guardan localmente en:
+`instance/storage/cemetery/ownership_cases/<org_id>/<case_id>/...`
 
-## ASSUMPTION-007 Titulo PDF
-- El titulo del derecho funerario se genera on-demand.
-- No se almacena binario del PDF en base de datos.
-
-## ASSUMPTION-008 Descuento pensionista
-- El porcentaje se configura por organizacion (`organization.pensionista_discount_pct`).
-- Para anos previos a `pensionista_desde`, el descuento se aplica solo si el usuario lo marca.
-
-## ASSUMPTION-009 Alta de contrato
-- Solo se permite contratar sobre sepulturas en estado `DISPONIBLE`.
-- `OCUPADA` se sigue asignando por evento al crear contrato.
+## ASSUMPTION-015 Reapertura funcional de rechazados
+Un caso `REJECTED` puede volver a `DOCS_PENDING` para retramitacion.

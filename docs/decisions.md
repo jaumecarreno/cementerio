@@ -1,34 +1,32 @@
 # Decisions (ADR breve)
 
-## ADR-001 Stack backend/frontend
-- Decisión: `Flask + SQLAlchemy + Alembic + Flask-Login + Jinja2 + HTMX`.
-- Motivo: entrega rápida server-rendered con baja complejidad para backoffice.
+## ADR-008 Source of truth de titularidad
+- Decision: reemplazar `titularidad` por `ownership_record` como fuente unica de titular actual + historico.
+- Motivo: modelar cierre/apertura de titular en transmisiones con regla de "1 titular actual por contrato".
 
-## ADR-002 Multi-tenant MVP
-- Decisión: 1 organización activa por usuario (membership única usada en sesión).
-- Motivo: aislamiento fuerte y mínimo riesgo de mezcla de datos.
-- Impacto: todas las consultas de negocio filtran por `org_id`.
+## ADR-009 Pensionista en ownership, no en contrato
+- Decision: la condicion pensionista vive en `OwnershipRecord` (`is_pensioner`, `pensioner_since_date`).
+- Motivo:
+  - el pensionista es una propiedad del titular, no del contrato.
+  - conserva historico cuando cambia titular.
+  - permite recalculo de tasas por titular vigente en una fecha.
 
-## ADR-003 Modelo de persona/difunto
-- Decisión: entidad `Person` reutilizable + relación `SepulturaDifunto`.
-- Motivo: titular, beneficiario, difunto y declarante comparten estructura básica.
+## ADR-010 Expediente de transmision separado del contrato
+- Decision: `OwnershipTransferCase` + `OwnershipTransferParty` + `CaseDocument` + `Publication`.
+- Motivo: separar estado administrativo/documental de la entidad contractual.
 
-## ADR-004 Contratos y límites legales
-- Decisión: `DerechoFunerarioContrato` con enum `CONCESION`/`USO_INMEDIATO`.
-- Regla: duración máxima 50 años concesión, 25 años uso inmediato.
-- Motivo: alinear con capítulo 9 y reglas de negocio del módulo.
+## ADR-011 Auditoria dual
+- Decision: registrar eventos en `MovimientoSepultura` y `ContractEvent`.
+- Motivo:
+  - `MovimientoSepultura` mantiene visibilidad operativa en ficha de sepultura.
+  - `ContractEvent` ofrece traza administrativa del expediente.
 
-## ADR-005 Estados de sepultura exactos
-- Decisión: enum exacto `LLIURE`, `DISPONIBLE`, `OCUPADA`, `INACTIVA`, `PROPIA`.
-- Regla: `OCUPADA` no se asigna manualmente; se provoca por contrato.
+## ADR-012 Numeracion administrativa
+- Decision: numeracion anual por org:
+  - casos: `TR-AAAA-####`
+  - resoluciones: `RES-AAAA-####`
+- Motivo: legibilidad y trazabilidad administrativa sin tabla extra de secuencias.
 
-## ADR-006 Cobro de tasas
-- Decisión: separación explícita de pendientes:
-  - Tiquets no facturados (`TicketEstado.PENDIENTE`).
-  - Facturas impagadas (`InvoiceEstado.IMPAGADA`).
-- Regla: selección por prefijo contiguo desde año pendiente más antiguo.
-- Regla pensionista: descuento solo desde `pensionista_desde` (no retroactivo).
-
-## ADR-007 UI bilingüe ES/CAT
-- Decisión: i18n mínima basada en diccionario y sesión (`/auth/lang`).
-- Motivo: cumplir requisito de interfaz bilingüe MVP sin sobreingeniería.
+## ADR-013 Beneficiario al cierre
+- Decision: si existe beneficiario activo al cerrar, exigir decision explicita `KEEP` o `REPLACE`.
+- Motivo: evitar borrado implicito y forzar confirmacion operativa.
