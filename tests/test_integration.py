@@ -87,3 +87,11 @@ def test_mass_create_creates_lliure(app, client, login_admin):
     with app.app_context():
         rows = Sepultura.query.filter_by(bloque="B-99", estado=SepulturaEstado.LLIURE).all()
         assert len(rows) == 4
+
+
+def test_layout_includes_theme_toggle(app, client, login_admin):
+    login_admin()
+    response = client.get("/cementerio/panel")
+    assert response.status_code == 200
+    assert b'id="theme-toggle"' in response.data
+    assert b"gsf-theme" in response.data

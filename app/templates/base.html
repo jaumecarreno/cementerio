@@ -4,6 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}GSF - Cementerio{% endblock %}</title>
+  <script>
+    (function () {
+      const savedTheme = localStorage.getItem("gsf-theme");
+      const initialTheme = savedTheme === "light" || savedTheme === "dark" ? savedTheme : "dark";
+      document.documentElement.setAttribute("data-theme", initialTheme);
+    })();
+  </script>
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
@@ -12,8 +19,17 @@
   {% set active_cem = active_cem|default('panel') %}
   <div class="layout">
     <div class="topbar">
-      <div class="brand-small">GSF - Gestión de Servicios Funerarios</div>
+      <div class="brand-small">GSF - Gesti&oacute;n de Servicios Funerarios</div>
       <div class="lang-switch">
+        <button
+          type="button"
+          id="theme-toggle"
+          class="theme-toggle-btn"
+          data-label-when-dark="{{ t('theme.to_light') }}"
+          data-label-when-light="{{ t('theme.to_dark') }}"
+        >
+          {{ t('theme.to_light') }}
+        </button>
         <form method="post" action="{{ url_for('auth.set_lang') }}">
           <input type="hidden" name="next" value="{{ request.path }}">
           <button type="submit" name="lang" value="es" {% if current_lang=='es' %}class="primary"{% endif %}>ES</button>
@@ -60,5 +76,33 @@
       </main>
     </div>
   </div>
+  <script>
+    (function () {
+      const storageKey = "gsf-theme";
+      const root = document.documentElement;
+      const toggle = document.getElementById("theme-toggle");
+      if (!toggle) return;
+
+      function currentTheme() {
+        return root.getAttribute("data-theme") === "light" ? "light" : "dark";
+      }
+
+      function updateToggleLabel() {
+        const theme = currentTheme();
+        const label = theme === "dark" ? toggle.dataset.labelWhenDark : toggle.dataset.labelWhenLight;
+        toggle.textContent = label;
+        toggle.setAttribute("aria-label", label);
+      }
+
+      toggle.addEventListener("click", function () {
+        const nextTheme = currentTheme() === "dark" ? "light" : "dark";
+        root.setAttribute("data-theme", nextTheme);
+        localStorage.setItem(storageKey, nextTheme);
+        updateToggleLabel();
+      });
+
+      updateToggleLabel();
+    })();
+  </script>
 </body>
 </html>
