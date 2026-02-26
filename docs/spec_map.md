@@ -1,8 +1,8 @@
 # Spec Map - Titularidad, Transmisiones y Beneficiarios
 
 Source of truth:
-- `spec/GSF_v1.0.14.pdf`
-- `spec/GSF_v1.0.14.docx`
+- `spec/cementerio_extract.md` (principal)
+- `spec/GSF_v1.0.14.docx` (respaldo)
 
 ## Mapeo seccion -> implementacion
 

@@ -30,3 +30,11 @@
 ## ADR-013 Beneficiario al cierre
 - Decision: si existe beneficiario activo al cerrar, exigir decision explicita `KEEP` o `REPLACE`.
 - Motivo: evitar borrado implicito y forzar confirmacion operativa.
+
+## ADR-014 Recuperacion de `GSF_v1.0.14.docx`
+- Decision: regenerar `spec/GSF_v1.0.14.docx` a partir de `spec/GSF_v1.0.14.pdf` con extraccion de texto por pagina y exportacion a DOCX.
+- Como se genero:
+1. Lectura del PDF con `pypdf`.
+2. Creacion de documento DOCX con `python-docx`, agregando encabezado por pagina (`Page N`) y texto extraido.
+3. Guardado en `spec/GSF_v1.0.14.docx`.
+- Motivo: mantener una fuente editable/extraible en formato DOCX cuando el original DOCX no estaba disponible en el repo.
