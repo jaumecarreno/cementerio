@@ -76,7 +76,7 @@ def upgrade():
                 org_id, contract_id, person_id, start_date, end_date, is_pensioner, pensioner_since_date, is_provisional, provisional_until, notes
             )
             SELECT
-                org_id, contrato_id, person_id, activo_desde, activo_hasta, pensionista, pensionista_desde, 0, NULL, ''
+                org_id, contrato_id, person_id, activo_desde, activo_hasta, pensionista, pensionista_desde, FALSE, NULL, ''
             FROM titularidad
             """
         )
