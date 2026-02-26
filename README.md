@@ -9,7 +9,8 @@ MVP vertical multi-tenant del modulo Cementerio, implementado con:
 - PostgreSQL
 
 ## Source of truth (spec)
-- `spec/cementerio_extract.md` (referencia principal)
+- `spec/GSF-reducido a cementerio.pdf` (referencia principal)
+- `spec/cementerio_extract.md` (digest operativo)
 - `spec/GSF_v1.0.14.docx` (respaldo)
 
 ## Funcionalidad MVP entregada

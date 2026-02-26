@@ -1,6 +1,7 @@
 # Cementerio Extract (GSF v1.0.14)
 
-Digest operativo para desarrollo. Fuente: `spec/GSF_v1.0.14.pdf` (secciones indicadas).
+Digest operativo para desarrollo. Fuente principal: `spec/GSF-reducido a cementerio.pdf`.
+Respaldo: `spec/GSF_v1.0.14.docx`.
 
 ## 9.1.3 Cobrament de taxes
 - No requiere documentacion especifica.
