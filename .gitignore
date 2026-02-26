@@ -7,3 +7,4 @@ venv/
 instance/
 *.db
 *.sqlite3
+hostinger.mcp.json*
