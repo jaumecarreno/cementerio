@@ -5,7 +5,7 @@ from decimal import Decimal
 from enum import Enum
 
 from flask_login import UserMixin
-from sqlalchemy import CheckConstraint, Enum as SAEnum, ForeignKey, UniqueConstraint, event, inspect
+from sqlalchemy import CheckConstraint, Enum as SAEnum, ForeignKey, Index, UniqueConstraint, event, inspect
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 from werkzeug.security import generate_password_hash
 
@@ -67,6 +67,11 @@ class Organization(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(db.String(120), unique=True, nullable=False)
     code: Mapped[str] = mapped_column(db.String(30), unique=True, nullable=False)
+    pensionista_discount_pct: Mapped[Decimal] = mapped_column(
+        db.Numeric(5, 2),
+        nullable=False,
+        default=Decimal("10.00"),
+    )
     created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
 
     memberships = relationship("Membership", back_populates="organization")
@@ -206,10 +211,18 @@ class SepulturaDifunto(db.Model):
 
 
 class DerechoFunerarioContrato(db.Model):
-    # Spec 9.1.7.x - contratación del derecho funerario
+    # Spec 9.1.7.x - contratacion del derecho funerario
     __tablename__ = "derecho_funerario_contrato"
     __table_args__ = (
         CheckConstraint("fecha_fin >= fecha_inicio", name="ck_contract_dates"),
+        Index(
+            "ix_contract_org_tipo_estado_dates",
+            "org_id",
+            "tipo",
+            "estado",
+            "fecha_inicio",
+            "fecha_fin",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -218,6 +231,8 @@ class DerechoFunerarioContrato(db.Model):
     tipo: Mapped[DerechoTipo] = mapped_column(SAEnum(DerechoTipo, name="derecho_tipo"), nullable=False)
     fecha_inicio: Mapped[date] = mapped_column(nullable=False)
     fecha_fin: Mapped[date] = mapped_column(nullable=False)
+    legacy_99_years: Mapped[bool] = mapped_column(nullable=False, default=False)
+    annual_fee_amount: Mapped[Decimal] = mapped_column(db.Numeric(10, 2), nullable=False, default=0)
     estado: Mapped[str] = mapped_column(db.String(20), nullable=False, default="ACTIVO")
     created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
 
@@ -230,23 +245,22 @@ class DerechoFunerarioContrato(db.Model):
     def duration_years(self) -> int:
         return self.fecha_fin.year - self.fecha_inicio.year
 
-    def _validate_duration(self) -> None:
-        if not self.fecha_inicio or not self.fecha_fin or not self.tipo:
-            return
-        max_years = 50 if self.tipo == DerechoTipo.CONCESION else 25
-        if self.duration_years > max_years:
-            raise ValueError(f"El contrato supera el límite legal de {max_years} años")
-
-    @validates("fecha_inicio", "fecha_fin", "tipo")
+    @validates("fecha_inicio", "fecha_fin", "tipo", "legacy_99_years")
     def validate_duration_fields(self, _key, value):
         fecha_inicio = value if _key == "fecha_inicio" else self.fecha_inicio
         fecha_fin = value if _key == "fecha_fin" else self.fecha_fin
         tipo = value if _key == "tipo" else self.tipo
+        legacy_99_years = value if _key == "legacy_99_years" else self.legacy_99_years
         if fecha_inicio and fecha_fin and tipo:
             years = fecha_fin.year - fecha_inicio.year
-            max_years = 50 if tipo == DerechoTipo.CONCESION else 25
+            if tipo == DerechoTipo.USO_INMEDIATO:
+                max_years = 25
+            elif legacy_99_years:
+                max_years = 99
+            else:
+                max_years = 50
             if years > max_years:
-                raise ValueError(f"El contrato supera el límite legal de {max_years} años")
+                raise ValueError(f"El contrato supera el limite legal de {max_years} anos")
         return value
 
 
@@ -328,12 +342,14 @@ class Payment(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
     org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
     invoice_id: Mapped[int] = mapped_column(ForeignKey("invoice.id"), nullable=False, index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"), nullable=True, index=True)
     amount: Mapped[Decimal] = mapped_column(db.Numeric(10, 2), nullable=False)
     method: Mapped[str] = mapped_column(db.String(20), nullable=False, default="EFECTIVO")
     receipt_number: Mapped[str] = mapped_column(db.String(40), nullable=False)
     paid_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
 
     invoice = relationship("Invoice", back_populates="payments")
+    user = relationship("User")
 
 
 class TasaMantenimientoTicket(db.Model):
