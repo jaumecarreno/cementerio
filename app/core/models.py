@@ -56,6 +56,11 @@ class MovimientoTipo(str, Enum):
     APROBACION = "APROBACION"
     RECHAZO = "RECHAZO"
     CAMBIO_TITULARIDAD = "CAMBIO_TITULARIDAD"
+    ALTA_EXPEDIENTE = "ALTA_EXPEDIENTE"
+    CAMBIO_ESTADO_EXPEDIENTE = "CAMBIO_ESTADO_EXPEDIENTE"
+    OT_EXPEDIENTE = "OT_EXPEDIENTE"
+    BENEFICIARIO = "BENEFICIARIO"
+    PENSIONISTA = "PENSIONISTA"
 
 
 class InvoiceEstado(str, Enum):
@@ -622,6 +627,8 @@ class Expediente(db.Model):
     estado: Mapped[str] = mapped_column(db.String(40), nullable=False)
     sepultura_id: Mapped[int | None] = mapped_column(ForeignKey("sepultura.id"), nullable=True)
     difunto_id: Mapped[int | None] = mapped_column(ForeignKey("person.id"), nullable=True)
+    fecha_prevista: Mapped[date | None] = mapped_column(nullable=True)
+    notas: Mapped[str] = mapped_column(db.Text(), nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
 
 
@@ -634,6 +641,8 @@ class OrdenTrabajo(db.Model):
     expediente_id: Mapped[int | None] = mapped_column(ForeignKey("expediente.id"), nullable=True)
     titulo: Mapped[str] = mapped_column(db.String(120), nullable=False)
     estado: Mapped[str] = mapped_column(db.String(40), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    notes: Mapped[str] = mapped_column(db.String(255), nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
 
 
@@ -646,6 +655,7 @@ class LapidaStock(db.Model):
     codigo: Mapped[str] = mapped_column(db.String(40), nullable=False)
     descripcion: Mapped[str] = mapped_column(db.String(120), nullable=False)
     estado: Mapped[str] = mapped_column(db.String(40), nullable=False)
+    available_qty: Mapped[int] = mapped_column(nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
 
 
@@ -656,8 +666,23 @@ class InscripcionLateral(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
     org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
     sepultura_id: Mapped[int] = mapped_column(ForeignKey("sepultura.id"), nullable=False)
+    expediente_id: Mapped[int | None] = mapped_column(ForeignKey("expediente.id"), nullable=True)
     texto: Mapped[str] = mapped_column(db.String(255), nullable=False)
     estado: Mapped[str] = mapped_column(db.String(40), nullable=False, default="PENDIENTE_GRABAR")
+    created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
+
+
+class LapidaStockMovimiento(db.Model):
+    __tablename__ = "lapida_stock_movimiento"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
+    lapida_stock_id: Mapped[int] = mapped_column(ForeignKey("lapida_stock.id"), nullable=False, index=True)
+    movimiento: Mapped[str] = mapped_column(db.String(20), nullable=False)
+    quantity: Mapped[int] = mapped_column(nullable=False)
+    sepultura_id: Mapped[int | None] = mapped_column(ForeignKey("sepultura.id"), nullable=True)
+    expediente_id: Mapped[int | None] = mapped_column(ForeignKey("expediente.id"), nullable=True)
+    notes: Mapped[str] = mapped_column(db.String(255), nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
 
 
@@ -1027,27 +1052,46 @@ def seed_demo_data(session) -> None:
                 org_id=org.id,
                 numero="C-2026-0012",
                 tipo="INHUMACION",
-                estado="TRAMITACION",
+                estado="EN_TRAMITE",
                 sepultura_id=sep_1.id,
                 difunto_id=difunto_1.id,
+                fecha_prevista=date(2026, 3, 3),
+                notas="Expediente de inhumacion demo",
             ),
             Expediente(
                 org_id=org.id,
                 numero="C-2026-0011",
                 tipo="EXHUMACION",
-                estado="PEND_AUTORIZACION",
+                estado="ABIERTO",
                 sepultura_id=sep_5.id,
+                fecha_prevista=date(2026, 3, 10),
             ),
             Expediente(
                 org_id=org.id,
                 numero="C-2026-0010",
                 tipo="INHUMACION",
-                estado="OT_EN_CURSO",
+                estado="FINALIZADO",
                 sepultura_id=sep_1.id,
+                fecha_prevista=date(2026, 2, 20),
+                notas="Expediente finalizado para demo de historico",
             ),
-            OrdenTrabajo(org_id=org.id, titulo="Preparar lápida", estado="PENDIENTE"),
-            OrdenTrabajo(org_id=org.id, titulo="Revisión bloque B-12", estado="PENDIENTE"),
+            OrdenTrabajo(org_id=org.id, titulo="Preparar lapida", estado="PENDIENTE"),
+            OrdenTrabajo(org_id=org.id, titulo="Revision bloque B-12", estado="PENDIENTE"),
             OrdenTrabajo(org_id=org.id, titulo="Limpieza pasillo V-3", estado="EN_CURSO"),
+            LapidaStock(
+                org_id=org.id,
+                codigo="LAP-STD",
+                descripcion="Lapida estandar resina",
+                estado="ACTIVO",
+                available_qty=8,
+            ),
+            LapidaStock(
+                org_id=org.id,
+                codigo="LAP-MRB",
+                descripcion="Lapida marmol premium",
+                estado="ACTIVO",
+                available_qty=3,
+            ),
             InscripcionLateral(
                 org_id=org.id,
                 sepultura_id=sep_1.id,

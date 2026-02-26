@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% set active_cem = 'expedientes' %}
+{% set breadcrumbs = [
+  {'label': 'Cementerio', 'href': url_for('cemetery.panel')},
+  {'label': 'Expedientes', 'href': url_for('cemetery.expedientes')},
+  {'label': expediente.numero, 'href': None}
+] %}
+{% block title %}Expediente {{ expediente.numero }}{% endblock %}
+{% block content %}
+<h1 class="page-title">Expediente {{ expediente.numero }}</h1>
+
+<div class="box">
+  <h3>Resumen</h3>
+  <div class="meta-row">
+    <div><strong>Tipo:</strong> {{ expediente.tipo }}</div>
+    <div><strong>Estado:</strong> {{ expediente.estado }}</div>
+    <div><strong>Sepultura:</strong> {{ expediente.sepultura_id or '-' }}</div>
+    <div><strong>Difunto:</strong> {{ expediente.difunto_id or '-' }}</div>
+    <div><strong>Fecha prevista:</strong> {{ expediente.fecha_prevista or '-' }}</div>
+  </div>
+  <div><strong>Notas:</strong> {{ expediente.notas or '-' }}</div>
+</div>
+
+<div class="box">
+  <h3>Estado</h3>
+  <form class="inline-form" method="post" action="{{ url_for('cemetery.expediente_change_state', expediente_id=expediente.id) }}">
+    <select name="estado" required>
+      {% for st in states %}
+      <option value="{{ st }}" {% if expediente.estado == st %}selected{% endif %}>{{ st }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn" type="submit">Actualizar estado</button>
+  </form>
+</div>
+
+<div class="box">
+  <h3>Ordenes de trabajo</h3>
+  <form method="post" action="{{ url_for('cemetery.expediente_create_ot', expediente_id=expediente.id) }}">
+    <div class="form-grid">
+      <div>
+        <label>Titulo</label>
+        <input type="text" name="titulo" placeholder="Preparacion inhumacion">
+      </div>
+      <div>
+        <label>Notas</label>
+        <input type="text" name="notes" placeholder="Indicaciones de trabajo">
+      </div>
+    </div>
+    <div class="actions-row">
+      <button class="btn primary" type="submit">Crear OT</button>
+    </div>
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+        <th>OT</th>
+        <th>Titulo</th>
+        <th>Estado</th>
+        <th>Completada</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ot in ots %}
+      <tr>
+        <td>#{{ ot.id }}</td>
+        <td>{{ ot.titulo }}</td>
+        <td>{{ ot.estado }}</td>
+        <td>{{ ot.completed_at or '-' }}</td>
+        <td>
+          <a class="btn" href="{{ url_for('cemetery.expediente_ot_order_pdf', expediente_id=expediente.id, ot_id=ot.id) }}" target="_blank">PDF</a>
+          {% if ot.estado != 'COMPLETADA' %}
+          <form class="inline-form" method="post" action="{{ url_for('cemetery.expediente_complete_ot', expediente_id=expediente.id, ot_id=ot.id) }}">
+            <input type="text" name="notes" placeholder="Notas cierre">
+            <button class="btn" type="submit">Completar</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">Sin ordenes de trabajo</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

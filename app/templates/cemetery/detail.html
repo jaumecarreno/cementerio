@@ -31,8 +31,9 @@
     {% if not data.contrato %}
     <a class="btn" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='derecho') }}">Contratar derecho funerario</a>
     {% endif %}
-    <a class="btn" href="#">Nuevo exp.</a>
+    <a class="btn" href="{{ url_for('cemetery.expedientes', sepultura_id=data.sepultura.id) }}">Nuevo exp.</a>
     <a class="btn" href="{{ url_for('cemetery.ownership_cases') }}">Casos titularidad</a>
+    <a class="btn" href="{{ url_for('cemetery.lapidas', sepultura_id=data.sepultura.id) }}">Lápidas</a>
   </div>
 </div>
 
@@ -141,6 +142,25 @@
       {% endfor %}
     </tbody>
   </table>
+  {% if data.contrato %}
+  <div class="quick-actions">
+    <form class="inline-form" method="post" action="{{ url_for('cemetery.mark_holder_pensioner', contract_id=data.contrato.id) }}">
+      <input type="hidden" name="sepultura_id" value="{{ data.sepultura.id }}">
+      <input type="date" name="since_date" required>
+      <button class="btn" type="submit">Aplicar pensionista</button>
+    </form>
+    <form class="inline-form" method="post" action="{{ url_for('cemetery.ownership_cases') }}">
+      <input type="hidden" name="contract_id" value="{{ data.contrato.id }}">
+      <select name="type" required>
+        <option value="INTER_VIVOS">INTER_VIVOS</option>
+        <option value="MORTIS_CAUSA_TESTAMENTO">MORTIS_CAUSA_TESTAMENTO</option>
+        <option value="MORTIS_CAUSA_SIN_TESTAMENTO">MORTIS_CAUSA_SIN_TESTAMENTO</option>
+        <option value="PROVISIONAL">PROVISIONAL</option>
+      </select>
+      <button class="btn primary" type="submit">Cambiar titularidad (crear caso)</button>
+    </form>
+  </div>
+  {% endif %}
 </div>
 {% elif data.tab == 'beneficiarios' %}
 <div class="box">
@@ -165,6 +185,22 @@
       {% endfor %}
     </tbody>
   </table>
+  {% if data.contrato %}
+  <div class="quick-actions">
+    <form class="inline-form" method="post" action="{{ url_for('cemetery.nominate_beneficiary', contract_id=data.contrato.id) }}">
+      <input type="hidden" name="sepultura_id" value="{{ data.sepultura.id }}">
+      <input type="text" name="first_name" placeholder="Nombre beneficiario" required>
+      <input type="text" name="last_name" placeholder="Apellidos">
+      <input type="text" name="document_id" placeholder="Documento">
+      <button class="btn" type="submit">Alta / editar beneficiario</button>
+    </form>
+    <form class="inline-form" method="post" action="{{ url_for('cemetery.remove_beneficiary', contract_id=data.contrato.id) }}">
+      <input type="hidden" name="sepultura_id" value="{{ data.sepultura.id }}">
+      <input type="date" name="end_date">
+      <button class="btn" type="submit">Eliminar beneficiario</button>
+    </form>
+  </div>
+  {% endif %}
 </div>
 {% elif data.tab == 'tasas' %}
 <div class="box">
@@ -212,8 +248,8 @@
   </div>
   <div class="quick-actions">
     <a class="btn primary" href="{{ url_for('cemetery.contract_title_pdf', contract_id=data.contrato.id) }}" target="_blank">Descargar titulo (PDF)</a>
-    <button class="btn" disabled>Ampliacion (pendiente)</button>
-    <button class="btn" disabled>Prorroga (pendiente)</button>
+    <a class="btn" href="{{ url_for('module_pending', slug='ampliacion-derecho') }}">Ampliacion</a>
+    <a class="btn" href="{{ url_for('module_pending', slug='prorroga-derecho') }}">Prorroga</a>
   </div>
   {% else %}
   <form method="post" action="{{ url_for('cemetery.contract_create', sepultura_id=data.sepultura.id) }}">
@@ -285,7 +321,14 @@
 {% elif data.tab == 'lapidas' %}
 <div class="box">
   <h3>Lapidas/Inscripciones</h3>
-  <p>MVP preparado. Gestion completa pendiente para siguiente iteracion.</p>
+  <form class="inline-form" method="post" action="{{ url_for('cemetery.lapidas_create_inscripcion') }}">
+    <input type="hidden" name="sepultura_id" value="{{ data.sepultura.id }}">
+    <input type="text" name="texto" placeholder="Texto de inscripcion" required>
+    <button class="btn" type="submit">Crear encargo de inscripcion</button>
+  </form>
+  <div class="actions-row">
+    <a class="btn primary" href="{{ url_for('cemetery.lapidas', sepultura_id=data.sepultura.id) }}">Abrir modulo de lapidas</a>
+  </div>
 </div>
 {% else %}
 <div class="box">

@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+{% set active_cem = 'lapidas' %}
+{% set breadcrumbs = [
+  {'label': 'Cementerio', 'href': url_for('cemetery.panel')},
+  {'label': 'Lapidas e inscripciones', 'href': None}
+] %}
+{% block title %}Lapidas e inscripciones{% endblock %}
+{% block content %}
+<h1 class="page-title">Lapidas e inscripciones</h1>
+
+<div class="split">
+  <div class="box">
+    <h3>Stock: entrada</h3>
+    <form method="post" action="{{ url_for('cemetery.lapidas_stock_entrada') }}">
+      <div class="form-grid">
+        <div>
+          <label>Codigo</label>
+          <input type="text" name="codigo" required>
+        </div>
+        <div>
+          <label>Descripcion</label>
+          <input type="text" name="descripcion">
+        </div>
+        <div>
+          <label>Cantidad</label>
+          <input type="number" name="quantity" min="1" required>
+        </div>
+        <div>
+          <label>Notas</label>
+          <input type="text" name="notes">
+        </div>
+      </div>
+      <div class="actions-row">
+        <button class="btn primary" type="submit">Registrar entrada</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="box">
+    <h3>Stock: salida</h3>
+    <form method="post" action="{{ url_for('cemetery.lapidas_stock_salida') }}">
+      <div class="form-grid">
+        <div>
+          <label>Stock id</label>
+          <input type="number" name="stock_id">
+        </div>
+        <div>
+          <label>Codigo (alternativo)</label>
+          <input type="text" name="codigo">
+        </div>
+        <div>
+          <label>Cantidad</label>
+          <input type="number" name="quantity" min="1" required>
+        </div>
+        <div>
+          <label>Sepultura id</label>
+          <input type="number" name="sepultura_id" value="{{ filters.sepultura_id }}">
+        </div>
+        <div>
+          <label>Expediente id</label>
+          <input type="number" name="expediente_id">
+        </div>
+        <div>
+          <label>Notas</label>
+          <input type="text" name="notes">
+        </div>
+      </div>
+      <div class="actions-row">
+        <button class="btn primary" type="submit">Registrar salida</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="box">
+  <h3>Stock disponible</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Id</th>
+        <th>Codigo</th>
+        <th>Descripcion</th>
+        <th>Estado</th>
+        <th>Disponible</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in stock_rows %}
+      <tr>
+        <td>{{ row.id }}</td>
+        <td>{{ row.codigo }}</td>
+        <td>{{ row.descripcion }}</td>
+        <td>{{ row.estado }}</td>
+        <td>{{ row.available_qty }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">Sin stock cargado</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="box">
+  <h3>Movimientos de stock</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Stock</th>
+        <th>Movimiento</th>
+        <th>Cantidad</th>
+        <th>Sepultura</th>
+        <th>Expediente</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in stock_movements %}
+      <tr>
+        <td>{{ row.created_at }}</td>
+        <td>{{ row.lapida_stock_id }}</td>
+        <td>{{ row.movimiento }}</td>
+        <td>{{ row.quantity }}</td>
+        <td>{{ row.sepultura_id or '-' }}</td>
+        <td>{{ row.expediente_id or '-' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6">Sin movimientos</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="box">
+  <h3>Inscripciones laterales</h3>
+  <form method="get" action="{{ url_for('cemetery.lapidas') }}">
+    <div class="form-grid">
+      <div>
+        <label>Estado</label>
+        <select name="estado">
+          <option value="">Todos</option>
+          {% for st in states %}
+          <option value="{{ st }}" {% if filters.estado == st %}selected{% endif %}>{{ st }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Sepultura id</label>
+        <input type="text" name="sepultura_id" value="{{ filters.sepultura_id }}">
+      </div>
+      <div>
+        <label>Texto</label>
+        <input type="text" name="texto" value="{{ filters.texto }}">
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:8px;">
+        <button class="btn" type="submit">Aplicar filtros</button>
+        <a class="btn" href="{{ url_for('cemetery.lapidas') }}">Limpiar</a>
+      </div>
+    </div>
+  </form>
+
+  <form method="post" action="{{ url_for('cemetery.lapidas_create_inscripcion') }}">
+    <div class="form-grid">
+      <div>
+        <label>Sepultura id</label>
+        <input type="number" name="sepultura_id" required>
+      </div>
+      <div>
+        <label>Expediente id</label>
+        <input type="number" name="expediente_id">
+      </div>
+      <div style="grid-column: 1 / -1;">
+        <label>Texto</label>
+        <input type="text" name="texto" required>
+      </div>
+    </div>
+    <div class="actions-row">
+      <button class="btn primary" type="submit">Crear inscripcion</button>
+    </div>
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Id</th>
+        <th>Sepultura</th>
+        <th>Expediente</th>
+        <th>Texto</th>
+        <th>Estado</th>
+        <th>Accion</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in inscripciones %}
+      <tr>
+        <td>{{ row.id }}</td>
+        <td>{{ row.sepultura_id }}</td>
+        <td>{{ row.expediente_id or '-' }}</td>
+        <td>{{ row.texto }}</td>
+        <td>{{ row.estado }}</td>
+        <td>
+          {% if row.estado != 'NOTIFICADA' %}
+          <form class="inline-form" method="post" action="{{ url_for('cemetery.lapidas_change_inscripcion_state', inscripcion_id=row.id) }}">
+            <button class="btn" type="submit">Avanzar estado</button>
+          </form>
+          {% else %}
+          -
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6">Sin inscripciones</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

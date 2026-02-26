@@ -10,3 +10,4 @@ class Config:
         "sqlite:///cemetery.db",
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    APP_ENV = os.getenv("APP_ENV", "")

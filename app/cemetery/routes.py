@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from flask import abort, flash, make_response, redirect, render_template, request, url_for
+from flask import abort, flash, g, make_response, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from app.cemetery import cemetery_bp
@@ -12,25 +12,47 @@ from app.cemetery.services import (
     approve_ownership_case,
     change_ownership_case_status,
     change_sepultura_state,
+    complete_expediente_ot,
     collect_tickets,
     close_ownership_case,
+    contract_by_id,
+    create_expediente,
+    create_expediente_ot,
+    create_inscripcion_lateral,
     create_ownership_case,
     create_funeral_right_contract,
     create_mass_sepulturas,
+    expediente_by_id,
+    expediente_ot_pdf,
     funeral_right_title_pdf,
     generate_maintenance_tickets_for_year,
+    lapida_stock_entry,
+    lapida_stock_exit,
+    list_expediente_ots,
+    list_expedientes,
+    list_inscripciones,
+    list_lapida_stock,
+    list_lapida_stock_movements,
     list_ownership_cases,
     nominate_contract_beneficiary,
+    ownership_case_document_download,
     ownership_case_detail,
     ownership_case_resolution_pdf,
     org_record,
+    paginate_rows,
     panel_data,
     preview_mass_create,
+    remove_contract_beneficiary,
     reject_ownership_case,
+    reporting_csv_bytes,
+    reporting_rows,
     search_sepulturas,
+    set_contract_holder_pensioner,
     sepultura_by_id,
     sepultura_tabs_data,
     sepultura_tickets_and_invoices,
+    transition_expediente_state,
+    transition_inscripcion_estado,
     upload_case_document,
     verify_case_document,
 )
@@ -70,6 +92,229 @@ def admin_generate_tickets():
     return redirect(url_for("cemetery.panel"))
 
 
+@cemetery_bp.route("/expedientes", methods=["GET", "POST"])
+@login_required
+@require_membership
+def expedientes():
+    if request.method == "POST":
+        payload = {k: v for k, v in request.form.items()}
+        try:
+            expediente = create_expediente(payload, current_user.id)
+            flash(f"Expediente {expediente.numero} creado", "success")
+            return redirect(url_for("cemetery.expediente_detail", expediente_id=expediente.id))
+        except ValueError as exc:
+            flash(str(exc), "error")
+
+    filters = {
+        "tipo": request.args.get("tipo", "").strip(),
+        "estado": request.args.get("estado", "").strip(),
+        "created_from": request.args.get("created_from", "").strip(),
+        "created_to": request.args.get("created_to", "").strip(),
+        "sepultura_id": request.args.get("sepultura_id", "").strip(),
+    }
+    rows = list_expedientes(filters)
+    return render_template(
+        "cemetery/expedientes.html",
+        rows=rows,
+        filters=filters,
+        states=["ABIERTO", "EN_TRAMITE", "FINALIZADO", "CANCELADO"],
+    )
+
+
+@cemetery_bp.get("/expedientes/<int:expediente_id>")
+@login_required
+@require_membership
+def expediente_detail(expediente_id: int):
+    try:
+        expediente = expediente_by_id(expediente_id)
+    except ValueError:
+        abort(404)
+    ots = list_expediente_ots(expediente.id)
+    return render_template(
+        "cemetery/expediente_detail.html",
+        expediente=expediente,
+        ots=ots,
+        states=["ABIERTO", "EN_TRAMITE", "FINALIZADO", "CANCELADO"],
+    )
+
+
+@cemetery_bp.post("/expedientes/<int:expediente_id>/estado")
+@login_required
+@require_membership
+def expediente_change_state(expediente_id: int):
+    new_state = request.form.get("estado", "")
+    try:
+        transition_expediente_state(expediente_id, new_state, current_user.id)
+        flash("Estado de expediente actualizado", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.expediente_detail", expediente_id=expediente_id))
+
+
+@cemetery_bp.post("/expedientes/<int:expediente_id>/ot")
+@login_required
+@require_membership
+def expediente_create_ot(expediente_id: int):
+    payload = {k: v for k, v in request.form.items()}
+    try:
+        ot = create_expediente_ot(expediente_id, payload, current_user.id)
+        flash(f"OT #{ot.id} creada", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.expediente_detail", expediente_id=expediente_id))
+
+
+@cemetery_bp.post("/expedientes/<int:expediente_id>/ot/<int:ot_id>/completar")
+@login_required
+@require_membership
+def expediente_complete_ot(expediente_id: int, ot_id: int):
+    payload = {k: v for k, v in request.form.items()}
+    try:
+        complete_expediente_ot(expediente_id, ot_id, payload, current_user.id)
+        flash(f"OT #{ot_id} completada", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.expediente_detail", expediente_id=expediente_id))
+
+
+@cemetery_bp.get("/expedientes/<int:expediente_id>/ot/<int:ot_id>/orden.pdf")
+@login_required
+@require_membership
+def expediente_ot_order_pdf(expediente_id: int, ot_id: int):
+    try:
+        content = expediente_ot_pdf(expediente_id, ot_id)
+    except ValueError:
+        abort(404)
+    response = make_response(content)
+    response.headers["Content-Type"] = "application/pdf"
+    response.headers["Content-Disposition"] = f'inline; filename="orden-trabajo-{ot_id}.pdf"'
+    return response
+
+
+@cemetery_bp.get("/lapidas")
+@login_required
+@require_membership
+def lapidas():
+    filters = {
+        "estado": request.args.get("estado", "").strip(),
+        "sepultura_id": request.args.get("sepultura_id", "").strip(),
+        "texto": request.args.get("texto", "").strip(),
+    }
+    return render_template(
+        "cemetery/lapidas.html",
+        stock_rows=list_lapida_stock(),
+        stock_movements=list_lapida_stock_movements(),
+        inscripciones=list_inscripciones(filters),
+        filters=filters,
+        states=["PENDIENTE_GRABAR", "PENDIENTE_COLOCAR", "PENDIENTE_NOTIFICAR", "NOTIFICADA"],
+    )
+
+
+@cemetery_bp.post("/lapidas/stock/entrada")
+@login_required
+@require_membership
+def lapidas_stock_entrada():
+    payload = {k: v for k, v in request.form.items()}
+    try:
+        stock = lapida_stock_entry(payload, current_user.id)
+        flash(f"Entrada de stock aplicada ({stock.codigo})", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.lapidas"))
+
+
+@cemetery_bp.post("/lapidas/stock/salida")
+@login_required
+@require_membership
+def lapidas_stock_salida():
+    payload = {k: v for k, v in request.form.items()}
+    try:
+        stock = lapida_stock_exit(payload, current_user.id)
+        flash(f"Salida de stock aplicada ({stock.codigo})", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.lapidas"))
+
+
+@cemetery_bp.post("/lapidas/inscripciones")
+@login_required
+@require_membership
+def lapidas_create_inscripcion():
+    payload = {k: v for k, v in request.form.items()}
+    try:
+        item = create_inscripcion_lateral(payload, current_user.id)
+        flash(f"Inscripcion #{item.id} creada", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.lapidas"))
+
+
+@cemetery_bp.post("/lapidas/inscripciones/<int:inscripcion_id>/estado")
+@login_required
+@require_membership
+def lapidas_change_inscripcion_state(inscripcion_id: int):
+    payload = {k: v for k, v in request.form.items()}
+    try:
+        item = transition_inscripcion_estado(inscripcion_id, payload, current_user.id)
+        flash(f"Inscripcion #{item.id} en estado {item.estado}", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.lapidas"))
+
+
+def _report_filters() -> dict[str, str]:
+    return {
+        "estado": request.args.get("estado", "").strip(),
+        "modalidad": request.args.get("modalidad", "").strip(),
+        "bloque": request.args.get("bloque", "").strip(),
+        "tipo": request.args.get("tipo", "").strip(),
+        "vigencia": request.args.get("vigencia", "").strip(),
+        "titular": request.args.get("titular", "").strip(),
+        "contrato_id": request.args.get("contrato_id", "").strip(),
+    }
+
+
+@cemetery_bp.get("/reporting")
+@login_required
+@require_membership
+def reporting():
+    report_key = request.args.get("report", "sepulturas").strip().lower() or "sepulturas"
+    filters = _report_filters()
+    try:
+        rows = reporting_rows(report_key, filters)
+    except ValueError as exc:
+        flash(str(exc), "error")
+        report_key = "sepulturas"
+        rows = reporting_rows(report_key, filters)
+    page = request.args.get("page", type=int, default=1) or 1
+    page_size = request.args.get("page_size", type=int, default=25) or 25
+    paged = paginate_rows(rows, page=page, page_size=page_size)
+    return render_template(
+        "cemetery/reporting.html",
+        report_key=report_key,
+        filters=filters,
+        paged=paged,
+        money=money,
+    )
+
+
+@cemetery_bp.get("/reporting/export.csv")
+@login_required
+@require_membership
+def reporting_export_csv():
+    report_key = request.args.get("report", "sepulturas").strip().lower() or "sepulturas"
+    filters = _report_filters()
+    try:
+        content = reporting_csv_bytes(report_key, filters, export_limit=1000)
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("cemetery.reporting"))
+    response = make_response(content)
+    response.headers["Content-Type"] = "text/csv; charset=utf-8"
+    response.headers["Content-Disposition"] = f'attachment; filename="{report_key}.csv"'
+    return response
+
+
 @cemetery_bp.route("/sepulturas/buscar", methods=["GET", "POST"])
 @login_required
 @require_membership
@@ -107,11 +352,20 @@ def grave_detail(sepultura_id: int):
     return render_template("cemetery/detail.html", data=data, SepulturaEstado=SepulturaEstado, money=money)
 
 
+@cemetery_bp.get("/titularidad")
+@login_required
+@require_membership
+def ownership_cases_alias():
+    return redirect(url_for("cemetery.ownership_cases"))
+
+
 @cemetery_bp.route("/titularidad/casos", methods=["GET", "POST"])
 @login_required
 @require_membership
 def ownership_cases():
     if request.method == "POST":
+        if not g.membership or (g.membership.role or "").lower() != "admin":
+            abort(403)
         payload = {k: v for k, v in request.form.items()}
         try:
             created = create_ownership_case(payload, current_user.id)
@@ -159,6 +413,7 @@ def ownership_case_detail_page(case_id: int):
 @cemetery_bp.post("/titularidad/casos/<int:case_id>/status")
 @login_required
 @require_membership
+@require_role("admin")
 def ownership_case_change_status(case_id: int):
     status = request.form.get("status", "")
     try:
@@ -172,6 +427,7 @@ def ownership_case_change_status(case_id: int):
 @cemetery_bp.post("/titularidad/casos/<int:case_id>/approve")
 @login_required
 @require_membership
+@require_role("admin")
 def ownership_case_approve(case_id: int):
     try:
         approve_ownership_case(case_id, current_user.id)
@@ -184,6 +440,7 @@ def ownership_case_approve(case_id: int):
 @cemetery_bp.post("/titularidad/casos/<int:case_id>/reject")
 @login_required
 @require_membership
+@require_role("admin")
 def ownership_case_reject(case_id: int):
     reason = request.form.get("reason", "")
     try:
@@ -197,6 +454,7 @@ def ownership_case_reject(case_id: int):
 @cemetery_bp.post("/titularidad/casos/<int:case_id>/close")
 @login_required
 @require_membership
+@require_role("admin")
 def ownership_case_close(case_id: int):
     payload = {k: v for k, v in request.form.items()}
     try:
@@ -210,6 +468,7 @@ def ownership_case_close(case_id: int):
 @cemetery_bp.post("/titularidad/casos/<int:case_id>/parties")
 @login_required
 @require_membership
+@require_role("admin")
 def ownership_case_add_party(case_id: int):
     payload = {k: v for k, v in request.form.items()}
     try:
@@ -223,6 +482,7 @@ def ownership_case_add_party(case_id: int):
 @cemetery_bp.post("/titularidad/casos/<int:case_id>/publications")
 @login_required
 @require_membership
+@require_role("admin")
 def ownership_case_add_publication(case_id: int):
     payload = {k: v for k, v in request.form.items()}
     try:
@@ -236,6 +496,7 @@ def ownership_case_add_publication(case_id: int):
 @cemetery_bp.post("/titularidad/casos/<int:case_id>/documents/<int:doc_id>/upload")
 @login_required
 @require_membership
+@require_role("admin")
 def ownership_case_upload_document(case_id: int, doc_id: int):
     file_obj = request.files.get("file")
     try:
@@ -249,6 +510,7 @@ def ownership_case_upload_document(case_id: int, doc_id: int):
 @cemetery_bp.post("/titularidad/casos/<int:case_id>/documents/<int:doc_id>/verify")
 @login_required
 @require_membership
+@require_role("admin")
 def ownership_case_verify_document(case_id: int, doc_id: int):
     action = request.form.get("action", "verify")
     notes = request.form.get("notes", "")
@@ -258,6 +520,20 @@ def ownership_case_verify_document(case_id: int, doc_id: int):
     except ValueError as exc:
         flash(str(exc), "error")
     return redirect(url_for("cemetery.ownership_case_detail_page", case_id=case_id))
+
+
+@cemetery_bp.get("/titularidad/casos/<int:case_id>/documents/<int:doc_id>/download")
+@login_required
+@require_membership
+def ownership_case_download_document(case_id: int, doc_id: int):
+    try:
+        content, filename = ownership_case_document_download(case_id, doc_id)
+    except ValueError:
+        abort(404)
+    response = make_response(content)
+    response.headers["Content-Type"] = "application/octet-stream"
+    response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 @cemetery_bp.get("/titularidad/casos/<int:case_id>/resolucion.pdf")
@@ -387,16 +663,65 @@ def fee_collect_and_receipt():
 @cemetery_bp.post("/contratos/<int:contract_id>/beneficiario/nombrar")
 @login_required
 @require_membership
+@require_role("admin")
 def nominate_beneficiary(contract_id: int):
     # Spec Cementiri 9.1.6 - Nomenament de beneficiari desde cobro de tasas
     payload = {k: v for k, v in request.form.items()}
     sepultura_id = request.form.get("sepultura_id", type=int)
     try:
-        nominate_contract_beneficiary(contract_id, payload)
+        nominate_contract_beneficiary(contract_id, payload, current_user.id)
         flash("Beneficiario guardado", "success")
     except ValueError as exc:
         flash(str(exc), "error")
     return redirect(url_for("cemetery.fee_collection", sepultura_id=sepultura_id))
+
+
+@cemetery_bp.post("/contratos/<int:contract_id>/titular/pensionista")
+@login_required
+@require_membership
+@require_role("admin")
+def mark_holder_pensioner(contract_id: int):
+    payload = {k: v for k, v in request.form.items()}
+    sepultura_id = request.form.get("sepultura_id", type=int)
+    try:
+        set_contract_holder_pensioner(contract_id, payload, current_user.id)
+        flash("Titular marcado como pensionista", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    target_sepultura = sepultura_id
+    if not target_sepultura:
+        try:
+            contrato = contract_by_id(contract_id)
+            target_sepultura = contrato.sepultura_id
+        except ValueError:
+            target_sepultura = None
+    if target_sepultura:
+        return redirect(url_for("cemetery.grave_detail", sepultura_id=target_sepultura, tab="titulares"))
+    return redirect(url_for("cemetery.search_graves"))
+
+
+@cemetery_bp.post("/contratos/<int:contract_id>/beneficiario/eliminar")
+@login_required
+@require_membership
+@require_role("admin")
+def remove_beneficiary(contract_id: int):
+    payload = {k: v for k, v in request.form.items()}
+    sepultura_id = request.form.get("sepultura_id", type=int)
+    try:
+        remove_contract_beneficiary(contract_id, payload, current_user.id)
+        flash("Beneficiario eliminado", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    target_sepultura = sepultura_id
+    if not target_sepultura:
+        try:
+            contrato = contract_by_id(contract_id)
+            target_sepultura = contrato.sepultura_id
+        except ValueError:
+            target_sepultura = None
+    if target_sepultura:
+        return redirect(url_for("cemetery.grave_detail", sepultura_id=target_sepultura, tab="beneficiarios"))
+    return redirect(url_for("cemetery.search_graves"))
 
 
 @cemetery_bp.get("/tasas/recibo/<int:payment_id>")

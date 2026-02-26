@@ -56,6 +56,18 @@ def login_admin(client):
 
 
 @pytest.fixture
+def login_operator(client):
+    def _login():
+        return client.post(
+            "/auth/login",
+            data={"email": "operario@smsft.local", "password": "operario123"},
+            follow_redirects=True,
+        )
+
+    return _login
+
+
+@pytest.fixture
 def second_org_sepultura(app):
     with app.app_context():
         org2 = Organization(name="Org Two", code="ORG2")

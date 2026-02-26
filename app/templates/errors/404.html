@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}404{% endblock %}
+{% block content %}
+<h1 class="page-title">Pagina no encontrada</h1>
+<div class="box">
+  <p>La ruta solicitada no existe o no esta disponible para tu organizacion.</p>
+  <div class="actions-row">
+    <a class="btn" href="{{ url_for('cemetery.panel') }}">Volver al panel</a>
+  </div>
+</div>
+{% endblock %}

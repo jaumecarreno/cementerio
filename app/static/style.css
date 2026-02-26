@@ -137,6 +137,21 @@ a {
   flex-wrap: wrap;
 }
 
+.breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: -6px 0 14px;
+}
+
+.crumb-link,
+.crumb-current {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  padding: 6px 10px;
+  font-size: 18px;
+}
+
 .tab-link {
   border: 1px solid var(--border);
   background: var(--surface-2);

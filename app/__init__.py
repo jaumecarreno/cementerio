@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import click
-from flask import Flask, redirect, url_for
-from flask_login import current_user
+import os
+from datetime import date
+
+from flask import Flask, flash, g, redirect, render_template, request, url_for
+from flask_login import current_user, login_required
 
 from app.cemetery import cemetery_bp
 from app.core.auth import auth_bp
@@ -10,6 +13,7 @@ from app.core.config import Config
 from app.core.extensions import db, login_manager, migrate
 from app.core.i18n import get_locale, translate
 from app.core.models import Organization, User, seed_demo_data
+from app.core.permissions import require_membership, require_role
 from app.core.tenancy import load_tenant_context
 
 
@@ -35,9 +39,142 @@ def create_app(config_object: type[Config] | None = None) -> Flask:
 def register_routes(app: Flask) -> None:
     @app.get("/")
     def home():
-        if current_user.is_authenticated:
-            return redirect(url_for("cemetery.panel"))
-        return redirect(url_for("auth.login"))
+        return redirect(url_for("cemetery.panel"))
+
+    @app.get("/config")
+    @login_required
+    @require_membership
+    def config_page():
+        return render_template("config.html", org=g.org)
+
+    @app.get("/modulo/<slug>")
+    @login_required
+    @require_membership
+    def module_pending(slug: str):
+        mapping = {
+            "servicios-funerarios": "Servicios funerarios",
+            "crematorio": "Crematorio",
+            "facturacion": "Facturacion",
+            "inventario": "Inventario",
+            "reporting-global": "Reporting global",
+            "ampliacion-derecho": "Ampliacion de derecho funerario",
+            "prorroga-derecho": "Prorroga de derecho funerario",
+        }
+        title = mapping.get(slug, slug.replace("-", " ").title())
+        return render_template(
+            "module_pending.html",
+            title=title,
+            tracking_code=f"PEND-{slug.upper()}",
+        )
+
+    @app.get("/demo")
+    @login_required
+    @require_membership
+    def demo_page():
+        return render_template("demo.html")
+
+    @app.post("/demo/create-case")
+    @login_required
+    @require_membership
+    @require_role("admin")
+    def demo_create_case():
+        from app.cemetery.services import create_ownership_case
+        from app.core.models import DerechoFunerarioContrato
+
+        contract = (
+            DerechoFunerarioContrato.query.filter_by(org_id=g.org.id, estado="ACTIVO")
+            .order_by(DerechoFunerarioContrato.id.asc())
+            .first()
+        )
+        if not contract:
+            flash("No hay contratos activos para generar un caso demo", "error")
+            return redirect(url_for("demo_page"))
+        try:
+            case = create_ownership_case(
+                {"contract_id": str(contract.id), "type": "INTER_VIVOS"},
+                current_user.id,
+            )
+            flash(f"Caso demo creado: {case.case_number}", "success")
+        except ValueError as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("demo_page"))
+        return redirect(url_for("cemetery.ownership_case_detail_page", case_id=case.id))
+
+    @app.post("/demo/create-expediente")
+    @login_required
+    @require_membership
+    @require_role("admin")
+    def demo_create_expediente():
+        from app.cemetery.services import create_expediente
+        from app.core.models import Person, Sepultura
+
+        sep = (
+            Sepultura.query.filter_by(org_id=g.org.id)
+            .order_by(Sepultura.id.asc())
+            .first()
+        )
+        if not sep:
+            flash("No hay sepulturas para crear expediente demo", "error")
+            return redirect(url_for("demo_page"))
+        difunto = Person.query.filter_by(org_id=g.org.id).order_by(Person.id.asc()).first()
+        payload = {
+            "tipo": "INHUMACION",
+            "sepultura_id": str(sep.id),
+            "difunto_id": str(difunto.id) if difunto else "",
+            "fecha_prevista": date.today().isoformat(),
+            "notas": "Expediente demo",
+        }
+        try:
+            expediente = create_expediente(payload, current_user.id)
+            flash(f"Expediente demo creado: {expediente.numero}", "success")
+        except ValueError as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("demo_page"))
+        return redirect(url_for("cemetery.expediente_detail", expediente_id=expediente.id))
+
+    @app.post("/demo/generate-tickets")
+    @login_required
+    @require_membership
+    @require_role("admin")
+    def demo_generate_tickets():
+        from app.cemetery.services import generate_maintenance_tickets_for_year
+
+        year = date.today().year
+        result = generate_maintenance_tickets_for_year(year, g.org)
+        flash(
+            f"Tiquets demo {year}: creados={result.created}, existentes={result.existing}",
+            "success",
+        )
+        return redirect(url_for("demo_page"))
+
+    @app.post("/demo/reset")
+    @login_required
+    @require_membership
+    @require_role("admin")
+    def demo_reset():
+        from app.cemetery.services import reset_demo_org_data
+
+        if not _is_dev_mode(app):
+            flash("Reset demo bloqueado fuera de entorno DEV", "error")
+            return redirect(url_for("demo_page")), 403
+        confirm = (request.form.get("confirm") or "").strip().upper()
+        if confirm != "RESET-DEMO":
+            flash("Confirmacion invalida. Escribe RESET-DEMO", "error")
+            return redirect(url_for("demo_page"))
+        summary = reset_demo_org_data(current_user.id)
+        flash(
+            f"Reset completado para org {g.org.code}: sepulturas={summary['sepulturas']} contratos={summary['contracts']} expedientes={summary['expedientes']} casos={summary['casos']}",
+            "success",
+        )
+        return redirect(url_for("demo_page"))
+
+    @app.errorhandler(403)
+    def forbidden(_error):
+        return render_template("errors/403.html"), 403
+
+    @app.errorhandler(404)
+    def not_found(_error):
+        return render_template("errors/404.html"), 404
 
 
 def register_cli(app: Flask) -> None:
@@ -81,6 +218,16 @@ def _template_context() -> dict[str, object]:
         "t": translate,
         "current_lang": get_locale(),
     }
+
+
+def _is_dev_mode(app: Flask) -> bool:
+    if app.config.get("TESTING"):
+        return False
+    if app.debug:
+        return True
+    flask_env = (os.getenv("FLASK_ENV") or "").strip().lower()
+    app_env = (app.config.get("APP_ENV") or os.getenv("APP_ENV") or "").strip().lower()
+    return flask_env == "development" or app_env in {"dev", "development"}
 
 
 @login_manager.user_loader

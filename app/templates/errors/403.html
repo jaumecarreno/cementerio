@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}403{% endblock %}
+{% block content %}
+<h1 class="page-title">Acceso denegado</h1>
+<div class="box">
+  <p>No tienes permisos para realizar esta accion.</p>
+  <div class="actions-row">
+    <a class="btn" href="{{ url_for('cemetery.panel') }}">Volver al panel</a>
+  </div>
+</div>
+{% endblock %}

@@ -3,8 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from io import BytesIO
+from io import BytesIO, StringIO
 from pathlib import Path
+import csv
+import shutil
 
 from flask import current_app, g
 from sqlalchemy import func, or_
@@ -22,6 +24,8 @@ from app.core.models import (
     InscripcionLateral,
     Invoice,
     InvoiceEstado,
+    LapidaStock,
+    LapidaStockMovimiento,
     OwnershipPartyRole,
     OwnershipRecord,
     OwnershipTransferCase,
@@ -117,6 +121,26 @@ CASE_CHECKLIST: dict[OwnershipTransferType, list[tuple[str, bool]]] = {
     ],
 }
 
+EXPEDIENTE_STATES = ("ABIERTO", "EN_TRAMITE", "FINALIZADO", "CANCELADO")
+EXPEDIENTE_TRANSITIONS: dict[str, set[str]] = {
+    "ABIERTO": {"EN_TRAMITE", "CANCELADO"},
+    "EN_TRAMITE": {"FINALIZADO", "CANCELADO"},
+    "FINALIZADO": set(),
+    "CANCELADO": set(),
+}
+
+INSCRIPCION_STATES = (
+    "PENDIENTE_GRABAR",
+    "PENDIENTE_COLOCAR",
+    "PENDIENTE_NOTIFICAR",
+    "NOTIFICADA",
+)
+INSCRIPCION_TRANSITIONS: dict[str, str] = {
+    "PENDIENTE_GRABAR": "PENDIENTE_COLOCAR",
+    "PENDIENTE_COLOCAR": "PENDIENTE_NOTIFICAR",
+    "PENDIENTE_NOTIFICAR": "NOTIFICADA",
+}
+
 
 def org_id() -> int:
     return g.org.id
@@ -172,7 +196,7 @@ def panel_data() -> dict[str, object]:
     oid = org_id()
     expedientes_abiertos = (
         Expediente.query.filter_by(org_id=oid)
-        .filter(Expediente.estado.notin_(["CERRADO", "FINALIZADO"]))
+        .filter(Expediente.estado.notin_(["FINALIZADO", "CANCELADO"]))
         .count()
     )
     ot_pendientes = (
@@ -363,7 +387,11 @@ def contract_by_id(contract_id: int) -> DerechoFunerarioContrato:
     return contrato
 
 
-def nominate_contract_beneficiary(contract_id: int, payload: dict[str, str]) -> Beneficiario:
+def nominate_contract_beneficiary(
+    contract_id: int,
+    payload: dict[str, str],
+    user_id: int | None = None,
+) -> Beneficiario:
     # Spec Cementiri 9.1.6 - nombramiento de beneficiario
     contrato = contract_by_id(contract_id)
     first_name = (payload.get("first_name") or "").strip()
@@ -377,6 +405,10 @@ def nominate_contract_beneficiary(contract_id: int, payload: dict[str, str]) -> 
 
     active = active_beneficiario_for_contract(contrato.id)
     if active and active.person_id == person.id:
+        detail = f"Beneficiario mantenido: {person.full_name}"
+        _log_case_movement(contrato, MovimientoTipo.BENEFICIARIO, detail, user_id)
+        _log_contract_event(contrato.id, None, "BENEFICIARIO", detail, user_id)
+        db.session.commit()
         return active
     if active and active.person_id != person.id:
         active.activo_hasta = date.today()
@@ -389,8 +421,59 @@ def nominate_contract_beneficiary(contract_id: int, payload: dict[str, str]) -> 
         activo_desde=date.today(),
     )
     db.session.add(beneficiary)
+    detail = f"Beneficiario nombrado: {person.full_name}"
+    _log_case_movement(contrato, MovimientoTipo.BENEFICIARIO, detail, user_id)
+    _log_contract_event(contrato.id, None, "BENEFICIARIO", detail, user_id)
     db.session.commit()
     return beneficiary
+
+
+def set_contract_holder_pensioner(contract_id: int, payload: dict[str, str], user_id: int | None) -> OwnershipRecord:
+    # Spec Cementiri 9.1.5 - marcar titular activo como pensionista no retroactivo por defecto
+    contrato = contract_by_id(contract_id)
+    titular = active_titular_for_contract(contrato.id)
+    if not titular:
+        raise ValueError("No hay titular activo")
+
+    since_date = _parse_optional_iso_date(payload.get("since_date")) or date.today()
+    allow_retroactive = (payload.get("allow_retroactive") or "").strip().lower() in {"1", "on", "true", "yes"}
+    if since_date < date.today() and not allow_retroactive:
+        raise ValueError("La pensionista se aplica desde hoy o fecha futura (no retroactivo por defecto)")
+
+    titular.is_pensioner = True
+    titular.pensioner_since_date = since_date
+    db.session.add(titular)
+
+    detail = f"Titular pensionista desde {since_date.isoformat()}: {titular.person.full_name}"
+    _log_case_movement(contrato, MovimientoTipo.PENSIONISTA, detail, user_id)
+    _log_contract_event(contrato.id, None, "PENSIONISTA", detail, user_id)
+    db.session.commit()
+    return titular
+
+
+def remove_contract_beneficiary(contract_id: int, payload: dict[str, str], user_id: int | None) -> Beneficiario:
+    # Spec Cementiri 9.1.6 - baja de beneficiario activo
+    contrato = contract_by_id(contract_id)
+    active = (
+        Beneficiario.query.filter_by(org_id=org_id(), contrato_id=contrato.id)
+        .filter(Beneficiario.activo_hasta.is_(None))
+        .order_by(Beneficiario.activo_desde.desc(), Beneficiario.id.desc())
+        .first()
+    )
+    if not active:
+        raise ValueError("No hay beneficiario activo")
+
+    end_date = _parse_optional_iso_date(payload.get("end_date")) or date.today()
+    if end_date < active.activo_desde:
+        raise ValueError("Fecha de baja invalida para beneficiario")
+    active.activo_hasta = end_date
+    db.session.add(active)
+
+    detail = f"Beneficiario dado de baja: {active.person.full_name} ({end_date.isoformat()})"
+    _log_case_movement(contrato, MovimientoTipo.BENEFICIARIO, detail, user_id)
+    _log_contract_event(contrato.id, None, "BENEFICIARIO_BAJA", detail, user_id)
+    db.session.commit()
+    return active
 
 
 def _pdf_escape(value: str) -> str:
@@ -921,6 +1004,884 @@ def sepultura_tabs_data(sepultura_id: int, tab: str, mov_filters: dict[str, str]
     }
 
 
+def _log_sepultura_movement(
+    sepultura_id: int | None,
+    movement_type: MovimientoTipo,
+    detail: str,
+    user_id: int | None,
+) -> None:
+    if not sepultura_id:
+        return
+    db.session.add(
+        MovimientoSepultura(
+            org_id=org_id(),
+            sepultura_id=sepultura_id,
+            tipo=movement_type,
+            detalle=detail,
+            user_id=user_id,
+        )
+    )
+
+
+def _next_expediente_number(year: int) -> str:
+    prefix = f"C-{year}-"
+    count = (
+        db.session.query(func.count(Expediente.id))
+        .filter(Expediente.org_id == org_id())
+        .filter(Expediente.numero.like(f"{prefix}%"))
+        .scalar()
+    )
+    return f"{prefix}{count + 1:04d}"
+
+
+def list_expedientes(filters: dict[str, str]) -> list[Expediente]:
+    query = (
+        Expediente.query.filter(Expediente.org_id == org_id())
+        .order_by(Expediente.created_at.desc(), Expediente.id.desc())
+    )
+    tipo = (filters.get("tipo") or "").strip().upper()
+    if tipo:
+        query = query.filter(Expediente.tipo == tipo)
+    estado = (filters.get("estado") or "").strip().upper()
+    if estado:
+        query = query.filter(Expediente.estado == estado)
+    sepultura_id = (filters.get("sepultura_id") or "").strip()
+    if sepultura_id:
+        if not sepultura_id.isdigit():
+            return []
+        query = query.filter(Expediente.sepultura_id == int(sepultura_id))
+
+    created_from = _parse_optional_iso_date(filters.get("created_from"))
+    created_to = _parse_optional_iso_date(filters.get("created_to"))
+    if created_from:
+        query = query.filter(Expediente.created_at >= datetime.combine(created_from, datetime.min.time()))
+    if created_to:
+        query = query.filter(Expediente.created_at <= datetime.combine(created_to, datetime.max.time()))
+    return query.all()
+
+
+def expediente_by_id(expediente_id: int) -> Expediente:
+    expediente = Expediente.query.filter_by(org_id=org_id(), id=expediente_id).first()
+    if not expediente:
+        raise ValueError("Expediente no encontrado")
+    return expediente
+
+
+def create_expediente(payload: dict[str, str], user_id: int | None) -> Expediente:
+    # Spec Cementiri 9.1.1 / 9.1.2 - alta de expediente operativo
+    tipo = (payload.get("tipo") or "").strip().upper()
+    if not tipo:
+        raise ValueError("Tipo de expediente obligatorio")
+
+    sepultura_id_raw = (payload.get("sepultura_id") or "").strip()
+    sepultura_id = int(sepultura_id_raw) if sepultura_id_raw.isdigit() else None
+    if sepultura_id:
+        sepultura_by_id(sepultura_id)
+
+    difunto_id_raw = (payload.get("difunto_id") or "").strip()
+    difunto_id = int(difunto_id_raw) if difunto_id_raw.isdigit() else None
+    if difunto_id:
+        difunto = Person.query.filter_by(org_id=org_id(), id=difunto_id).first()
+        if not difunto:
+            raise ValueError("Difunto no encontrado")
+
+    expediente = Expediente(
+        org_id=org_id(),
+        numero=_next_expediente_number(date.today().year),
+        tipo=tipo,
+        estado="ABIERTO",
+        sepultura_id=sepultura_id,
+        difunto_id=difunto_id,
+        fecha_prevista=_parse_optional_iso_date(payload.get("fecha_prevista")),
+        notas=(payload.get("notas") or "").strip(),
+    )
+    db.session.add(expediente)
+    db.session.flush()
+
+    _log_sepultura_movement(
+        expediente.sepultura_id,
+        MovimientoTipo.ALTA_EXPEDIENTE,
+        f"Alta expediente {expediente.numero} ({expediente.tipo})",
+        user_id,
+    )
+    db.session.commit()
+    return expediente
+
+
+def transition_expediente_state(expediente_id: int, new_state: str, user_id: int | None) -> Expediente:
+    expediente = expediente_by_id(expediente_id)
+    current = (expediente.estado or "").upper()
+    target = (new_state or "").strip().upper()
+    if target not in EXPEDIENTE_STATES:
+        raise ValueError("Estado de expediente invalido")
+    if target not in EXPEDIENTE_TRANSITIONS.get(current, set()):
+        raise ValueError(f"Transicion invalida: {current} -> {target}")
+
+    expediente.estado = target
+    db.session.add(expediente)
+    _log_sepultura_movement(
+        expediente.sepultura_id,
+        MovimientoTipo.CAMBIO_ESTADO_EXPEDIENTE,
+        f"Expediente {expediente.numero}: {current} -> {target}",
+        user_id,
+    )
+    db.session.commit()
+    return expediente
+
+
+def list_expediente_ots(expediente_id: int) -> list[OrdenTrabajo]:
+    expediente = expediente_by_id(expediente_id)
+    return (
+        OrdenTrabajo.query.filter_by(org_id=org_id(), expediente_id=expediente.id)
+        .order_by(OrdenTrabajo.created_at.desc(), OrdenTrabajo.id.desc())
+        .all()
+    )
+
+
+def create_expediente_ot(expediente_id: int, payload: dict[str, str], user_id: int | None) -> OrdenTrabajo:
+    expediente = expediente_by_id(expediente_id)
+    title = (payload.get("titulo") or "").strip()
+    if not title:
+        title = f"OT {expediente.numero}"
+    ot = OrdenTrabajo(
+        org_id=org_id(),
+        expediente_id=expediente.id,
+        titulo=title,
+        estado="PENDIENTE",
+        notes=(payload.get("notes") or "").strip(),
+    )
+    db.session.add(ot)
+    db.session.flush()
+    _log_sepultura_movement(
+        expediente.sepultura_id,
+        MovimientoTipo.OT_EXPEDIENTE,
+        f"OT creada #{ot.id} para expediente {expediente.numero}",
+        user_id,
+    )
+    db.session.commit()
+    return ot
+
+
+def complete_expediente_ot(
+    expediente_id: int,
+    ot_id: int,
+    payload: dict[str, str],
+    user_id: int | None,
+) -> OrdenTrabajo:
+    expediente = expediente_by_id(expediente_id)
+    ot = OrdenTrabajo.query.filter_by(org_id=org_id(), expediente_id=expediente.id, id=ot_id).first()
+    if not ot:
+        raise ValueError("Orden de trabajo no encontrada")
+    if ot.estado == "COMPLETADA":
+        return ot
+
+    ot.estado = "COMPLETADA"
+    ot.completed_at = datetime.now(timezone.utc)
+    note = (payload.get("notes") or "").strip()
+    if note:
+        ot.notes = note
+    db.session.add(ot)
+    _log_sepultura_movement(
+        expediente.sepultura_id,
+        MovimientoTipo.OT_EXPEDIENTE,
+        f"OT completada #{ot.id} para expediente {expediente.numero}",
+        user_id,
+    )
+    db.session.commit()
+    return ot
+
+
+def expediente_ot_pdf(expediente_id: int, ot_id: int) -> bytes:
+    expediente = expediente_by_id(expediente_id)
+    ot = OrdenTrabajo.query.filter_by(org_id=org_id(), expediente_id=expediente.id, id=ot_id).first()
+    if not ot:
+        raise ValueError("Orden de trabajo no encontrada")
+    sep = sepultura_by_id(expediente.sepultura_id) if expediente.sepultura_id else None
+    lines = [
+        "GSF - Orden de trabajo",
+        f"OT: {ot.id}",
+        f"Expediente: {expediente.numero}",
+        f"Tipo expediente: {expediente.tipo}",
+        f"Estado OT: {ot.estado}",
+        f"Sepultura: {sep.location_label if sep else '-'}",
+        f"Titulo: {ot.titulo}",
+        f"Notas: {ot.notes or '-'}",
+        f"Emitido: {datetime.now(timezone.utc).date().isoformat()}",
+    ]
+    return _simple_pdf(lines)
+
+
+def list_lapida_stock() -> list[LapidaStock]:
+    return (
+        LapidaStock.query.filter_by(org_id=org_id())
+        .order_by(LapidaStock.codigo.asc(), LapidaStock.id.asc())
+        .all()
+    )
+
+
+def list_lapida_stock_movements(limit: int = 50) -> list[LapidaStockMovimiento]:
+    return (
+        LapidaStockMovimiento.query.filter_by(org_id=org_id())
+        .order_by(LapidaStockMovimiento.created_at.desc(), LapidaStockMovimiento.id.desc())
+        .limit(limit)
+        .all()
+    )
+
+
+def _find_lapida_stock(stock_id_raw: str | None, codigo_raw: str | None) -> LapidaStock:
+    stock = None
+    if (stock_id_raw or "").strip().isdigit():
+        stock = LapidaStock.query.filter_by(org_id=org_id(), id=int(stock_id_raw)).first()
+    if not stock and (codigo_raw or "").strip():
+        stock = LapidaStock.query.filter_by(org_id=org_id(), codigo=(codigo_raw or "").strip()).first()
+    if not stock:
+        raise ValueError("Stock de lapida no encontrado")
+    return stock
+
+
+def lapida_stock_entry(payload: dict[str, str], user_id: int | None) -> LapidaStock:
+    quantity_raw = (payload.get("quantity") or "").strip()
+    if not quantity_raw.isdigit() or int(quantity_raw) <= 0:
+        raise ValueError("Cantidad de entrada invalida")
+    quantity = int(quantity_raw)
+
+    stock = None
+    stock_id_raw = (payload.get("stock_id") or "").strip()
+    if stock_id_raw.isdigit():
+        stock = LapidaStock.query.filter_by(org_id=org_id(), id=int(stock_id_raw)).first()
+
+    if not stock:
+        code = (payload.get("codigo") or "").strip().upper()
+        if not code:
+            raise ValueError("Codigo de lapida obligatorio")
+        stock = LapidaStock.query.filter_by(org_id=org_id(), codigo=code).first()
+        if not stock:
+            stock = LapidaStock(
+                org_id=org_id(),
+                codigo=code,
+                descripcion=(payload.get("descripcion") or code).strip(),
+                estado="ACTIVO",
+                available_qty=0,
+            )
+            db.session.add(stock)
+            db.session.flush()
+
+    stock.available_qty = int(stock.available_qty or 0) + quantity
+    db.session.add(stock)
+    db.session.add(
+        LapidaStockMovimiento(
+            org_id=org_id(),
+            lapida_stock_id=stock.id,
+            movimiento="ENTRADA",
+            quantity=quantity,
+            notes=(payload.get("notes") or "").strip(),
+        )
+    )
+    db.session.commit()
+    return stock
+
+
+def lapida_stock_exit(payload: dict[str, str], user_id: int | None) -> LapidaStock:
+    quantity_raw = (payload.get("quantity") or "").strip()
+    if not quantity_raw.isdigit() or int(quantity_raw) <= 0:
+        raise ValueError("Cantidad de salida invalida")
+    quantity = int(quantity_raw)
+    stock = _find_lapida_stock(payload.get("stock_id"), payload.get("codigo"))
+    current_qty = int(stock.available_qty or 0)
+    if quantity > current_qty:
+        raise ValueError("No hay stock suficiente")
+
+    sepultura_id = None
+    sep_raw = (payload.get("sepultura_id") or "").strip()
+    if sep_raw:
+        if not sep_raw.isdigit():
+            raise ValueError("Sepultura invalida")
+        sepultura_id = int(sep_raw)
+        sepultura_by_id(sepultura_id)
+
+    expediente_id = None
+    exp_raw = (payload.get("expediente_id") or "").strip()
+    if exp_raw:
+        if not exp_raw.isdigit():
+            raise ValueError("Expediente invalido")
+        expediente_id = int(exp_raw)
+        expediente_by_id(expediente_id)
+
+    stock.available_qty = current_qty - quantity
+    db.session.add(stock)
+    db.session.add(
+        LapidaStockMovimiento(
+            org_id=org_id(),
+            lapida_stock_id=stock.id,
+            movimiento="SALIDA",
+            quantity=quantity,
+            sepultura_id=sepultura_id,
+            expediente_id=expediente_id,
+            notes=(payload.get("notes") or "").strip(),
+        )
+    )
+    _log_sepultura_movement(
+        sepultura_id,
+        MovimientoTipo.LAPIDA,
+        f"Salida stock lapida {stock.codigo} x{quantity}",
+        user_id,
+    )
+    db.session.commit()
+    return stock
+
+
+def list_inscripciones(filters: dict[str, str]) -> list[InscripcionLateral]:
+    query = (
+        InscripcionLateral.query.filter_by(org_id=org_id())
+        .order_by(InscripcionLateral.created_at.desc(), InscripcionLateral.id.desc())
+    )
+    estado = (filters.get("estado") or "").strip().upper()
+    if estado:
+        query = query.filter(InscripcionLateral.estado == estado)
+    sepultura_id = (filters.get("sepultura_id") or "").strip()
+    if sepultura_id:
+        if not sepultura_id.isdigit():
+            return []
+        query = query.filter(InscripcionLateral.sepultura_id == int(sepultura_id))
+    text = (filters.get("texto") or "").strip()
+    if text:
+        query = query.filter(InscripcionLateral.texto.ilike(f"%{text}%"))
+    return query.all()
+
+
+def create_inscripcion_lateral(payload: dict[str, str], user_id: int | None) -> InscripcionLateral:
+    sepultura_id_raw = (payload.get("sepultura_id") or "").strip()
+    if not sepultura_id_raw.isdigit():
+        raise ValueError("Sepultura obligatoria")
+    sepultura = sepultura_by_id(int(sepultura_id_raw))
+    text = (payload.get("texto") or "").strip()
+    if not text:
+        raise ValueError("Texto de inscripcion obligatorio")
+
+    expediente_id = None
+    exp_raw = (payload.get("expediente_id") or "").strip()
+    if exp_raw:
+        if not exp_raw.isdigit():
+            raise ValueError("Expediente invalido")
+        expediente = expediente_by_id(int(exp_raw))
+        expediente_id = expediente.id
+
+    item = InscripcionLateral(
+        org_id=org_id(),
+        sepultura_id=sepultura.id,
+        expediente_id=expediente_id,
+        texto=text,
+        estado="PENDIENTE_GRABAR",
+    )
+    db.session.add(item)
+    db.session.flush()
+    _log_sepultura_movement(
+        sepultura.id,
+        MovimientoTipo.INSCRIPCION_LATERAL,
+        f"Inscripcion lateral creada #{item.id}",
+        user_id,
+    )
+    db.session.commit()
+    return item
+
+
+def transition_inscripcion_estado(inscripcion_id: int, payload: dict[str, str], user_id: int | None) -> InscripcionLateral:
+    item = InscripcionLateral.query.filter_by(org_id=org_id(), id=inscripcion_id).first()
+    if not item:
+        raise ValueError("Inscripcion no encontrada")
+
+    current = (item.estado or "").upper()
+    requested = (payload.get("estado") or "").strip().upper()
+    target = requested or INSCRIPCION_TRANSITIONS.get(current, "")
+    if not target:
+        raise ValueError("Estado de inscripcion invalido")
+    if target not in INSCRIPCION_STATES:
+        raise ValueError("Estado de inscripcion invalido")
+    if INSCRIPCION_TRANSITIONS.get(current) != target:
+        raise ValueError(f"Transicion invalida: {current} -> {target}")
+
+    item.estado = target
+    db.session.add(item)
+    _log_sepultura_movement(
+        item.sepultura_id,
+        MovimientoTipo.INSCRIPCION_LATERAL,
+        f"Inscripcion lateral #{item.id}: {current} -> {target}",
+        user_id,
+    )
+    db.session.commit()
+    return item
+
+
+def reporting_sepulturas_rows(filters: dict[str, str]) -> list[dict[str, object]]:
+    query = Sepultura.query.filter_by(org_id=org_id()).order_by(
+        Sepultura.bloque.asc(),
+        Sepultura.fila.asc(),
+        Sepultura.columna.asc(),
+        Sepultura.numero.asc(),
+    )
+    estado = (filters.get("estado") or "").strip().upper()
+    if estado:
+        try:
+            query = query.filter(Sepultura.estado == SepulturaEstado[estado])
+        except KeyError:
+            return []
+    modalidad = (filters.get("modalidad") or "").strip()
+    if modalidad:
+        query = query.filter(Sepultura.modalidad.ilike(f"%{modalidad}%"))
+    bloque = (filters.get("bloque") or "").strip()
+    if bloque:
+        query = query.filter(Sepultura.bloque.ilike(f"%{bloque}%"))
+    rows = []
+    for sep in query.all():
+        rows.append(
+            {
+                "id": sep.id,
+                "sepultura": sep.location_label,
+                "bloque": sep.bloque,
+                "modalidad": sep.modalidad,
+                "estado": sep.estado.value,
+            }
+        )
+    return rows
+
+
+def reporting_contratos_rows(filters: dict[str, str]) -> list[dict[str, object]]:
+    today = date.today()
+    query = (
+        DerechoFunerarioContrato.query.filter_by(org_id=org_id())
+        .join(Sepultura, Sepultura.id == DerechoFunerarioContrato.sepultura_id)
+        .order_by(DerechoFunerarioContrato.id.desc())
+    )
+    tipo = (filters.get("tipo") or "").strip().upper()
+    if tipo:
+        try:
+            query = query.filter(DerechoFunerarioContrato.tipo == DerechoTipo[tipo])
+        except KeyError:
+            return []
+    vigencia = (filters.get("vigencia") or "").strip().upper()
+    if vigencia == "VIGENTE":
+        query = query.filter(DerechoFunerarioContrato.fecha_inicio <= today).filter(
+            DerechoFunerarioContrato.fecha_fin >= today
+        )
+    elif vigencia == "VENCIDO":
+        query = query.filter(DerechoFunerarioContrato.fecha_fin < today)
+
+    titular_filter = (filters.get("titular") or "").strip().lower()
+    rows = []
+    for contract in query.all():
+        titular = (
+            OwnershipRecord.query.filter_by(org_id=org_id(), contract_id=contract.id)
+            .filter(or_(OwnershipRecord.end_date.is_(None), OwnershipRecord.end_date >= today))
+            .order_by(OwnershipRecord.start_date.desc())
+            .first()
+        )
+        titular_name = titular.person.full_name if titular else "-"
+        if titular_filter and titular_filter not in titular_name.lower():
+            continue
+        rows.append(
+            {
+                "id": contract.id,
+                "tipo": contract.tipo.value,
+                "vigencia": "VIGENTE" if contract.fecha_fin >= today else "VENCIDO",
+                "titular": titular_name,
+                "sepultura": contract.sepultura.location_label if contract.sepultura else "-",
+            }
+        )
+    return rows
+
+
+def reporting_deuda_rows(filters: dict[str, str]) -> list[dict[str, object]]:
+    # Deuda consolidada por contrato: tiquets pendientes + facturas impagadas.
+    query = (
+        DerechoFunerarioContrato.query.filter_by(org_id=org_id())
+        .join(Sepultura, Sepultura.id == DerechoFunerarioContrato.sepultura_id)
+        .order_by(DerechoFunerarioContrato.id.desc())
+    )
+    contrato_id = (filters.get("contrato_id") or "").strip()
+    if contrato_id:
+        if not contrato_id.isdigit():
+            return []
+        query = query.filter(DerechoFunerarioContrato.id == int(contrato_id))
+    rows = []
+    for contract in query.all():
+        pending_tickets = (
+            TasaMantenimientoTicket.query.filter_by(org_id=org_id(), contrato_id=contract.id)
+            .filter(TasaMantenimientoTicket.estado != TicketEstado.COBRADO)
+            .all()
+        )
+        unpaid_invoices = Invoice.query.filter_by(
+            org_id=org_id(),
+            contrato_id=contract.id,
+            estado=InvoiceEstado.IMPAGADA,
+        ).all()
+        if not pending_tickets and not unpaid_invoices:
+            continue
+        ticket_amount = sum((Decimal(t.importe) for t in pending_tickets), Decimal("0.00"))
+        invoice_amount = sum((Decimal(i.total_amount) for i in unpaid_invoices), Decimal("0.00"))
+        rows.append(
+            {
+                "contrato_id": contract.id,
+                "sepultura": contract.sepultura.location_label if contract.sepultura else "-",
+                "tickets_pendientes": len(pending_tickets),
+                "importe_tickets": ticket_amount,
+                "facturas_impagadas": len(unpaid_invoices),
+                "importe_facturas": invoice_amount,
+                "deuda_total": ticket_amount + invoice_amount,
+            }
+        )
+    return rows
+
+
+def reporting_rows(report_key: str, filters: dict[str, str]) -> list[dict[str, object]]:
+    key = (report_key or "").strip().lower()
+    if key == "sepulturas":
+        return reporting_sepulturas_rows(filters)
+    if key == "contratos":
+        return reporting_contratos_rows(filters)
+    if key == "deuda":
+        return reporting_deuda_rows(filters)
+    raise ValueError("Informe invalido")
+
+
+def paginate_rows(rows: list[dict[str, object]], page: int, page_size: int) -> dict[str, object]:
+    safe_page = page if page > 0 else 1
+    safe_size = max(1, min(page_size, 100))
+    total = len(rows)
+    start = (safe_page - 1) * safe_size
+    end = start + safe_size
+    return {
+        "rows": rows[start:end],
+        "page": safe_page,
+        "page_size": safe_size,
+        "total": total,
+        "pages": max(1, (total + safe_size - 1) // safe_size),
+    }
+
+
+def reporting_csv_bytes(
+    report_key: str,
+    filters: dict[str, str],
+    export_limit: int = 1000,
+) -> bytes:
+    rows = reporting_rows(report_key, filters)
+    limited = rows[: max(1, min(export_limit, 5000))]
+    if not limited:
+        limited = []
+    if report_key == "sepulturas":
+        headers = ["id", "sepultura", "bloque", "modalidad", "estado"]
+    elif report_key == "contratos":
+        headers = ["id", "tipo", "vigencia", "titular", "sepultura"]
+    else:
+        headers = [
+            "contrato_id",
+            "sepultura",
+            "tickets_pendientes",
+            "importe_tickets",
+            "facturas_impagadas",
+            "importe_facturas",
+            "deuda_total",
+        ]
+    stream = StringIO()
+    writer = csv.DictWriter(stream, fieldnames=headers)
+    writer.writeheader()
+    for row in limited:
+        normalized = {k: row.get(k, "") for k in headers}
+        writer.writerow(normalized)
+    return stream.getvalue().encode("utf-8")
+
+
+def reset_demo_org_data(user_id: int | None = None) -> dict[str, int]:
+    # Spec Cementiri DEMO - reset scoped by active org
+    oid = org_id()
+
+    # Delete uploaded ownership case files for org.
+    storage_root = (
+        Path(current_app.instance_path)
+        / "storage"
+        / "cemetery"
+        / "ownership_cases"
+        / str(oid)
+    )
+    if storage_root.exists():
+        shutil.rmtree(storage_root, ignore_errors=True)
+
+    db.session.query(ContractEvent).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(Publication).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(CaseDocument).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(OwnershipTransferParty).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(OwnershipTransferCase).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(LapidaStockMovimiento).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(InscripcionLateral).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(OrdenTrabajo).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(Expediente).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(Payment).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(TasaMantenimientoTicket).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(Invoice).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(Beneficiario).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(OwnershipRecord).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(DerechoFunerarioContrato).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(SepulturaDifunto).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(MovimientoSepultura).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(LapidaStock).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(Sepultura).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(Person).filter_by(org_id=oid).delete(synchronize_session=False)
+
+    cemetery = Cemetery.query.filter_by(org_id=oid).order_by(Cemetery.id.asc()).first()
+    if not cemetery:
+        cemetery = Cemetery(org_id=oid, name="Cementeri Demo", location="Terrassa")
+        db.session.add(cemetery)
+        db.session.flush()
+
+    titular = Person(org_id=oid, first_name="Marta", last_name="Soler", document_id="11111111A")
+    titular_alt = Person(org_id=oid, first_name="Joan", last_name="Riera", document_id="22222222B")
+    difunto = Person(org_id=oid, first_name="Antoni", last_name="Ferrer", document_id="33333333C")
+    sucesor = Person(org_id=oid, first_name="Carla", last_name="Mora", document_id="88888888H")
+    db.session.add_all([titular, titular_alt, difunto, sucesor])
+    db.session.flush()
+
+    sep_1 = Sepultura(
+        org_id=oid,
+        cemetery_id=cemetery.id,
+        bloque="B-12",
+        fila=4,
+        columna=18,
+        via="V-3",
+        numero=127,
+        modalidad="Ninxol",
+        estado=SepulturaEstado.DISPONIBLE,
+        tipo_bloque="Ninxols",
+        tipo_lapida="Resina",
+        orientacion="Nord",
+    )
+    sep_2 = Sepultura(
+        org_id=oid,
+        cemetery_id=cemetery.id,
+        bloque="B-12",
+        fila=4,
+        columna=19,
+        via="V-3",
+        numero=128,
+        modalidad="Ninxol",
+        estado=SepulturaEstado.DISPONIBLE,
+        tipo_bloque="Ninxols",
+        tipo_lapida="Resina",
+        orientacion="Nord",
+    )
+    sep_3 = Sepultura(
+        org_id=oid,
+        cemetery_id=cemetery.id,
+        bloque="B-30",
+        fila=2,
+        columna=3,
+        via="V-7",
+        numero=510,
+        modalidad="Ninxol",
+        estado=SepulturaEstado.DISPONIBLE,
+        tipo_bloque="Ninxols",
+        tipo_lapida="Resina",
+        orientacion="Est",
+    )
+    db.session.add_all([sep_1, sep_2, sep_3])
+    db.session.flush()
+
+    contrato_1 = DerechoFunerarioContrato(
+        org_id=oid,
+        sepultura_id=sep_1.id,
+        tipo=DerechoTipo.CONCESION,
+        fecha_inicio=date(2012, 1, 1),
+        fecha_fin=date(2037, 1, 1),
+        annual_fee_amount=Decimal("45.00"),
+        estado="ACTIVO",
+    )
+    contrato_2 = DerechoFunerarioContrato(
+        org_id=oid,
+        sepultura_id=sep_2.id,
+        tipo=DerechoTipo.USO_INMEDIATO,
+        fecha_inicio=date(2024, 1, 1),
+        fecha_fin=date(2030, 1, 1),
+        annual_fee_amount=Decimal("30.00"),
+        estado="ACTIVO",
+    )
+    db.session.add_all([contrato_1, contrato_2])
+    db.session.flush()
+
+    db.session.add_all(
+        [
+            OwnershipRecord(
+                org_id=oid,
+                contract_id=contrato_1.id,
+                person_id=titular.id,
+                start_date=date(2012, 1, 1),
+                is_pensioner=False,
+            ),
+            OwnershipRecord(
+                org_id=oid,
+                contract_id=contrato_2.id,
+                person_id=titular_alt.id,
+                start_date=date(2024, 1, 1),
+                is_pensioner=False,
+            ),
+            Beneficiario(
+                org_id=oid,
+                contrato_id=contrato_1.id,
+                person_id=titular_alt.id,
+                activo_desde=date(2024, 1, 1),
+            ),
+            SepulturaDifunto(
+                org_id=oid,
+                sepultura_id=sep_1.id,
+                person_id=difunto.id,
+                notes="Cadaver",
+            ),
+        ]
+    )
+
+    for year in [2024, 2025, 2026]:
+        db.session.add(
+            TasaMantenimientoTicket(
+                org_id=oid,
+                contrato_id=contrato_1.id,
+                anio=year,
+                importe=Decimal("45.00"),
+                descuento_tipo=TicketDescuentoTipo.NONE,
+                estado=TicketEstado.PENDIENTE,
+            )
+        )
+
+    db.session.add(
+        Invoice(
+            org_id=oid,
+            contrato_id=contrato_1.id,
+            sepultura_id=sep_1.id,
+            numero=f"F-CEM-{date.today().year}-9001",
+            estado=InvoiceEstado.IMPAGADA,
+            total_amount=Decimal("45.00"),
+            issued_at=datetime.now(timezone.utc),
+        )
+    )
+
+    exp_a = Expediente(
+        org_id=oid,
+        numero=f"C-{date.today().year}-1001",
+        tipo="INHUMACION",
+        estado="ABIERTO",
+        sepultura_id=sep_1.id,
+        difunto_id=difunto.id,
+        fecha_prevista=date.today(),
+        notas="Demo reset",
+    )
+    exp_b = Expediente(
+        org_id=oid,
+        numero=f"C-{date.today().year}-1002",
+        tipo="EXHUMACION",
+        estado="EN_TRAMITE",
+        sepultura_id=sep_2.id,
+        fecha_prevista=date.today(),
+        notas="Demo reset",
+    )
+    db.session.add_all([exp_a, exp_b])
+    db.session.flush()
+    db.session.add(
+        OrdenTrabajo(
+            org_id=oid,
+            expediente_id=exp_b.id,
+            titulo=f"OT {exp_b.numero}",
+            estado="PENDIENTE",
+        )
+    )
+
+    stock = LapidaStock(
+        org_id=oid,
+        codigo="LAP-STD",
+        descripcion="Lapida estandar",
+        estado="ACTIVO",
+        available_qty=10,
+    )
+    db.session.add(stock)
+    db.session.flush()
+    db.session.add(
+        LapidaStockMovimiento(
+            org_id=oid,
+            lapida_stock_id=stock.id,
+            movimiento="ENTRADA",
+            quantity=10,
+            notes="Reset demo",
+        )
+    )
+
+    inscripcion = InscripcionLateral(
+        org_id=oid,
+        sepultura_id=sep_1.id,
+        expediente_id=exp_a.id,
+        texto="Familia Ferrer",
+        estado="PENDIENTE_GRABAR",
+    )
+    db.session.add(inscripcion)
+
+    case = OwnershipTransferCase(
+        org_id=oid,
+        case_number=f"TR-{date.today().year}-9001",
+        contract_id=contrato_1.id,
+        type=OwnershipTransferType.INTER_VIVOS,
+        status=OwnershipTransferStatus.DRAFT,
+        created_by_user_id=user_id,
+        notes="Caso demo reset",
+    )
+    case2 = OwnershipTransferCase(
+        org_id=oid,
+        case_number=f"TR-{date.today().year}-9002",
+        contract_id=contrato_2.id,
+        type=OwnershipTransferType.MORTIS_CAUSA_TESTAMENTO,
+        status=OwnershipTransferStatus.DOCS_PENDING,
+        created_by_user_id=user_id,
+        notes="Caso demo reset",
+    )
+    db.session.add_all([case, case2])
+    db.session.flush()
+    db.session.add_all(
+        [
+            OwnershipTransferParty(
+                org_id=oid,
+                case_id=case.id,
+                role=OwnershipPartyRole.ANTERIOR_TITULAR,
+                person_id=titular.id,
+            ),
+            OwnershipTransferParty(
+                org_id=oid,
+                case_id=case.id,
+                role=OwnershipPartyRole.NUEVO_TITULAR,
+                person_id=sucesor.id,
+            ),
+            OwnershipTransferParty(
+                org_id=oid,
+                case_id=case2.id,
+                role=OwnershipPartyRole.ANTERIOR_TITULAR,
+                person_id=titular_alt.id,
+            ),
+            OwnershipTransferParty(
+                org_id=oid,
+                case_id=case2.id,
+                role=OwnershipPartyRole.NUEVO_TITULAR,
+                person_id=sucesor.id,
+            ),
+        ]
+    )
+    for case_item in [case, case2]:
+        for doc_type, required in CASE_CHECKLIST[case_item.type]:
+            db.session.add(
+                CaseDocument(
+                    org_id=oid,
+                    case_id=case_item.id,
+                    doc_type=doc_type,
+                    required=required,
+                    status=CaseDocumentStatus.MISSING,
+                )
+            )
+
+    db.session.commit()
+    return {"sepulturas": 3, "contracts": 2, "expedientes": 2, "casos": 2}
+
+
 def _get_case_or_404(case_id: int) -> OwnershipTransferCase:
     case = (
         OwnershipTransferCase.query.options(
@@ -1310,6 +2271,20 @@ def verify_case_document(case_id: int, doc_id: int, action: str, notes: str, use
     db.session.add(document)
     db.session.commit()
     return document
+
+
+def ownership_case_document_download(case_id: int, doc_id: int) -> tuple[bytes, str]:
+    case = _get_case_or_404(case_id)
+    document = CaseDocument.query.filter_by(org_id=org_id(), case_id=case.id, id=doc_id).first()
+    if not document:
+        raise ValueError("Documento no encontrado")
+    if not document.file_path:
+        raise ValueError("Documento sin fichero asociado")
+
+    absolute = Path(current_app.instance_path) / document.file_path
+    if not absolute.exists():
+        raise ValueError("Fichero de documento no encontrado")
+    return absolute.read_bytes(), absolute.name
 
 
 def change_ownership_case_status(case_id: int, new_status_raw: str, user_id: int | None) -> OwnershipTransferCase:

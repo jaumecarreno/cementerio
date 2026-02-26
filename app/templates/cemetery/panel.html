@@ -63,7 +63,7 @@
   <div class="quick-actions">
     <a class="btn" href="{{ url_for('cemetery.search_graves') }}">{{ t('action.search_grave') }}</a>
     <a class="btn" href="{{ url_for('cemetery.search_graves') }}?redirect=fees">{{ t('action.collect_fees') }}</a>
-    <a class="btn" href="#">{{ t('cem.cases') }}: Inhumacion</a>
+    <a class="btn" href="{{ url_for('cemetery.expedientes') }}">{{ t('cem.cases') }}: Inhumacion</a>
     <a class="btn" href="{{ url_for('cemetery.ownership_cases') }}">{{ t('cem.ownership') }}</a>
     <a class="btn" href="{{ url_for('cemetery.mass_create') }}">{{ t('action.mass_create') }}</a>
     {% if g.membership and g.membership.role == "admin" %}

@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% set active_cem = 'expedientes' %}
+{% set breadcrumbs = [
+  {'label': 'Cementerio', 'href': url_for('cemetery.panel')},
+  {'label': 'Expedientes', 'href': None}
+] %}
+{% block title %}Expedientes{% endblock %}
+{% block content %}
+<h1 class="page-title">Expedientes</h1>
+
+<div class="box">
+  <h3>Crear expediente</h3>
+  <form method="post" action="{{ url_for('cemetery.expedientes') }}">
+    <div class="form-grid">
+      <div>
+        <label>Tipo</label>
+        <select name="tipo" required>
+          <option value="INHUMACION">INHUMACION</option>
+          <option value="EXHUMACION">EXHUMACION</option>
+          <option value="RESCATE">RESCATE</option>
+          <option value="FINALIZACION">FINALIZACION</option>
+        </select>
+      </div>
+      <div>
+        <label>Sepultura (id)</label>
+        <input type="number" name="sepultura_id" value="{{ request.args.get('sepultura_id', '') }}">
+      </div>
+      <div>
+        <label>Difunto (person id)</label>
+        <input type="number" name="difunto_id">
+      </div>
+      <div>
+        <label>Fecha prevista</label>
+        <input type="date" name="fecha_prevista">
+      </div>
+      <div style="grid-column: 1 / -1;">
+        <label>Notas</label>
+        <input type="text" name="notas" placeholder="Notas del expediente">
+      </div>
+    </div>
+    <div class="actions-row">
+      <button class="btn primary" type="submit">Crear expediente</button>
+    </div>
+  </form>
+</div>
+
+<div class="box">
+  <h3>Filtros</h3>
+  <form method="get" action="{{ url_for('cemetery.expedientes') }}">
+    <div class="form-grid">
+      <div>
+        <label>Tipo</label>
+        <input type="text" name="tipo" value="{{ filters.tipo }}">
+      </div>
+      <div>
+        <label>Estado</label>
+        <select name="estado">
+          <option value="">Todos</option>
+          {% for st in states %}
+          <option value="{{ st }}" {% if filters.estado == st %}selected{% endif %}>{{ st }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Creado desde</label>
+        <input type="date" name="created_from" value="{{ filters.created_from }}">
+      </div>
+      <div>
+        <label>Creado hasta</label>
+        <input type="date" name="created_to" value="{{ filters.created_to }}">
+      </div>
+      <div>
+        <label>Sepultura id</label>
+        <input type="text" name="sepultura_id" value="{{ filters.sepultura_id }}">
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:8px;">
+        <button class="btn" type="submit">Aplicar</button>
+        <a class="btn" href="{{ url_for('cemetery.expedientes') }}">Limpiar</a>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div class="box">
+  <h3>Listado</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>No</th>
+        <th>Tipo</th>
+        <th>Estado</th>
+        <th>Sepultura</th>
+        <th>Difunto</th>
+        <th>Prevista</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.numero }}</td>
+        <td>{{ row.tipo }}</td>
+        <td>{{ row.estado }}</td>
+        <td>{{ row.sepultura_id or '-' }}</td>
+        <td>{{ row.difunto_id or '-' }}</td>
+        <td>{{ row.fecha_prevista or '-' }}</td>
+        <td><a class="btn" href="{{ url_for('cemetery.expediente_detail', expediente_id=row.id) }}">Abrir</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7">Sin expedientes</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% set active_global = 'cemetery' %}
+{% set breadcrumbs = [
+  {'label': 'Demo', 'href': None}
+] %}
+{% block title %}Demo tools{% endblock %}
+{% block content %}
+<h1 class="page-title">Demo</h1>
+<div class="box">
+  <h3>Checklist</h3>
+  <ul>
+    <li>Crear caso de transmision de ejemplo</li>
+    <li>Crear expediente de inhumacion de ejemplo</li>
+    <li>Generar tiquets del ano actual</li>
+    <li>Reset de datos demo por organizacion (solo DEV)</li>
+  </ul>
+</div>
+
+<div class="box">
+  <h3>Acciones</h3>
+  <div class="quick-actions">
+    <form class="inline-form" method="post" action="{{ url_for('demo_create_case') }}">
+      <button class="btn" type="submit">Crear caso ejemplo</button>
+    </form>
+    <form class="inline-form" method="post" action="{{ url_for('demo_create_expediente') }}">
+      <button class="btn" type="submit">Crear expediente ejemplo</button>
+    </form>
+    <form class="inline-form" method="post" action="{{ url_for('demo_generate_tickets') }}">
+      <button class="btn" type="submit">Generar tiquets ano actual</button>
+    </form>
+  </div>
+</div>
+
+<div class="box">
+  <h3>Reset demo data</h3>
+  <form method="post" action="{{ url_for('demo_reset') }}">
+    <div class="form-grid">
+      <div>
+        <label>Confirmacion explicita</label>
+        <input type="text" name="confirm" placeholder="Escribe RESET-DEMO" required>
+      </div>
+    </div>
+    <div class="actions-row">
+      <button class="btn primary" type="submit">Reset por organizacion</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -104,7 +104,13 @@
         <td>{{ doc.doc_type }}</td>
         <td>{% if doc.required %}Si{% else %}No{% endif %}</td>
         <td>{{ doc.status.value }}</td>
-        <td>{{ doc.file_path or '-' }}</td>
+        <td>
+          {% if doc.file_path %}
+            <a class="btn" href="{{ url_for('cemetery.ownership_case_download_document', case_id=data.case.id, doc_id=doc.id) }}">Descargar</a>
+          {% else %}
+            -
+          {% endif %}
+        </td>
         <td>
           <form method="post" action="{{ url_for('cemetery.ownership_case_upload_document', case_id=data.case.id, doc_id=doc.id) }}" enctype="multipart/form-data">
             <input type="file" name="file" required>

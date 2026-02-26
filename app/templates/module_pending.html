@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% set active_global = '' %}
+{% set breadcrumbs = [
+  {'label': 'Modulo', 'href': None}
+] %}
+{% block title %}Modulo pendiente{% endblock %}
+{% block content %}
+<h1 class="page-title">Modulo pendiente</h1>
+<div class="box">
+  <h3>{{ title }}</h3>
+  <p>Este modulo no forma parte del alcance de la demo actual.</p>
+  <p><strong>Tracking:</strong> {{ tracking_code }}</p>
+  <div class="actions-row">
+    <a class="btn" href="{{ url_for('cemetery.panel') }}">Volver al panel</a>
+  </div>
+</div>
+{% endblock %}

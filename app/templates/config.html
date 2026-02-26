@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% set active_global = 'settings' %}
+{% set breadcrumbs = [
+  {'label': 'Configuracion', 'href': None}
+] %}
+{% block title %}Configuracion{% endblock %}
+{% block content %}
+<h1 class="page-title">Configuracion</h1>
+<div class="box">
+  <h3>Parametros de organizacion</h3>
+  <div class="meta-row">
+    <div><strong>Organizacion:</strong> {{ org.name }}</div>
+    <div><strong>Codigo:</strong> {{ org.code }}</div>
+    <div><strong>Descuento pensionista:</strong> {{ org.pensionista_discount_pct }}%</div>
+  </div>
+  <p class="muted">Esta pantalla queda habilitada para consulta. La edicion de tasas y parametros avanzados se controla por rol.</p>
+</div>
+{% endblock %}

@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% set active_cem = 'reporting' %}
+{% set breadcrumbs = [
+  {'label': 'Cementerio', 'href': url_for('cemetery.panel')},
+  {'label': 'Reporting', 'href': None}
+] %}
+{% block title %}Reporting{% endblock %}
+{% block content %}
+<h1 class="page-title">Reporting</h1>
+
+<div class="box">
+  <h3>Informe y filtros</h3>
+  <form method="get" action="{{ url_for('cemetery.reporting') }}">
+    <div class="form-grid">
+      <div>
+        <label>Informe</label>
+        <select name="report">
+          <option value="sepulturas" {% if report_key == 'sepulturas' %}selected{% endif %}>Sepulturas</option>
+          <option value="contratos" {% if report_key == 'contratos' %}selected{% endif %}>Contratos</option>
+          <option value="deuda" {% if report_key == 'deuda' %}selected{% endif %}>Deuda</option>
+        </select>
+      </div>
+      <div>
+        <label>Estado sepultura</label>
+        <input type="text" name="estado" value="{{ filters.estado }}">
+      </div>
+      <div>
+        <label>Modalidad</label>
+        <input type="text" name="modalidad" value="{{ filters.modalidad }}">
+      </div>
+      <div>
+        <label>Bloque</label>
+        <input type="text" name="bloque" value="{{ filters.bloque }}">
+      </div>
+      <div>
+        <label>Tipo contrato</label>
+        <input type="text" name="tipo" value="{{ filters.tipo }}">
+      </div>
+      <div>
+        <label>Vigencia contrato</label>
+        <select name="vigencia">
+          <option value="" {% if not filters.vigencia %}selected{% endif %}>Todas</option>
+          <option value="VIGENTE" {% if filters.vigencia == 'VIGENTE' %}selected{% endif %}>VIGENTE</option>
+          <option value="VENCIDO" {% if filters.vigencia == 'VENCIDO' %}selected{% endif %}>VENCIDO</option>
+        </select>
+      </div>
+      <div>
+        <label>Titular</label>
+        <input type="text" name="titular" value="{{ filters.titular }}">
+      </div>
+      <div>
+        <label>Contrato id (deuda)</label>
+        <input type="text" name="contrato_id" value="{{ filters.contrato_id }}">
+      </div>
+      <div>
+        <label>Page size</label>
+        <input type="number" name="page_size" value="{{ paged.page_size }}" min="1" max="100">
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:8px;">
+        <button class="btn" type="submit">Aplicar</button>
+        <a class="btn" href="{{ url_for('cemetery.reporting') }}">Limpiar</a>
+      </div>
+    </div>
+  </form>
+  <div class="actions-row">
+    <a class="btn primary" href="{{ url_for('cemetery.reporting_export_csv', report=report_key, estado=filters.estado, modalidad=filters.modalidad, bloque=filters.bloque, tipo=filters.tipo, vigencia=filters.vigencia, titular=filters.titular, contrato_id=filters.contrato_id) }}">Exportar CSV</a>
+  </div>
+</div>
+
+<div class="box">
+  <h3>Resultados</h3>
+  <div class="meta-row">
+    <div><strong>Total:</strong> {{ paged.total }}</div>
+    <div><strong>Pagina:</strong> {{ paged.page }} / {{ paged.pages }}</div>
+  </div>
+  <table>
+    <thead>
+      {% if report_key == 'sepulturas' %}
+      <tr><th>Id</th><th>Sepultura</th><th>Bloque</th><th>Modalidad</th><th>Estado</th></tr>
+      {% elif report_key == 'contratos' %}
+      <tr><th>Id</th><th>Tipo</th><th>Vigencia</th><th>Titular</th><th>Sepultura</th></tr>
+      {% else %}
+      <tr><th>Contrato</th><th>Sepultura</th><th>Tickets pendientes</th><th>Importe tickets</th><th>Facturas impagadas</th><th>Importe facturas</th><th>Deuda total</th></tr>
+      {% endif %}
+    </thead>
+    <tbody>
+      {% for row in paged.rows %}
+      {% if report_key == 'sepulturas' %}
+      <tr>
+        <td>{{ row.id }}</td>
+        <td>{{ row.sepultura }}</td>
+        <td>{{ row.bloque }}</td>
+        <td>{{ row.modalidad }}</td>
+        <td>{{ row.estado }}</td>
+      </tr>
+      {% elif report_key == 'contratos' %}
+      <tr>
+        <td>{{ row.id }}</td>
+        <td>{{ row.tipo }}</td>
+        <td>{{ row.vigencia }}</td>
+        <td>{{ row.titular }}</td>
+        <td>{{ row.sepultura }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td>{{ row.contrato_id }}</td>
+        <td>{{ row.sepultura }}</td>
+        <td>{{ row.tickets_pendientes }}</td>
+        <td>{{ money(row.importe_tickets) }}</td>
+        <td>{{ row.facturas_impagadas }}</td>
+        <td>{{ money(row.importe_facturas) }}</td>
+        <td>{{ money(row.deuda_total) }}</td>
+      </tr>
+      {% endif %}
+      {% else %}
+      <tr><td colspan="7">Sin resultados</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="quick-actions">
+    {% if paged.page > 1 %}
+    <a class="btn" href="{{ url_for('cemetery.reporting', report=report_key, page=paged.page-1, page_size=paged.page_size, estado=filters.estado, modalidad=filters.modalidad, bloque=filters.bloque, tipo=filters.tipo, vigencia=filters.vigencia, titular=filters.titular, contrato_id=filters.contrato_id) }}">Anterior</a>
+    {% endif %}
+    {% if paged.page < paged.pages %}
+    <a class="btn" href="{{ url_for('cemetery.reporting', report=report_key, page=paged.page+1, page_size=paged.page_size, estado=filters.estado, modalidad=filters.modalidad, bloque=filters.bloque, tipo=filters.tipo, vigencia=filters.vigencia, titular=filters.titular, contrato_id=filters.contrato_id) }}">Siguiente</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
