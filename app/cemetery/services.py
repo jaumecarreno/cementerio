@@ -283,30 +283,141 @@ def active_beneficiario_for_contract(contract_id: int) -> Beneficiario | None:
     )
 
 
-def _create_or_reuse_person(first_name: str, last_name: str, document_id: str | None) -> Person:
-    # Spec Cementiri 9.1.5 / 9.1.6 - reutilizacion de persona por documento
+def _clean_dni_nif(value: str | None) -> str | None:
+    raw = (value or "").strip().upper()
+    return raw or None
+
+
+def _person_by_org(person_id: int, role_label: str = "persona") -> Person:
+    person = Person.query.filter_by(org_id=org_id(), id=person_id).first()
+    if not person:
+        raise ValueError(f"{role_label.capitalize()} no encontrada")
+    return person
+
+
+def _create_or_reuse_person(first_name: str, last_name: str, dni_nif: str | None) -> Person:
+    # Spec Cementiri: ver cementerio_extract.md (9.1.5 / 9.1.6)
     first_name = (first_name or "").strip()
     last_name = (last_name or "").strip()
-    document_id = (document_id or "").strip() or None
+    dni_nif = _clean_dni_nif(dni_nif)
     if not first_name:
         raise ValueError("El nombre de la persona es obligatorio")
-    if document_id:
-        existing = Person.query.filter_by(org_id=org_id(), document_id=document_id).first()
+    if dni_nif:
+        existing = Person.query.filter_by(org_id=org_id(), dni_nif=dni_nif).first()
         if existing:
             return existing
     person = Person(
         org_id=org_id(),
         first_name=first_name,
         last_name=last_name,
-        document_id=document_id,
+        dni_nif=dni_nif,
     )
     db.session.add(person)
     db.session.flush()
     return person
 
 
+def list_people(search_text: str = "", limit: int = 200) -> list[Person]:
+    # Spec Cementiri: ver cementerio_extract.md (9.4.3 / 9.4.4)
+    query = Person.query.filter_by(org_id=org_id())
+    term = (search_text or "").strip()
+    if term:
+        pattern = f"%{term}%"
+        query = query.filter(
+            or_(
+                Person.first_name.ilike(pattern),
+                Person.last_name.ilike(pattern),
+                Person.dni_nif.ilike(pattern),
+            )
+        )
+    return (
+        query.order_by(Person.last_name.asc(), Person.first_name.asc(), Person.id.asc())
+        .limit(max(1, min(limit, 500)))
+        .all()
+    )
+
+
+def person_by_id(person_id: int) -> Person:
+    # Spec Cementiri: ver cementerio_extract.md (9.4.3 / 9.4.4)
+    person = Person.query.filter_by(org_id=org_id(), id=person_id).first()
+    if not person:
+        raise ValueError("Persona no encontrada")
+    return person
+
+
+def _validate_email(value: str) -> str:
+    email = (value or "").strip()
+    if not email:
+        return ""
+    if "@" not in email or email.startswith("@") or email.endswith("@"):
+        raise ValueError("Email invalido")
+    return email
+
+
+def _person_payload(payload: dict[str, str]) -> dict[str, str | None]:
+    return {
+        "first_name": (payload.get("nombre") or payload.get("first_name") or "").strip(),
+        "last_name": (payload.get("apellidos") or payload.get("last_name") or "").strip(),
+        "dni_nif": _clean_dni_nif(payload.get("dni_nif") or payload.get("document_id")),
+        "telefono": (payload.get("telefono") or payload.get("phone") or "").strip(),
+        "email": _validate_email(payload.get("email") or ""),
+        "direccion": (payload.get("direccion") or payload.get("address") or "").strip(),
+        "notas": (payload.get("notas") or payload.get("notes") or "").strip(),
+    }
+
+
+def create_person(payload: dict[str, str]) -> Person:
+    # Spec Cementiri: ver cementerio_extract.md (9.4.3 / 9.4.4 / 9.1.6)
+    values = _person_payload(payload)
+    if not values["first_name"]:
+        raise ValueError("El nombre es obligatorio")
+    if values["dni_nif"]:
+        existing = Person.query.filter_by(org_id=org_id(), dni_nif=values["dni_nif"]).first()
+        if existing:
+            raise ValueError("Ya existe una persona con ese DNI/NIF")
+    person = Person(
+        org_id=org_id(),
+        first_name=str(values["first_name"]),
+        last_name=str(values["last_name"]),
+        dni_nif=values["dni_nif"],
+        telefono=str(values["telefono"]),
+        email=str(values["email"]),
+        direccion=str(values["direccion"]),
+        notas=str(values["notas"]),
+    )
+    db.session.add(person)
+    db.session.commit()
+    return person
+
+
+def update_person(person_id: int, payload: dict[str, str]) -> Person:
+    # Spec Cementiri: ver cementerio_extract.md (9.4.3 / 9.4.4)
+    person = person_by_id(person_id)
+    values = _person_payload(payload)
+    if not values["first_name"]:
+        raise ValueError("El nombre es obligatorio")
+    if values["dni_nif"]:
+        existing = (
+            Person.query.filter_by(org_id=org_id(), dni_nif=values["dni_nif"])
+            .filter(Person.id != person.id)
+            .first()
+        )
+        if existing:
+            raise ValueError("Ya existe otra persona con ese DNI/NIF")
+    person.first_name = str(values["first_name"])
+    person.last_name = str(values["last_name"])
+    person.dni_nif = values["dni_nif"]
+    person.telefono = str(values["telefono"])
+    person.email = str(values["email"])
+    person.direccion = str(values["direccion"])
+    person.notas = str(values["notas"])
+    db.session.add(person)
+    db.session.commit()
+    return person
+
+
 def create_funeral_right_contract(sepultura_id: int, payload: dict[str, str]) -> DerechoFunerarioContrato:
-    # Spec Cementiri 9.1.7.x - contratacion del derecho funerario
+    # Spec Cementiri: ver cementerio_extract.md (9.1.7)
     sep = sepultura_by_id(sepultura_id)
     if sep.estado != SepulturaEstado.DISPONIBLE:
         raise ValueError("Solo se puede contratar en sepulturas en estado DISPONIBLE")
@@ -324,11 +435,15 @@ def create_funeral_right_contract(sepultura_id: int, payload: dict[str, str]) ->
     annual_fee_amount = _parse_decimal(payload.get("annual_fee_amount", ""), "importe anual")
     legacy_99_years = (payload.get("legacy_99_years") or "").lower() in {"1", "on", "true", "yes"}
 
-    titular = _create_or_reuse_person(
-        payload.get("titular_first_name", ""),
-        payload.get("titular_last_name", ""),
-        payload.get("titular_document_id"),
-    )
+    titular_person_id = (payload.get("titular_person_id") or "").strip()
+    if titular_person_id.isdigit():
+        titular = _person_by_org(int(titular_person_id), "titular")
+    else:
+        titular = _create_or_reuse_person(
+            payload.get("titular_first_name", ""),
+            payload.get("titular_last_name", ""),
+            payload.get("titular_dni_nif") or payload.get("titular_document_id"),
+        )
 
     contrato = DerechoFunerarioContrato(
         org_id=org_id(),
@@ -360,13 +475,9 @@ def create_funeral_right_contract(sepultura_id: int, payload: dict[str, str]) ->
         )
     )
 
-    beneficiario_first_name = (payload.get("beneficiario_first_name") or "").strip()
-    if beneficiario_first_name:
-        beneficiario = _create_or_reuse_person(
-            beneficiario_first_name,
-            payload.get("beneficiario_last_name", ""),
-            payload.get("beneficiario_document_id"),
-        )
+    beneficiario_person_id = (payload.get("beneficiario_person_id") or "").strip()
+    if beneficiario_person_id.isdigit():
+        beneficiario = _person_by_org(int(beneficiario_person_id), "beneficiario")
         db.session.add(
             Beneficiario(
                 org_id=org_id(),
@@ -375,6 +486,22 @@ def create_funeral_right_contract(sepultura_id: int, payload: dict[str, str]) ->
                 activo_desde=fecha_inicio,
             )
         )
+    else:
+        beneficiario_first_name = (payload.get("beneficiario_first_name") or "").strip()
+        if beneficiario_first_name:
+            beneficiario = _create_or_reuse_person(
+                beneficiario_first_name,
+                payload.get("beneficiario_last_name", ""),
+                payload.get("beneficiario_dni_nif") or payload.get("beneficiario_document_id"),
+            )
+            db.session.add(
+                Beneficiario(
+                    org_id=org_id(),
+                    contrato_id=contrato.id,
+                    person_id=beneficiario.id,
+                    activo_desde=fecha_inicio,
+                )
+            )
 
     db.session.commit()
     return contrato
@@ -392,16 +519,20 @@ def nominate_contract_beneficiary(
     payload: dict[str, str],
     user_id: int | None = None,
 ) -> Beneficiario:
-    # Spec Cementiri 9.1.6 - nombramiento de beneficiario
+    # Spec Cementiri: ver cementerio_extract.md (9.1.6)
     contrato = contract_by_id(contract_id)
-    first_name = (payload.get("first_name") or "").strip()
-    if not first_name:
-        raise ValueError("El nombre del beneficiario es obligatorio")
-    person = _create_or_reuse_person(
-        first_name,
-        payload.get("last_name", ""),
-        payload.get("document_id"),
-    )
+    person_id_raw = (payload.get("person_id") or "").strip()
+    if person_id_raw.isdigit():
+        person = _person_by_org(int(person_id_raw), "beneficiario")
+    else:
+        first_name = (payload.get("first_name") or payload.get("nombre") or "").strip()
+        if not first_name:
+            raise ValueError("Debes seleccionar o crear un beneficiario")
+        person = _create_or_reuse_person(
+            first_name,
+            payload.get("last_name") or payload.get("apellidos") or "",
+            payload.get("dni_nif") or payload.get("document_id"),
+        )
 
     active = active_beneficiario_for_contract(contrato.id)
     if active and active.person_id == person.id:
@@ -1632,11 +1763,43 @@ def reset_demo_org_data(user_id: int | None = None) -> dict[str, int]:
         db.session.add(cemetery)
         db.session.flush()
 
-    titular = Person(org_id=oid, first_name="Marta", last_name="Soler", document_id="11111111A")
-    titular_alt = Person(org_id=oid, first_name="Joan", last_name="Riera", document_id="22222222B")
-    difunto = Person(org_id=oid, first_name="Antoni", last_name="Ferrer", document_id="33333333C")
-    sucesor = Person(org_id=oid, first_name="Carla", last_name="Mora", document_id="88888888H")
-    db.session.add_all([titular, titular_alt, difunto, sucesor])
+    titular = Person(
+        org_id=oid,
+        first_name="Marta",
+        last_name="Soler",
+        dni_nif="11111111A",
+        telefono="600111111",
+        email="marta.soler@example.com",
+    )
+    titular_alt = Person(
+        org_id=oid,
+        first_name="Joan",
+        last_name="Riera",
+        dni_nif="22222222B",
+        telefono="600222222",
+    )
+    difunto = Person(
+        org_id=oid,
+        first_name="Antoni",
+        last_name="Ferrer",
+        dni_nif="33333333C",
+    )
+    sucesor = Person(
+        org_id=oid,
+        first_name="Carla",
+        last_name="Mora",
+        dni_nif="88888888H",
+        email="carla.mora@example.com",
+    )
+    extra_people = [
+        Person(org_id=oid, first_name="Sonia", last_name="Pons", dni_nif="99999999J"),
+        Person(org_id=oid, first_name="Marc", last_name="Vila", dni_nif="10101010K"),
+        Person(org_id=oid, first_name="Lucia", last_name="Navarro", dni_nif="12121212L"),
+        Person(org_id=oid, first_name="Ramon", last_name="Ibanez", telefono="600131313"),
+        Person(org_id=oid, first_name="Elisabet", last_name="Puig", dni_nif="14141414M"),
+        Person(org_id=oid, first_name="Noelia", last_name="Crespo"),
+    ]
+    db.session.add_all([titular, titular_alt, difunto, sucesor, *extra_people])
     db.session.flush()
 
     sep_1 = Sepultura(
@@ -2162,6 +2325,7 @@ def ownership_case_detail(case_id: int) -> dict[str, object]:
 
 
 def add_case_party(case_id: int, payload: dict[str, str]) -> OwnershipTransferParty:
+    # Spec Cementiri: ver cementerio_extract.md (9.1.5)
     case = _get_case_or_404(case_id)
     role_raw = (payload.get("role") or "").strip().upper()
     try:
@@ -2171,14 +2335,15 @@ def add_case_party(case_id: int, payload: dict[str, str]) -> OwnershipTransferPa
 
     person_id_raw = (payload.get("person_id") or "").strip()
     if person_id_raw.isdigit():
-        person = Person.query.filter_by(id=int(person_id_raw), org_id=org_id()).first()
-        if not person:
-            raise ValueError("Persona no encontrada")
+        person = _person_by_org(int(person_id_raw))
     else:
+        first_name = (payload.get("first_name") or payload.get("nombre") or "").strip()
+        if not first_name:
+            raise ValueError("Debes seleccionar o crear una persona")
         person = _create_or_reuse_person(
-            payload.get("first_name", ""),
-            payload.get("last_name", ""),
-            payload.get("document_id"),
+            first_name,
+            payload.get("last_name") or payload.get("apellidos") or "",
+            payload.get("dni_nif") or payload.get("document_id"),
         )
 
     if role != OwnershipPartyRole.OTRO:
@@ -2340,6 +2505,7 @@ def _validate_case_ready_to_close(case: OwnershipTransferCase) -> None:
 
 
 def close_ownership_case(case_id: int, payload: dict[str, str], user_id: int | None) -> OwnershipTransferCase:
+    # Spec Cementiri: ver cementerio_extract.md (9.1.5)
     case = _get_case_or_404(case_id)
     _validate_case_ready_to_close(case)
 
@@ -2379,15 +2545,12 @@ def close_ownership_case(case_id: int, payload: dict[str, str], user_id: int | N
         if decision == BeneficiaryCloseDecision.REPLACE:
             beneficiary_person_id_raw = (payload.get("beneficiary_person_id") or "").strip()
             if beneficiary_person_id_raw.isdigit():
-                new_beneficiary_person = Person.query.filter_by(
-                    org_id=org_id(),
-                    id=int(beneficiary_person_id_raw),
-                ).first()
+                new_beneficiary_person = _person_by_org(int(beneficiary_person_id_raw), "beneficiario")
             else:
                 new_beneficiary_person = _create_or_reuse_person(
                     payload.get("beneficiary_first_name", ""),
                     payload.get("beneficiary_last_name", ""),
-                    payload.get("beneficiary_document_id"),
+                    payload.get("beneficiary_dni_nif") or payload.get("beneficiary_document_id"),
                 )
             if not new_beneficiary_person:
                 raise ValueError("Debes indicar el nuevo beneficiario")

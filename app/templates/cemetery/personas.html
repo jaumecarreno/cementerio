@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% set active_cem = 'personas' %}
+{% block title %}Cementerio - Personas{% endblock %}
+{% block content %}
+<h1 class="page-title">Cementerio &gt; Personas</h1>
+
+<div class="box">
+  <form method="get" action="{{ url_for('cemetery.people_list') }}">
+    <div class="form-grid">
+      <div>
+        <label>Buscar (nombre, apellidos o DNI/NIF)</label>
+        <input type="text" name="q" value="{{ filters.q }}" placeholder="Ej: Marta, Soler, 11111111A">
+      </div>
+    </div>
+    <div class="actions-row">
+      <a class="btn" href="{{ url_for('cemetery.people_list') }}">Limpiar</a>
+      <button class="btn primary" type="submit">Buscar</button>
+      <a class="btn primary" href="{{ url_for('cemetery.person_new') }}">Nueva persona</a>
+    </div>
+  </form>
+</div>
+
+<div class="box">
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Nombre</th>
+        <th>DNI/NIF</th>
+        <th>Telefono</th>
+        <th>Email</th>
+        <th>Direccion</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for person in rows %}
+      <tr>
+        <td>{{ person.id }}</td>
+        <td>{{ person.full_name }}</td>
+        <td>{{ person.dni_nif or '-' }}</td>
+        <td>{{ person.telefono or '-' }}</td>
+        <td>{{ person.email or '-' }}</td>
+        <td>{{ person.direccion or '-' }}</td>
+        <td>
+          <a class="btn" href="{{ url_for('cemetery.person_edit', person_id=person.id) }}">Editar</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="7">No hay personas para los filtros actuales.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

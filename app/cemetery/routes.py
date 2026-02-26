@@ -19,6 +19,7 @@ from app.cemetery.services import (
     create_expediente,
     create_expediente_ot,
     create_inscripcion_lateral,
+    create_person,
     create_ownership_case,
     create_funeral_right_contract,
     create_mass_sepulturas,
@@ -34,11 +35,13 @@ from app.cemetery.services import (
     list_lapida_stock,
     list_lapida_stock_movements,
     list_ownership_cases,
+    list_people,
     nominate_contract_beneficiary,
     ownership_case_document_download,
     ownership_case_detail,
     ownership_case_resolution_pdf,
     org_record,
+    person_by_id,
     paginate_rows,
     panel_data,
     preview_mass_create,
@@ -53,6 +56,7 @@ from app.cemetery.services import (
     sepultura_tickets_and_invoices,
     transition_expediente_state,
     transition_inscripcion_estado,
+    update_person,
     upload_case_document,
     verify_case_document,
 )
@@ -90,6 +94,109 @@ def admin_generate_tickets():
         "success",
     )
     return redirect(url_for("cemetery.panel"))
+
+
+@cemetery_bp.get("/personas")
+@login_required
+@require_membership
+def people_list():
+    # Spec Cementiri: ver cementerio_extract.md (9.4.3 / 9.4.4)
+    filters = {"q": request.args.get("q", "").strip()}
+    rows = list_people(filters["q"])
+    return render_template("cemetery/personas.html", rows=rows, filters=filters)
+
+
+@cemetery_bp.route("/personas/nueva", methods=["GET", "POST"])
+@login_required
+@require_membership
+def person_new():
+    # Spec Cementiri: ver cementerio_extract.md (9.4.3 / 9.4.4 / 9.1.6)
+    form_data = dict(request.form.items()) if request.method == "POST" else {}
+    if request.method == "POST":
+        try:
+            person = create_person(form_data)
+            flash(f"Persona {person.full_name} creada", "success")
+            return redirect(url_for("cemetery.person_edit", person_id=person.id))
+        except ValueError as exc:
+            flash(str(exc), "error")
+    return render_template(
+        "cemetery/person_form.html",
+        person=None,
+        form_data=form_data,
+        form_action=url_for("cemetery.person_new"),
+        title="Nueva persona",
+    )
+
+
+@cemetery_bp.route("/personas/<int:person_id>/editar", methods=["GET", "POST"])
+@login_required
+@require_membership
+def person_edit(person_id: int):
+    # Spec Cementiri: ver cementerio_extract.md (9.4.3 / 9.4.4)
+    try:
+        person = person_by_id(person_id)
+    except ValueError:
+        abort(404)
+    form_data = dict(request.form.items()) if request.method == "POST" else {}
+    if request.method == "POST":
+        try:
+            person = update_person(person_id, form_data)
+            flash("Persona actualizada", "success")
+            return redirect(url_for("cemetery.person_edit", person_id=person.id))
+        except ValueError as exc:
+            flash(str(exc), "error")
+    return render_template(
+        "cemetery/person_form.html",
+        person=person,
+        form_data=form_data,
+        form_action=url_for("cemetery.person_edit", person_id=person.id),
+        title=f"Editar persona #{person.id}",
+    )
+
+
+@cemetery_bp.get("/personas/picker/search")
+@login_required
+@require_membership
+def person_picker_search():
+    # Spec Cementiri: ver cementerio_extract.md (9.1.6 / 9.1.7)
+    picker_id = (request.args.get("picker_id") or "").strip()
+    field_name = (request.args.get("field_name") or "person_id").strip() or "person_id"
+    query_text = request.args.get("q", "").strip()
+    rows = list_people(query_text, limit=25) if query_text else []
+    return render_template(
+        "components/person_picker_results.html",
+        rows=rows,
+        picker_id=picker_id,
+        field_name=field_name,
+        query_text=query_text,
+    )
+
+
+@cemetery_bp.post("/personas/picker/create")
+@login_required
+@require_membership
+def person_picker_create():
+    # Spec Cementiri: ver cementerio_extract.md (9.1.6 / 9.1.7)
+    picker_id = (request.form.get("picker_id") or "").strip()
+    field_name = (request.form.get("field_name") or "person_id").strip() or "person_id"
+    payload = {k: v for k, v in request.form.items()}
+    try:
+        person = create_person(payload)
+        return render_template(
+            "components/person_picker_create_result.html",
+            picker_id=picker_id,
+            field_name=field_name,
+            person=person,
+            error="",
+        )
+    except ValueError as exc:
+        return render_template(
+            "components/person_picker_create_result.html",
+            picker_id=picker_id,
+            field_name=field_name,
+            person=None,
+            error=str(exc),
+        )
 
 
 @cemetery_bp.route("/expedientes", methods=["GET", "POST"])

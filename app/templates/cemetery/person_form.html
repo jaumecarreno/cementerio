@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% set active_cem = 'personas' %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<h1 class="page-title">{{ title }}</h1>
+{% set d = form_data or {} %}
+
+<div class="box">
+  <form method="post" action="{{ form_action }}">
+    <div class="form-grid">
+      <div>
+        <label>Nombre</label>
+        <input type="text" name="nombre" value="{{ d.get('nombre', person.first_name if person else '') }}" required>
+      </div>
+      <div>
+        <label>Apellidos</label>
+        <input type="text" name="apellidos" value="{{ d.get('apellidos', person.last_name if person else '') }}">
+      </div>
+      <div>
+        <label>DNI/NIF</label>
+        <input type="text" name="dni_nif" value="{{ d.get('dni_nif', person.dni_nif if person else '') }}">
+      </div>
+      <div>
+        <label>Telefono</label>
+        <input type="text" name="telefono" value="{{ d.get('telefono', person.telefono if person else '') }}">
+      </div>
+      <div>
+        <label>Email</label>
+        <input type="text" name="email" value="{{ d.get('email', person.email if person else '') }}">
+      </div>
+      <div>
+        <label>Direccion</label>
+        <input type="text" name="direccion" value="{{ d.get('direccion', person.direccion if person else '') }}">
+      </div>
+      <div>
+        <label>Notas</label>
+        <input type="text" name="notas" value="{{ d.get('notas', person.notas if person else '') }}">
+      </div>
+    </div>
+    <div class="actions-row">
+      <a class="btn" href="{{ url_for('cemetery.people_list') }}">Volver al listado</a>
+      <button class="btn primary" type="submit">Guardar</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
