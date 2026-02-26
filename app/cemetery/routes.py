@@ -13,6 +13,8 @@ from app.cemetery.services import (
     create_mass_sepulturas,
     funeral_right_title_pdf,
     generate_invoice_for_tickets,
+    generate_maintenance_tickets_for_year,
+    org_record,
     panel_data,
     preview_mass_create,
     search_sepulturas,
@@ -21,7 +23,7 @@ from app.cemetery.services import (
     sepultura_tickets_and_invoices,
 )
 from app.core.models import SepulturaEstado
-from app.core.permissions import require_membership
+from app.core.permissions import require_membership, require_role
 from app.core.utils import money
 
 
@@ -35,7 +37,25 @@ def _is_htmx() -> bool:
 def panel():
     # Spec 9.0 + mockups_v2/page-2 - Panel de trabajo Cementerio
     data = panel_data()
-    return render_template("cemetery/panel.html", data=data)
+    return render_template("cemetery/panel.html", data=data, current_year=date.today().year)
+
+
+@cemetery_bp.post("/admin/tickets/generar")
+@login_required
+@require_membership
+@require_role("admin")
+def admin_generate_tickets():
+    # Spec 5.2.5.2.2 / 5.3.4 - Generar tiquets anuales de mantenimiento
+    year = request.form.get("year", type=int)
+    if not year:
+        flash("Indica un ano valido", "error")
+        return redirect(url_for("cemetery.panel"))
+    result = generate_maintenance_tickets_for_year(year, org_record())
+    flash(
+        f"Tiquets generados {year}: creados={result.created}, existentes={result.existing}",
+        "success",
+    )
+    return redirect(url_for("cemetery.panel"))
 
 
 @cemetery_bp.route("/sepulturas/buscar", methods=["GET", "POST"])

@@ -54,6 +54,27 @@ def register_cli(app: Flask) -> None:
         else:
             click.echo("Seed skipped: existing organizations found.")
 
+    @app.cli.command("tickets-generate-year")
+    @click.option("--year", type=int, required=True, help="Fiscal year to generate maintenance tickets for.")
+    @click.option("--org-code", type=str, default=None, help="Optional organization code.")
+    def tickets_generate_year(year: int, org_code: str | None) -> None:
+        """Generate yearly maintenance tickets for concession contracts."""
+        from app.cemetery.services import generate_maintenance_tickets_for_year
+
+        query = Organization.query
+        if org_code:
+            query = query.filter_by(code=org_code)
+        organizations = query.order_by(Organization.id.asc()).all()
+        if not organizations:
+            click.echo("No organizations found for ticket generation.")
+            return
+
+        for organization in organizations:
+            result = generate_maintenance_tickets_for_year(year, organization)
+            click.echo(
+                f"[{organization.code}] year={year} created={result.created} existing={result.existing}"
+            )
+
 
 def _template_context() -> dict[str, object]:
     return {

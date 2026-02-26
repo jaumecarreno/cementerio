@@ -30,7 +30,7 @@
     <table>
       <thead>
         <tr>
-          <th>Nº</th>
+          <th>No</th>
           <th>Tipo</th>
           <th>Difunto</th>
           <th>Estado</th>
@@ -41,7 +41,7 @@
         <tr>
           <td>{{ expediente.numero }}</td>
           <td>{{ expediente.tipo }}</td>
-          <td>{{ person.full_name if person else '—' }}</td>
+          <td>{{ person.full_name if person else '-' }}</td>
           <td>{{ expediente.estado }}</td>
         </tr>
         {% endfor %}
@@ -59,13 +59,19 @@
 </div>
 
 <div class="box">
-  <h3>Accesos rápidos</h3>
+  <h3>Accesos rapidos</h3>
   <div class="quick-actions">
     <a class="btn" href="{{ url_for('cemetery.search_graves') }}">{{ t('action.search_grave') }}</a>
     <a class="btn" href="{{ url_for('cemetery.search_graves') }}?redirect=fees">{{ t('action.collect_fees') }}</a>
-    <a class="btn" href="#">{{ t('cem.cases') }}: Inhumación</a>
+    <a class="btn" href="#">{{ t('cem.cases') }}: Inhumacion</a>
     <a class="btn" href="#">{{ t('cem.ownership') }}</a>
     <a class="btn" href="{{ url_for('cemetery.mass_create') }}">{{ t('action.mass_create') }}</a>
+    {% if g.membership and g.membership.role == "admin" %}
+    <form class="inline-form" method="post" action="{{ url_for('cemetery.admin_generate_tickets') }}">
+      <input type="number" name="year" min="2000" max="2100" value="{{ current_year }}" style="width: 130px;">
+      <button class="btn" type="submit">Generar tiquets anuales</button>
+    </form>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

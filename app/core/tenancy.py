@@ -8,6 +8,7 @@ from app.core.models import Membership
 
 def load_tenant_context() -> None:
     g.org = None
+    g.membership = None
     if not current_user.is_authenticated:
         return
     membership = (
@@ -18,3 +19,4 @@ def load_tenant_context() -> None:
     if membership is None:
         abort(403)
     g.org = membership.organization
+    g.membership = membership

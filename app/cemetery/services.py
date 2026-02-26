@@ -40,6 +40,13 @@ class MassCreatePreview:
     rows: list[dict[str, int | str]]
 
 
+@dataclass
+class TicketGenerationResult:
+    created: int = 0
+    existing: int = 0
+    skipped_non_concession: int = 0
+
+
 def org_id() -> int:
     return g.org.id
 
@@ -339,6 +346,79 @@ def funeral_right_title_pdf(contract_id: int) -> bytes:
     )
     db.session.commit()
     return _simple_pdf(lines)
+
+
+def _active_titular_for_contract_on(
+    contract_id: int,
+    reference_date: date,
+    organization_id: int,
+) -> Titularidad | None:
+    return (
+        Titularidad.query.filter_by(org_id=organization_id, contrato_id=contract_id)
+        .filter(Titularidad.activo_desde <= reference_date)
+        .filter(or_(Titularidad.activo_hasta.is_(None), Titularidad.activo_hasta >= reference_date))
+        .order_by(Titularidad.activo_desde.desc())
+        .first()
+    )
+
+
+def _apply_discount(amount: Decimal, discount_pct: Decimal) -> Decimal:
+    factor = (Decimal("100.00") - Decimal(discount_pct)) / Decimal("100.00")
+    return (Decimal(amount) * factor).quantize(Decimal("0.01"))
+
+
+def generate_maintenance_tickets_for_year(year: int, organization: Organization) -> TicketGenerationResult:
+    # Spec 5.2.5.2.2 / 5.3.4 - generacion de tiquets el 1 de enero para concesiones
+    jan_1 = date(year, 1, 1)
+    result = TicketGenerationResult()
+    contracts = (
+        DerechoFunerarioContrato.query.join(Sepultura, Sepultura.id == DerechoFunerarioContrato.sepultura_id)
+        .filter(DerechoFunerarioContrato.org_id == organization.id)
+        .filter(DerechoFunerarioContrato.estado == "ACTIVO")
+        .filter(DerechoFunerarioContrato.tipo == DerechoTipo.CONCESION)
+        .filter(DerechoFunerarioContrato.fecha_inicio <= jan_1)
+        .filter(DerechoFunerarioContrato.fecha_fin >= jan_1)
+        .filter(Sepultura.estado != SepulturaEstado.PROPIA)
+        .order_by(DerechoFunerarioContrato.id.asc())
+        .all()
+    )
+
+    for contract in contracts:
+        existing = TasaMantenimientoTicket.query.filter_by(
+            org_id=organization.id,
+            contrato_id=contract.id,
+            anio=year,
+        ).first()
+        if existing:
+            result.existing += 1
+            continue
+
+        titular = _active_titular_for_contract_on(contract.id, jan_1, organization.id)
+        discount_pct = Decimal(organization.pensionista_discount_pct or Decimal("0.00"))
+        apply_pensionista = bool(
+            titular
+            and titular.pensionista
+            and titular.pensionista_desde
+            and year >= titular.pensionista_desde.year
+        )
+        base_amount = Decimal(contract.annual_fee_amount or Decimal("0.00"))
+        amount = _apply_discount(base_amount, discount_pct) if apply_pensionista else base_amount
+        discount_tipo = TicketDescuentoTipo.PENSIONISTA if apply_pensionista else TicketDescuentoTipo.NONE
+
+        db.session.add(
+            TasaMantenimientoTicket(
+                org_id=organization.id,
+                contrato_id=contract.id,
+                anio=year,
+                importe=amount,
+                descuento_tipo=discount_tipo,
+                estado=TicketEstado.PENDIENTE,
+            )
+        )
+        result.created += 1
+
+    db.session.commit()
+    return result
 def search_sepulturas(filters: dict[str, str]) -> list[dict[str, object]]:
     oid = org_id()
     query = Sepultura.query.filter_by(org_id=oid)
