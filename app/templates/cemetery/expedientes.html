@@ -16,10 +16,10 @@
       <div>
         <label>{{ t('field.type') }}</label>
         <select name="tipo" required>
-          <option value="INHUMACION" {% if create_tipo == 'INHUMACION' %}selected{% endif %}>INHUMACION</option>
-          <option value="EXHUMACION" {% if create_tipo == 'EXHUMACION' %}selected{% endif %}>EXHUMACION</option>
-          <option value="RESCATE" {% if create_tipo == 'RESCATE' %}selected{% endif %}>RESCATE</option>
-          <option value="FINALIZACION" {% if create_tipo == 'FINALIZACION' %}selected{% endif %}>FINALIZACION</option>
+          <option value="INHUMACION" {% if create_tipo == 'INHUMACION' %}selected{% endif %}>{{ t('cases.inhumation') }}</option>
+          <option value="EXHUMACION" {% if create_tipo == 'EXHUMACION' %}selected{% endif %}>{{ t('cases.exhumation') }}</option>
+          <option value="RESCATE" {% if create_tipo == 'RESCATE' %}selected{% endif %}>{{ t('cases.rescue') }}</option>
+          <option value="FINALIZACION" {% if create_tipo == 'FINALIZACION' %}selected{% endif %}>{{ t('cases.closure') }}</option>
         </select>
       </div>
       <div>
@@ -49,7 +49,7 @@
         {% endwith %}
       </div>
       <div>
-        <label>{{ t('field.date') }} prevista</label>
+        <label>{{ t('field.expected_date') }}</label>
         <input type="date" name="fecha_prevista">
       </div>
       <div style="grid-column: 1 / -1;">
@@ -105,13 +105,13 @@
   <table>
     <thead>
       <tr>
-        <th>No</th>
+        <th>{{ t('common.id') }}</th>
         <th>{{ t('field.type') }}</th>
         <th>{{ t('field.status') }}</th>
         <th>{{ t('cem.graves') }}</th>
         <th>{{ t('field.deceased') }}</th>
         <th>{{ t('field.declarant') }}</th>
-        <th>Prevista</th>
+        <th>{{ t('cases.expected') }}</th>
         <th></th>
       </tr>
     </thead>

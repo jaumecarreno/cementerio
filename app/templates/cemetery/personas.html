@@ -1,37 +1,37 @@
 {% extends "base.html" %}
 {% set active_cem = 'personas' %}
-{% block title %}Cementerio - Personas{% endblock %}
+{% block title %}{{ t('cem.people') }}{% endblock %}
 {% block content %}
-<h1 class="page-title">Cementerio &gt; Personas</h1>
+<h1 class="page-title">{{ t('cem.people') }}</h1>
 
 <div class="box">
   <form method="get" action="{{ url_for('cemetery.people_list') }}">
     <div class="form-grid">
       <div>
-        <label>Buscar (nombre, apellidos o DNI/NIF)</label>
-        <input type="text" name="q" value="{{ filters.q }}" placeholder="Ej: Marta, Soler, 11111111A">
+        <label>{{ t('people.search_label') }}</label>
+        <input type="text" name="q" value="{{ filters.q }}" placeholder="{{ t('person_picker.search_placeholder') }}">
       </div>
     </div>
     <div class="actions-row">
       <a class="btn" href="{{ url_for('cemetery.people_list') }}">Limpiar</a>
       <button class="btn primary" type="submit">Buscar</button>
-      <a class="btn primary" href="{{ url_for('cemetery.person_new') }}">Nueva persona</a>
+      <a class="btn primary" href="{{ url_for('cemetery.person_new') }}">{{ t('people.new') }}</a>
     </div>
   </form>
 </div>
 
 <div class="box">
-  <p class="small muted">Mostrando {{ paged.shown }} de {{ paged.total }} resultados.</p>
+  <p class="small muted">{{ t('common.results_count').format(shown=paged.shown, total=paged.total) }}</p>
   <table class="table-zebra table-sticky-head">
     <thead>
       <tr>
-        <th>ID</th>
-        <th>Nombre</th>
+        <th>{{ t('common.id') }}</th>
+        <th>{{ t('field.name') }}</th>
         <th>DNI/NIF</th>
-        <th>Telefono</th>
+        <th>{{ t('field.phone') }}</th>
         <th>Email</th>
-        <th>Direccion</th>
-        <th>Acciones</th>
+        <th>{{ t('field.address') }}</th>
+        <th>{{ t('common.actions') }}</th>
       </tr>
     </thead>
     <tbody>
@@ -44,7 +44,7 @@
         <td>{{ person.email or '-' }}</td>
         <td>{{ person.direccion or '-' }}</td>
         {% set primary_href = url_for('cemetery.person_edit', person_id=person.id) %}
-        {% set primary_label = 'Editar' %}
+        {% set primary_label = t('common.edit') %}
         {% set primary = false %}
         {% set secondary_href = '' %}
         {% set secondary_label = '' %}
@@ -52,18 +52,18 @@
       </tr>
       {% else %}
       <tr>
-        <td colspan="7">No hay personas para los filtros actuales.</td>
+        <td colspan="7">{{ t('people.none') }}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
   <div class="table-pagination small">
     {% if paged.has_prev %}
-      <a class="btn" href="{{ url_for('cemetery.people_list', q=filters.q, page=paged.page-1, page_size=paged.page_size) }}">Anterior</a>
+      <a class="btn" href="{{ url_for('cemetery.people_list', q=filters.q, page=paged.page-1, page_size=paged.page_size) }}">{{ t('common.previous') }}</a>
     {% endif %}
-    <span>Pagina {{ paged.page }} de {{ paged.total_pages }}</span>
+    <span>{{ t('common.page') }} {{ paged.page }} {{ t('common.of') }} {{ paged.total_pages }}</span>
     {% if paged.has_next %}
-      <a class="btn" href="{{ url_for('cemetery.people_list', q=filters.q, page=paged.page+1, page_size=paged.page_size) }}">Siguiente</a>
+      <a class="btn" href="{{ url_for('cemetery.people_list', q=filters.q, page=paged.page+1, page_size=paged.page_size) }}">{{ t('common.next') }}</a>
     {% endif %}
   </div>
 </div>

@@ -9,7 +9,7 @@
   <form method="post" action="{{ url_for('cemetery.ownership_cases') }}">
     <div class="form-grid">
       <div>
-        <label>Contrato</label>
+        <label>{{ t('field.contract') }}</label>
         <input type="number" name="contract_id" min="1" required>
       </div>
       <div>
@@ -21,7 +21,7 @@
         </select>
       </div>
       <div>
-        <label>Inicio provisional (si aplica)</label>
+        <label>{{ t('field.date') }} provisional</label>
         <input type="date" name="provisional_start_date">
       </div>
       <div>
@@ -30,7 +30,7 @@
       </div>
     </div>
     <div class="actions-row">
-      <button class="btn primary" type="submit">{{ t('common.create') }} caso</button>
+      <button class="btn primary" type="submit">{{ t('common.create') }} {{ t('cases.title')|lower }}</button>
     </div>
   </form>
 </div>
@@ -72,11 +72,11 @@
         <input type="date" name="opened_to" value="{{ filters.opened_to }}">
       </div>
       <div>
-        <label>Contrato</label>
+        <label>{{ t('field.contract') }}</label>
         <input type="text" name="contract_id" value="{{ filters.contract_id }}">
       </div>
       <div>
-        <label>Sepultura ID</label>
+        <label>{{ t('field.grave') }} ID</label>
         <input type="text" name="sepultura_id" value="{{ filters.sepultura_id }}">
       </div>
       <div>
