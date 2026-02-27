@@ -1,47 +1,47 @@
 {% extends "base.html" %}
-{% set active_global = 'cemetery' %}
+{% set active_global = 'dashboard' %}
 {% set breadcrumbs = [
-  {'label': 'Demo', 'href': None}
+  {'label': t('demo.title'), 'href': None}
 ] %}
-{% block title %}Demo tools{% endblock %}
+{% block title %}{{ t('demo.title') }}{% endblock %}
 {% block content %}
-<h1 class="page-title">Demo</h1>
+<h1 class="page-title">{{ t('demo.title') }}</h1>
 <div class="box">
-  <h3>Checklist</h3>
+  <h3>{{ t('demo.checklist') }}</h3>
   <ul>
-    <li>Crear caso de transmision de ejemplo</li>
-    <li>Crear expediente de inhumacion de ejemplo</li>
-    <li>Generar tiquets del ano actual</li>
-    <li>Reset de datos demo por organizacion (solo DEV)</li>
+    <li>{{ t('demo.checklist_case') }}</li>
+    <li>{{ t('demo.checklist_expediente') }}</li>
+    <li>{{ t('demo.checklist_tickets') }}</li>
+    <li>{{ t('demo.checklist_reset') }}</li>
   </ul>
 </div>
 
 <div class="box">
-  <h3>Acciones</h3>
+  <h3>{{ t('common.actions') }}</h3>
   <div class="quick-actions">
     <form class="inline-form" method="post" action="{{ url_for('demo_create_case') }}">
-      <button class="btn" type="submit">Crear caso ejemplo</button>
+      <button class="btn" type="submit">{{ t('demo.create_case_example') }}</button>
     </form>
     <form class="inline-form" method="post" action="{{ url_for('demo_create_expediente') }}">
-      <button class="btn" type="submit">Crear expediente ejemplo</button>
+      <button class="btn" type="submit">{{ t('demo.create_expediente_example') }}</button>
     </form>
     <form class="inline-form" method="post" action="{{ url_for('demo_generate_tickets') }}">
-      <button class="btn" type="submit">Generar tiquets ano actual</button>
+      <button class="btn" type="submit">{{ t('demo.generate_tickets_current_year') }}</button>
     </form>
   </div>
 </div>
 
 <div class="box">
-  <h3>Reset demo data</h3>
+  <h3>{{ t('demo.reset_data') }}</h3>
   <form method="post" action="{{ url_for('demo_reset') }}">
     <div class="form-grid">
       <div>
-        <label>Confirmacion explicita</label>
-        <input type="text" name="confirm" placeholder="Escribe RESET-DEMO" required>
+        <label>{{ t('demo.explicit_confirmation') }}</label>
+        <input type="text" name="confirm" placeholder="{{ t('demo.reset_placeholder') }}" required>
       </div>
     </div>
     <div class="actions-row">
-      <button class="btn primary" type="submit">Reset por organizacion</button>
+      <button class="btn primary" type="submit">{{ t('demo.reset_button') }}</button>
     </div>
   </form>
 </div>

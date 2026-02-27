@@ -1,86 +1,86 @@
 {% extends "base.html" %}
 {% set active_cem = 'reporting' %}
 {% set breadcrumbs = [
-  {'label': 'Cementerio', 'href': url_for('cemetery.panel')},
-  {'label': 'Reporting', 'href': None}
+  {'label': t('menu.dashboard'), 'href': url_for('cemetery.panel')},
+  {'label': t('reporting.title'), 'href': None}
 ] %}
-{% block title %}Reporting{% endblock %}
+{% block title %}{{ t('reporting.title') }}{% endblock %}
 {% block content %}
-<h1 class="page-title">Reporting</h1>
+<h1 class="page-title">{{ t('reporting.title') }}</h1>
 
 <div class="box">
-  <h3>Informe y filtros</h3>
+  <h3>{{ t('reporting.report_and_filters') }}</h3>
   <form method="get" action="{{ url_for('cemetery.reporting') }}">
     <div class="form-grid">
       <div>
-        <label>Informe</label>
+        <label>{{ t('reporting.report_type') }}</label>
         <select name="report">
-          <option value="sepulturas" {% if report_key == 'sepulturas' %}selected{% endif %}>Sepulturas</option>
-          <option value="contratos" {% if report_key == 'contratos' %}selected{% endif %}>Contratos</option>
-          <option value="deuda" {% if report_key == 'deuda' %}selected{% endif %}>Deuda</option>
+          <option value="sepulturas" {% if report_key == 'sepulturas' %}selected{% endif %}>{{ t('reporting.graves') }}</option>
+          <option value="contratos" {% if report_key == 'contratos' %}selected{% endif %}>{{ t('reporting.contracts') }}</option>
+          <option value="deuda" {% if report_key == 'deuda' %}selected{% endif %}>{{ t('reporting.debt') }}</option>
         </select>
       </div>
       <div>
-        <label>Estado sepultura</label>
+        <label>{{ t('reporting.grave_state') }}</label>
         <input type="text" name="estado" value="{{ filters.estado }}">
       </div>
       <div>
-        <label>Modalidad</label>
+        <label>{{ t('reporting.modality') }}</label>
         <input type="text" name="modalidad" value="{{ filters.modalidad }}">
       </div>
       <div>
-        <label>Bloque</label>
+        <label>{{ t('reporting.block') }}</label>
         <input type="text" name="bloque" value="{{ filters.bloque }}">
       </div>
       <div>
-        <label>Tipo contrato</label>
+        <label>{{ t('reporting.contract_type') }}</label>
         <input type="text" name="tipo" value="{{ filters.tipo }}">
       </div>
       <div>
-        <label>Vigencia contrato</label>
+        <label>{{ t('reporting.contract_validity') }}</label>
         <select name="vigencia">
-          <option value="" {% if not filters.vigencia %}selected{% endif %}>Todas</option>
-          <option value="VIGENTE" {% if filters.vigencia == 'VIGENTE' %}selected{% endif %}>VIGENTE</option>
-          <option value="VENCIDO" {% if filters.vigencia == 'VENCIDO' %}selected{% endif %}>VENCIDO</option>
+          <option value="" {% if not filters.vigencia %}selected{% endif %}>{{ t('reporting.all') }}</option>
+          <option value="VIGENTE" {% if filters.vigencia == 'VIGENTE' %}selected{% endif %}>{{ t('reporting.active') }}</option>
+          <option value="VENCIDO" {% if filters.vigencia == 'VENCIDO' %}selected{% endif %}>{{ t('reporting.expired') }}</option>
         </select>
       </div>
       <div>
-        <label>Titular</label>
+        <label>{{ t('reporting.holder') }}</label>
         <input type="text" name="titular" value="{{ filters.titular }}">
       </div>
       <div>
-        <label>Contrato id (deuda)</label>
+        <label>{{ t('reporting.contract_id_debt') }}</label>
         <input type="text" name="contrato_id" value="{{ filters.contrato_id }}">
       </div>
       <div>
-        <label>Page size</label>
+        <label>{{ t('reporting.page_size') }}</label>
         <input type="number" name="page_size" value="{{ paged.page_size }}" min="1" max="100">
       </div>
       <div style="display:flex;align-items:flex-end;gap:8px;">
-        <button class="btn" type="submit">Aplicar</button>
-        <a class="btn" href="{{ url_for('cemetery.reporting') }}">Limpiar</a>
+        <button class="btn" type="submit">{{ t('common.apply') }}</button>
+        <a class="btn" href="{{ url_for('cemetery.reporting') }}">{{ t('common.clear') }}</a>
       </div>
     </div>
   </form>
   <div class="actions-row">
-    <a class="btn primary" href="{{ url_for('cemetery.reporting_export_csv', report=report_key, estado=filters.estado, modalidad=filters.modalidad, bloque=filters.bloque, tipo=filters.tipo, vigencia=filters.vigencia, titular=filters.titular, contrato_id=filters.contrato_id) }}">Exportar CSV</a>
+    <a class="btn primary" href="{{ url_for('cemetery.reporting_export_csv', report=report_key, estado=filters.estado, modalidad=filters.modalidad, bloque=filters.bloque, tipo=filters.tipo, vigencia=filters.vigencia, titular=filters.titular, contrato_id=filters.contrato_id) }}">{{ t('reporting.export_csv') }}</a>
   </div>
 </div>
 
 <div class="box">
-  <h3>Resultados</h3>
+  <h3>{{ t('reporting.results') }}</h3>
   <div class="meta-row">
-    <div><strong>Total:</strong> {{ paged.total }}</div>
-    <div><strong>Pagina:</strong> {{ paged.page }} / {{ paged.pages }}</div>
+    <div><strong>{{ t('common.total') }}:</strong> {{ paged.total }}</div>
+    <div><strong>{{ t('common.page') }}:</strong> {{ paged.page }} / {{ paged.pages }}</div>
   </div>
   <table>
     <thead>
       {% if report_key == 'sepulturas' %}
-      <tr><th>Id</th><th>Sepultura</th><th>Bloque</th><th>Modalidad</th><th>Estado</th></tr>
+      <tr><th>{{ t('common.id') }}</th><th>{{ t('reporting.graves') }}</th><th>{{ t('reporting.block') }}</th><th>{{ t('reporting.modality') }}</th><th>{{ t('dashboard.state') }}</th></tr>
       {% elif report_key == 'contratos' %}
-      <tr><th>Id</th><th>Tipo</th><th>Vigencia</th><th>Titular</th><th>Sepultura</th></tr>
+      <tr><th>{{ t('common.id') }}</th><th>{{ t('reporting.contract_type') }}</th><th>{{ t('reporting.contract_validity') }}</th><th>{{ t('reporting.holder') }}</th><th>{{ t('reporting.graves') }}</th></tr>
       {% else %}
-      <tr><th>Contrato</th><th>Sepultura</th><th>Tickets pendientes</th><th>Importe tickets</th><th>Facturas impagadas</th><th>Importe facturas</th><th>Deuda total</th></tr>
+      <tr><th>{{ t('reporting.contracts') }}</th><th>{{ t('reporting.graves') }}</th><th>{{ t('reporting.pending_tickets') }}</th><th>{{ t('reporting.tickets_amount') }}</th><th>{{ t('reporting.unpaid_invoices') }}</th><th>{{ t('reporting.invoices_amount') }}</th><th>{{ t('reporting.total_debt') }}</th></tr>
       {% endif %}
     </thead>
     <tbody>
@@ -113,17 +113,17 @@
       </tr>
       {% endif %}
       {% else %}
-      <tr><td colspan="7">Sin resultados</td></tr>
+      <tr><td colspan="7">{{ t('common.no_results') }}</td></tr>
       {% endfor %}
     </tbody>
   </table>
 
   <div class="quick-actions">
     {% if paged.page > 1 %}
-    <a class="btn" href="{{ url_for('cemetery.reporting', report=report_key, page=paged.page-1, page_size=paged.page_size, estado=filters.estado, modalidad=filters.modalidad, bloque=filters.bloque, tipo=filters.tipo, vigencia=filters.vigencia, titular=filters.titular, contrato_id=filters.contrato_id) }}">Anterior</a>
+    <a class="btn" href="{{ url_for('cemetery.reporting', report=report_key, page=paged.page-1, page_size=paged.page_size, estado=filters.estado, modalidad=filters.modalidad, bloque=filters.bloque, tipo=filters.tipo, vigencia=filters.vigencia, titular=filters.titular, contrato_id=filters.contrato_id) }}">{{ t('common.previous') }}</a>
     {% endif %}
     {% if paged.page < paged.pages %}
-    <a class="btn" href="{{ url_for('cemetery.reporting', report=report_key, page=paged.page+1, page_size=paged.page_size, estado=filters.estado, modalidad=filters.modalidad, bloque=filters.bloque, tipo=filters.tipo, vigencia=filters.vigencia, titular=filters.titular, contrato_id=filters.contrato_id) }}">Siguiente</a>
+    <a class="btn" href="{{ url_for('cemetery.reporting', report=report_key, page=paged.page+1, page_size=paged.page_size, estado=filters.estado, modalidad=filters.modalidad, bloque=filters.bloque, tipo=filters.tipo, vigencia=filters.vigencia, titular=filters.titular, contrato_id=filters.contrato_id) }}">{{ t('common.next') }}</a>
     {% endif %}
   </div>
 </div>

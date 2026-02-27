@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% block title %}404{% endblock %}
 {% block content %}
-<h1 class="page-title">Pagina no encontrada</h1>
+<h1 class="page-title">{{ t('error.404_title') }}</h1>
 <div class="box">
-  <p>La ruta solicitada no existe o no esta disponible para tu organizacion.</p>
+  <p>{{ t('error.404_message') }}</p>
   <div class="actions-row">
-    <a class="btn" href="{{ url_for('cemetery.panel') }}">Volver al panel</a>
+    <a class="btn" href="{{ url_for('cemetery.panel') }}">{{ t('common.back_to_dashboard') }}</a>
   </div>
 </div>
 {% endblock %}

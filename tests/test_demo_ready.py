@@ -328,7 +328,7 @@ def test_reporting_csv_filters_and_pagination_tenant_isolation(app, client, logi
 
     paged = client.get("/cementerio/reporting?report=sepulturas&page_size=1")
     assert paged.status_code == 200
-    assert b"Pagina:" in paged.data
+    assert b"Pagina:" in paged.data or "P\u00e1gina:".encode() in paged.data
 
 
 def test_operator_rbac_readonly_titularidad_and_config_but_expedientes_allowed(app, client, login_operator):

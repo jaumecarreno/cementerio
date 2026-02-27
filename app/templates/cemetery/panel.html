@@ -1,17 +1,17 @@
 <!-- Spec 9.0 + mockups_v2/page-2 - Panel de trabajo Cementerio -->
 {% extends "base.html" %}
 {% set active_cem = 'panel' %}
-{% block title %}{{ t('menu.cemetery') }} - {{ t('cem.panel') }}{% endblock %}
+{% block title %}{{ t('menu.dashboard') }}{% endblock %}
 {% block content %}
-<h1 class="page-title">{{ t('menu.cemetery') }} - {{ t('cem.panel') }}</h1>
+<h1 class="page-title">{{ t('menu.dashboard') }}</h1>
 
 <div class="box">
   <div class="dashboard-top-actions">
-    <a class="btn primary" href="{{ url_for('cemetery.expedientes', create_tipo='INHUMACION') }}">Nueva inhumación</a>
-    <a class="btn primary" href="{{ url_for('cemetery.expedientes', create_tipo='EXHUMACION') }}">Nueva Exhumación</a>
-    <a class="btn" href="{{ url_for('cemetery.search_graves') }}">Buscar</a>
+    <a class="btn primary" href="{{ url_for('cemetery.expedientes', create_tipo='INHUMACION') }}">{{ t('action.new_inhumation') }}</a>
+    <a class="btn primary" href="{{ url_for('cemetery.expedientes', create_tipo='EXHUMACION') }}">{{ t('action.new_exhumation') }}</a>
+    <a class="btn" href="{{ url_for('cemetery.search_graves') }}">{{ t('common.search') }}</a>
   </div>
-  <h3>Actividad reciente</h3>
+  <h3>{{ t('dashboard.recent_activity') }}</h3>
   {% if data.recent_activity_by_titular %}
   <div class="activity-groups">
     {% for group in data.recent_activity_by_titular %}
@@ -20,10 +20,10 @@
       <table>
         <thead>
           <tr>
-            <th>Fecha</th>
-            <th>Cambio</th>
-            <th>Sepultura</th>
-            <th>Detalle</th>
+            <th>{{ t('dashboard.date') }}</th>
+            <th>{{ t('dashboard.change') }}</th>
+            <th>{{ t('cem.graves') }}</th>
+            <th>{{ t('dashboard.detail') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -41,39 +41,39 @@
     {% endfor %}
   </div>
   {% else %}
-  <p class="muted">Sin actividad reciente</p>
+  <p class="muted">{{ t('dashboard.no_recent_activity') }}</p>
   {% endif %}
 </div>
 
 <div class="cards">
   <div class="card">
-    <h4>Expedientes abiertos</h4>
+    <h4>{{ t('dashboard.open_cases') }}</h4>
     <div class="num">{{ data.kpis.expedientes_abiertos }}</div>
   </div>
   <div class="card">
-    <h4>OT pendientes</h4>
+    <h4>{{ t('dashboard.pending_work_orders') }}</h4>
     <div class="num">{{ data.kpis.ot_pendientes }}</div>
   </div>
   <div class="card">
-    <h4>Tiquets impagados</h4>
+    <h4>{{ t('dashboard.unpaid_tickets') }}</h4>
     <div class="num">{{ data.kpis.tiquets_impagados }}</div>
   </div>
   <div class="card">
-    <h4>Pend. notificar</h4>
+    <h4>{{ t('dashboard.pending_notify') }}</h4>
     <div class="num">{{ data.kpis.pendientes_notificar }}</div>
   </div>
 </div>
 
 <div class="panel-grid">
   <div class="box">
-    <h3>Expedientes recientes</h3>
+    <h3>{{ t('dashboard.recent_cases') }}</h3>
     <table>
       <thead>
         <tr>
-          <th>No</th>
-          <th>Tipo</th>
-          <th>Difunto</th>
-          <th>Estado</th>
+          <th>{{ t('dashboard.case_number') }}</th>
+          <th>{{ t('reporting.contract_type') }}</th>
+          <th>{{ t('dashboard.deceased') }}</th>
+          <th>{{ t('dashboard.state') }}</th>
         </tr>
       </thead>
       <tbody>
@@ -89,7 +89,7 @@
     </table>
   </div>
   <div class="box">
-    <h3>Alertas</h3>
+    <h3>{{ t('dashboard.alerts') }}</h3>
     <ul>
       {% for alert in data.alerts %}
       <li>{{ alert }}</li>
@@ -99,17 +99,15 @@
 </div>
 
 <div class="box">
-  <h3>Accesos rapidos</h3>
+  <h3>{{ t('dashboard.quick_actions') }}</h3>
   <div class="quick-actions">
-    <a class="btn" href="{{ url_for('cemetery.search_graves') }}">{{ t('action.search_grave') }}</a>
     <a class="btn" href="{{ url_for('cemetery.search_graves') }}?redirect=fees">{{ t('action.collect_fees') }}</a>
-    <a class="btn" href="{{ url_for('cemetery.expedientes') }}">{{ t('cem.cases') }}: Inhumacion</a>
     <a class="btn" href="{{ url_for('cemetery.ownership_cases') }}">{{ t('cem.ownership') }}</a>
     <a class="btn" href="{{ url_for('cemetery.mass_create') }}">{{ t('action.mass_create') }}</a>
     {% if g.membership and g.membership.role == "admin" %}
     <form class="inline-form" method="post" action="{{ url_for('cemetery.admin_generate_tickets') }}">
       <input type="number" name="year" min="2000" max="2100" value="{{ current_year }}" style="width: 130px;">
-      <button class="btn" type="submit">Generar tiquets anuales</button>
+      <button class="btn" type="submit">{{ t('action.generate_yearly_tickets') }}</button>
     </form>
     {% endif %}
   </div>

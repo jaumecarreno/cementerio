@@ -1,7 +1,7 @@
 {% if error %}
 <div class="flash error">{{ error }}</div>
 {% elif person %}
-<div class="flash success">Persona creada y seleccionada: {{ person.full_name }}</div>
+<div class="flash success">{{ t('person_picker.created_selected').format(name=person.full_name) }}</div>
 <script>
   window.CemPersonPicker.select(
     {{ picker_id|tojson }},

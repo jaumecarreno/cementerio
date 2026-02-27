@@ -5,14 +5,14 @@
   <input type="hidden" id="{{ picker_id }}-person-id" name="{{ field_name }}" value="{{ selected.id if selected else '' }}">
   <div class="person-picker-selected" id="{{ picker_id }}-selected">
     {% if selected %}
-      Seleccionado: {{ selected.full_name }}{% if selected.dni_nif %} ({{ selected.dni_nif }}){% endif %}
+      {{ t('person_picker.selected') }}: {{ selected.full_name }}{% if selected.dni_nif %} ({{ selected.dni_nif }}){% endif %}
     {% else %}
-      Sin persona seleccionada.
+      {{ t('person_picker.none_selected') }}
     {% endif %}
   </div>
 
   <div class="inline-form">
-    <input type="text" id="{{ picker_id }}-q" name="q" placeholder="Buscar por nombre, apellidos o DNI/NIF">
+    <input type="text" id="{{ picker_id }}-q" name="q" placeholder="{{ t('person_picker.search_placeholder') }}">
     <button
       class="btn"
       type="button"
@@ -21,46 +21,46 @@
       hx-swap="innerHTML"
       hx-include="#{{ picker_id }}-q"
       hx-vals='{{ {"picker_id": picker_id, "field_name": field_name}|tojson }}'
-    >Buscar</button>
-    <button class="btn" type="button" onclick="window.CemPersonPicker.clear({{ picker_id|tojson }})">Limpiar</button>
+    >{{ t('common.search') }}</button>
+    <button class="btn" type="button" onclick="window.CemPersonPicker.clear({{ picker_id|tojson }})">{{ t('common.clear') }}</button>
   </div>
 
   <div id="{{ picker_id }}-results" class="person-picker-results"></div>
 
   <div class="person-picker-create" id="{{ picker_id }}-create-fields">
     <div class="meta-row">
-      <strong>Crear persona nueva</strong>
+      <strong>{{ t('person_picker.create_new') }}</strong>
     </div>
     <input type="hidden" name="picker_id" value="{{ picker_id }}">
     <input type="hidden" name="field_name" value="{{ field_name }}">
     <div class="form-grid">
       <div>
-        <label>Nombre</label>
-        <input type="text" name="nombre" placeholder="Nombre" autocomplete="off">
+        <label>{{ t('field.name') }}</label>
+        <input type="text" name="nombre" placeholder="{{ t('field.name') }}" autocomplete="off">
       </div>
       <div>
-        <label>Apellidos</label>
-        <input type="text" name="apellidos" placeholder="Apellidos" autocomplete="off">
+        <label>{{ t('field.last_name') }}</label>
+        <input type="text" name="apellidos" placeholder="{{ t('field.last_name') }}" autocomplete="off">
       </div>
       <div>
-        <label>DNI/NIF</label>
-        <input type="text" name="dni_nif" placeholder="DNI/NIF" autocomplete="off">
+        <label>{{ t('field.dni_nif') }}</label>
+        <input type="text" name="dni_nif" placeholder="{{ t('field.dni_nif') }}" autocomplete="off">
       </div>
       <div>
-        <label>Telefono</label>
-        <input type="text" name="telefono" placeholder="Telefono" autocomplete="off">
+        <label>{{ t('field.phone') }}</label>
+        <input type="text" name="telefono" placeholder="{{ t('field.phone') }}" autocomplete="off">
       </div>
       <div>
-        <label>Email</label>
-        <input type="text" name="email" placeholder="Email" autocomplete="off">
+        <label>{{ t('field.email') }}</label>
+        <input type="text" name="email" placeholder="{{ t('field.email') }}" autocomplete="off">
       </div>
       <div>
-        <label>Direccion</label>
-        <input type="text" name="direccion" placeholder="Direccion" autocomplete="off">
+        <label>{{ t('field.address') }}</label>
+        <input type="text" name="direccion" placeholder="{{ t('field.address') }}" autocomplete="off">
       </div>
       <div>
-        <label>Notas</label>
-        <input type="text" name="notas" placeholder="Notas" autocomplete="off">
+        <label>{{ t('field.notes') }}</label>
+        <input type="text" name="notas" placeholder="{{ t('field.notes') }}" autocomplete="off">
       </div>
     </div>
     <div class="actions-row">
@@ -71,7 +71,7 @@
         hx-target="#{{ picker_id }}-create-result"
         hx-swap="innerHTML"
         hx-include="#{{ picker_id }}-create-fields input"
-      >Crear y seleccionar</button>
+      >{{ t('person_picker.create_and_select') }}</button>
     </div>
   </div>
 

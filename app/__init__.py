@@ -51,19 +51,21 @@ def register_routes(app: Flask) -> None:
     @login_required
     @require_membership
     def module_pending(slug: str):
-        mapping = {
-            "servicios-funerarios": "Servicios funerarios",
-            "crematorio": "Crematorio",
-            "facturacion": "Facturacion",
-            "inventario": "Inventario",
-            "reporting-global": "Reporting global",
-            "ampliacion-derecho": "Ampliacion de derecho funerario",
-            "prorroga-derecho": "Prorroga de derecho funerario",
+        mapping: dict[str, tuple[str, str]] = {
+            "servicios-funerarios": ("menu.funeral_services", "funeral_services"),
+            "crematorio": ("menu.crematorium", "crematorium"),
+            "facturacion": ("menu.billing", "billing"),
+            "inventario": ("menu.inventory", "inventory"),
+            "reporting-global": ("menu.reports", "reports_global"),
+            "ampliacion-derecho": ("module.right_extension", "dashboard"),
+            "prorroga-derecho": ("module.right_renewal", "dashboard"),
         }
-        title = mapping.get(slug, slug.replace("-", " ").title())
+        mapped = mapping.get(slug)
         return render_template(
             "module_pending.html",
-            title=title,
+            title_key=mapped[0] if mapped else "",
+            title=slug.replace("-", " ").title(),
+            active_global=mapped[1] if mapped else "dashboard",
             tracking_code=f"PEND-{slug.upper()}",
         )
 

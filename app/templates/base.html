@@ -15,7 +15,8 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  {% set active_global = active_global|default('cemetery') %}
+  {% from "partials/icons.html" import sidebar_icon %}
+  {% set active_global = active_global|default('dashboard') %}
   {% set active_cem = active_cem|default('panel') %}
   <div class="layout">
     <div class="topbar">
@@ -37,34 +38,61 @@
         </form>
         {% if current_user.is_authenticated %}
           <form method="post" action="{{ url_for('auth.logout') }}">
-            <button type="submit">Logout</button>
+            <button type="submit">{{ t('menu.logout') }}</button>
           </form>
         {% endif %}
       </div>
     </div>
     <div class="content">
       <aside class="sidebar">
-        <a class="menu-link" href="{{ url_for('cemetery.panel') }}">{{ t('menu.home') }}</a>
-        <a class="menu-link" href="{{ url_for('module_pending', slug='servicios-funerarios') }}">{{ t('menu.funeral_services') }}</a>
-        <a class="menu-link" href="{{ url_for('module_pending', slug='crematorio') }}">{{ t('menu.crematorium') }}</a>
-        <a class="menu-link {% if active_global == 'cemetery' %}active{% endif %}" href="{{ url_for('cemetery.panel') }}">{{ t('menu.cemetery') }}</a>
-        <a class="menu-link" href="{{ url_for('module_pending', slug='facturacion') }}">{{ t('menu.billing') }}</a>
-        <a class="menu-link" href="{{ url_for('module_pending', slug='inventario') }}">{{ t('menu.inventory') }}</a>
-        <a class="menu-link" href="{{ url_for('module_pending', slug='reporting-global') }}">{{ t('menu.reporting') }}</a>
-        <a class="menu-link" href="{{ url_for('config_page') }}">{{ t('menu.settings') }}</a>
+        <a class="menu-link {% if active_global == 'dashboard' %}active{% endif %}" href="{{ url_for('cemetery.panel') }}">
+          <span class="menu-icon">{{ sidebar_icon("dashboard") }}</span>
+          <span class="menu-label">{{ t('menu.dashboard') }}</span>
+        </a>
+        <a class="menu-link {% if active_global == 'funeral_services' %}active{% endif %}" href="{{ url_for('module_pending', slug='servicios-funerarios') }}">
+          <span class="menu-icon">{{ sidebar_icon("funeral_services") }}</span>
+          <span class="menu-label">{{ t('menu.funeral_services') }}</span>
+          <span class="menu-badge">{{ t('status.pending') }}</span>
+        </a>
+        <a class="menu-link {% if active_global == 'crematorium' %}active{% endif %}" href="{{ url_for('module_pending', slug='crematorio') }}">
+          <span class="menu-icon">{{ sidebar_icon("crematorium") }}</span>
+          <span class="menu-label">{{ t('menu.crematorium') }}</span>
+          <span class="menu-badge">{{ t('status.pending') }}</span>
+        </a>
+        <a class="menu-link {% if active_global == 'billing' %}active{% endif %}" href="{{ url_for('module_pending', slug='facturacion') }}">
+          <span class="menu-icon">{{ sidebar_icon("billing") }}</span>
+          <span class="menu-label">{{ t('menu.billing') }}</span>
+          <span class="menu-badge">{{ t('status.pending') }}</span>
+        </a>
+        <a class="menu-link {% if active_global == 'inventory' %}active{% endif %}" href="{{ url_for('module_pending', slug='inventario') }}">
+          <span class="menu-icon">{{ sidebar_icon("inventory") }}</span>
+          <span class="menu-label">{{ t('menu.inventory') }}</span>
+          <span class="menu-badge">{{ t('status.pending') }}</span>
+        </a>
+        <a class="menu-link {% if active_global == 'reports_global' %}active{% endif %}" href="{{ url_for('module_pending', slug='reporting-global') }}">
+          <span class="menu-icon">{{ sidebar_icon("reports") }}</span>
+          <span class="menu-label">{{ t('menu.reports') }}</span>
+          <span class="menu-badge">{{ t('status.pending') }}</span>
+        </a>
+        <a class="menu-link {% if active_global == 'settings' %}active{% endif %}" href="{{ url_for('config_page') }}">
+          <span class="menu-icon">{{ sidebar_icon("settings") }}</span>
+          <span class="menu-label">{{ t('menu.settings') }}</span>
+        </a>
       </aside>
       <main class="main">
+        {% if active_global == 'dashboard' %}
         <div class="cem-submenu">
           <a class="tab-link {% if active_cem == 'panel' %}active{% endif %}" href="{{ url_for('cemetery.panel') }}">{{ t('cem.panel') }}</a>
           <a class="tab-link {% if active_cem == 'sepulturas' %}active{% endif %}" href="{{ url_for('cemetery.search_graves') }}">{{ t('cem.graves') }}</a>
           <a class="tab-link {% if active_cem == 'tasas' %}active{% endif %}" href="{{ url_for('cemetery.search_graves') }}">{{ t('cem.fees') }}</a>
           <a class="tab-link {% if active_cem == 'expedientes' %}active{% endif %}" href="{{ url_for('cemetery.expedientes') }}">{{ t('cem.cases') }}</a>
           <a class="tab-link {% if active_cem == 'titularidad' %}active{% endif %}" href="{{ url_for('cemetery.ownership_cases_alias') }}">{{ t('cem.ownership') }}</a>
-          <a class="tab-link {% if active_cem == 'personas' %}active{% endif %}" href="{{ url_for('cemetery.people_list') }}">Personas</a>
+          <a class="tab-link {% if active_cem == 'personas' %}active{% endif %}" href="{{ url_for('cemetery.people_list') }}">{{ t('cem.people') }}</a>
           <a class="tab-link {% if active_cem == 'lapidas' %}active{% endif %}" href="{{ url_for('cemetery.lapidas') }}">{{ t('cem.engraving') }}</a>
           <a class="tab-link {% if active_cem == 'derechos' %}active{% endif %}" href="{{ url_for('cemetery.search_graves') }}">{{ t('cem.rights') }}</a>
-          <a class="tab-link {% if active_cem == 'reporting' %}active{% endif %}" href="{{ url_for('cemetery.reporting') }}">Reporting</a>
+          <a class="tab-link {% if active_cem == 'reporting' %}active{% endif %}" href="{{ url_for('cemetery.reporting') }}">{{ t('cem.reports') }}</a>
         </div>
+        {% endif %}
         {% if breadcrumbs %}
           <div class="breadcrumbs">
             {% for crumb in breadcrumbs %}
@@ -91,11 +119,15 @@
   </div>
   <script>
     (function () {
+      const pickerSelectedLabel = {{ t('person_picker.selected')|tojson }};
+      const pickerNoneSelected = {{ t('person_picker.none_selected')|tojson }};
+      const pickerRequiredError = {{ t('person_picker.required_error')|tojson }};
+
       function formatSelectedLabel(fullName, dniNif) {
         if (dniNif) {
-          return "Seleccionado: " + fullName + " (" + dniNif + ")";
+          return pickerSelectedLabel + ": " + fullName + " (" + dniNif + ")";
         }
-        return "Seleccionado: " + fullName;
+        return pickerSelectedLabel + ": " + fullName;
       }
 
       window.CemPersonPicker = {
@@ -105,7 +137,7 @@
           const results = document.getElementById(pickerId + "-results");
           if (!hidden || !selected) return;
           hidden.value = String(personId || "");
-          selected.textContent = personId ? formatSelectedLabel(fullName, dniNif) : "Sin persona seleccionada";
+          selected.textContent = personId ? formatSelectedLabel(fullName, dniNif) : pickerNoneSelected;
           if (results) {
             results.innerHTML = "";
           }
@@ -125,7 +157,7 @@
           if (!hidden || hidden.value) continue;
           event.preventDefault();
           if (status) {
-            status.textContent = "Debes seleccionar o crear una persona.";
+            status.textContent = pickerRequiredError;
           }
           break;
         }

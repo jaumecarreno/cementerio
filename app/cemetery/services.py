@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
@@ -15,6 +15,7 @@ from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 
 from app.core.extensions import db
+from app.core.i18n import translate
 from app.core.models import (
     Beneficiario,
     Cemetery,
@@ -140,6 +141,7 @@ INSCRIPCION_TRANSITIONS: dict[str, str] = {
     "PENDIENTE_COLOCAR": "PENDIENTE_NOTIFICAR",
     "PENDIENTE_NOTIFICAR": "NOTIFICADA",
 }
+MAX_ACTIVITY_ITEMS_PER_HOLDER = 5
 
 
 def org_id() -> int:
@@ -153,7 +155,7 @@ def org_record() -> Organization:
 def org_cemetery() -> Cemetery:
     cemetery = Cemetery.query.filter_by(org_id=org_id()).order_by(Cemetery.id.asc()).first()
     if not cemetery:
-        raise ValueError("No hay cementerio configurado para esta organización")
+        raise ValueError("No hay cementerio configurado para esta organizaciÃ³n")
     return cemetery
 
 
@@ -235,16 +237,14 @@ def panel_data() -> dict[str, object]:
         TasaMantenimientoTicket.query.filter_by(org_id=oid, estado=TicketEstado.PENDIENTE).count()
     )
     if pending_not_invoiced > 0:
-        alerts.append(
-            f"Hay tiquets de contribución pendientes (no facturados): {pending_not_invoiced}"
-        )
+        alerts.append(translate("dashboard.alert.pending_tickets").format(count=pending_not_invoiced))
     pending_lateral = InscripcionLateral.query.filter_by(org_id=oid, estado="PENDIENTE_COLOCAR").count()
     if pending_lateral > 0:
-        alerts.append(f"Inscripciones laterales en estado pendiente de colocar: {pending_lateral}")
+        alerts.append(translate("dashboard.alert.pending_lateral").format(count=pending_lateral))
     if lliures > 0:
-        alerts.append(f"Sepulturas en estado Lliure pendientes de revisión/vaciado: {lliures}")
+        alerts.append(translate("dashboard.alert.lliures").format(count=lliures))
     if not alerts:
-        alerts.append("Sin alertas activas")
+        alerts.append(translate("dashboard.alert.none"))
 
     return {
         "kpis": {
@@ -301,19 +301,23 @@ def _recent_activity_by_titular(
             titular_label = owner.person.full_name
         else:
             key = ("unassigned", 0)
-            titular_label = "Sin titular"
+            titular_label = translate("dashboard.no_holder")
 
         if key not in grouped:
             grouped[key] = {"titular": titular_label, "movements": []}
             group_order.append(key)
 
+        movements_rows = grouped[key]["movements"]
+        if len(movements_rows) >= MAX_ACTIVITY_ITEMS_PER_HOLDER:
+            continue
+
         sepultura_label = (
             movement.sepultura.location_label
             if movement.sepultura
-            else f"Sepultura #{movement.sepultura_id}"
+            else translate("dashboard.grave_ref").format(id=movement.sepultura_id)
         )
         movement_type = movement.tipo.value if hasattr(movement.tipo, "value") else str(movement.tipo)
-        grouped[key]["movements"].append(
+        movements_rows.append(
             {
                 "fecha": movement.fecha,
                 "tipo": movement_type,
@@ -880,7 +884,7 @@ def search_sepulturas(filters: dict[str, str]) -> list[dict[str, object]]:
         rows.append(
             {
                 "sepultura": sep,
-                "titular_name": titular_name or "—",
+                "titular_name": titular_name or "â€”",
                 "beneficiario_name": beneficiario.person.full_name if beneficiario else "",
                 "deuda": debt,
                 "difuntos": difuntos,
@@ -899,11 +903,11 @@ def sepultura_by_id(sepultura_id: int) -> Sepultura:
 def change_sepultura_state(sepultura: Sepultura, new_state: SepulturaEstado) -> None:
     # Spec 9.4.2 - cambio de estado manual no permite asignar OCUPADA
     if new_state == SepulturaEstado.OCUPADA:
-        raise ValueError("El estado Ocupada se asigna automáticamente al crear contrato")
+        raise ValueError("El estado Ocupada se asigna automÃ¡ticamente al crear contrato")
     if sepultura.estado == SepulturaEstado.OCUPADA and new_state == SepulturaEstado.LLIURE:
         raise ValueError("No se puede pasar de Ocupada a Lliure manualmente")
     if sepultura.estado == SepulturaEstado.PROPIA and new_state == SepulturaEstado.OCUPADA:
-        raise ValueError("Una sepultura Pròpia no puede contratarse")
+        raise ValueError("Una sepultura PrÃ²pia no puede contratarse")
     sepultura.estado = new_state
     db.session.add(sepultura)
     db.session.commit()
@@ -957,7 +961,7 @@ def sepultura_tickets_and_invoices(sepultura_id: int) -> dict[str, object]:
 
 def validate_oldest_prefix_selection(tickets: list[TasaMantenimientoTicket], selected_ids: list[int]) -> None:
     if not selected_ids:
-        raise ValueError("Selecciona al menos un año")
+        raise ValueError("Selecciona al menos un aÃ±o")
     ordered = sorted(tickets, key=lambda t: t.anio)
     selected_set = set(selected_ids)
     prefix_count = 0
@@ -968,7 +972,7 @@ def validate_oldest_prefix_selection(tickets: list[TasaMantenimientoTicket], sel
             break
     expected = {ticket.id for ticket in ordered[:prefix_count]}
     if selected_set != expected:
-        raise ValueError("Debes cobrar empezando por el año pendiente más antiguo")
+        raise ValueError("Debes cobrar empezando por el aÃ±o pendiente mÃ¡s antiguo")
 
 
 def _next_invoice_number() -> str:
@@ -1095,10 +1099,10 @@ def parse_range(value: str) -> tuple[int, int]:
     cleaned = value.replace(" ", "")
     parts = cleaned.split("-")
     if len(parts) != 2:
-        raise ValueError("Formato de rango inválido, usa desde-hasta")
+        raise ValueError("Formato de rango invÃ¡lido, usa desde-hasta")
     start, end = int(parts[0]), int(parts[1])
     if start <= 0 or end < start:
-        raise ValueError("Rango inválido")
+        raise ValueError("Rango invÃ¡lido")
     return start, end
 
 
@@ -2661,3 +2665,4 @@ def ownership_case_resolution_pdf(case_id: int) -> tuple[bytes, str]:
         db.session.commit()
         absolute = Path(current_app.instance_path) / case.resolution_pdf_path
     return absolute.read_bytes(), absolute.name
+
