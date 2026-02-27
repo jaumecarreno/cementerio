@@ -1,22 +1,22 @@
 {% extends "base.html" %}
 {% set active_cem = 'expedientes' %}
 {% set breadcrumbs = [
-  {'label': 'Cementerio', 'href': url_for('cemetery.panel')},
-  {'label': 'Expedientes', 'href': url_for('cemetery.expedientes')},
+  {'label': t('menu.cemetery'), 'href': url_for('cemetery.panel')},
+  {'label': t('cases.title'), 'href': url_for('cemetery.expedientes')},
   {'label': expediente.numero, 'href': None}
 ] %}
-{% block title %}Expediente {{ expediente.numero }}{% endblock %}
+{% block title %}{{ t('cases.title') }} · {{ expediente.numero }}{% endblock %}
 {% block content %}
-<h1 class="page-title">Expediente {{ expediente.numero }}</h1>
+<h1 class="page-title">{{ t('cases.title') }} · {{ expediente.numero }}</h1>
 
 <div class="box">
   <h3>Resumen</h3>
   <div class="meta-row">
-    <div><strong>Tipo:</strong> {{ expediente.tipo }}</div>
-    <div><strong>Estado:</strong> {{ expediente.estado }}</div>
-    <div><strong>Sepultura:</strong> {{ expediente.sepultura_id or '-' }}</div>
-    <div><strong>Difunto:</strong> {{ expediente.difunto.full_name if expediente.difunto else '-' }}</div>
-    <div><strong>Declarante:</strong> {{ expediente.declarante.full_name if expediente.declarante else '-' }}</div>
+    <div><strong>{{ t('field.type') }}:</strong> {{ expediente.tipo }}</div>
+    <div><strong>{{ t('field.status') }}:</strong> {{ expediente.estado }}</div>
+    <div><strong>{{ t('cem.graves') }}:</strong> {{ expediente.sepultura_id or '-' }}</div>
+    <div><strong>{{ t('field.deceased') }}:</strong> {{ expediente.difunto.full_name if expediente.difunto else '-' }}</div>
+    <div><strong>{{ t('field.declarant') }}:</strong> {{ expediente.declarante.full_name if expediente.declarante else '-' }}</div>
     <div><strong>Fecha prevista:</strong> {{ expediente.fecha_prevista or '-' }}</div>
   </div>
   <div><strong>Notas:</strong> {{ expediente.notas or '-' }}</div>

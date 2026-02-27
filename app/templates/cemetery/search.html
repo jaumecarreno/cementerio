@@ -1,12 +1,12 @@
 <!-- Spec 5.3.4 + 9.4.x - Buscador de sepulturas -->
 {% extends "base.html" %}
 {% set active_cem = 'sepulturas' %}
-{% block title %}Cementerio - Sepulturas - Buscar{% endblock %}
+{% block title %}{{ t('search.title') }}{% endblock %}
 {% block content %}
-<h1 class="page-title">Cementerio &gt; Sepulturas &gt; Buscar</h1>
+<h1 class="page-title">{{ t('search.title') }}</h1>
 
 <div class="box">
-  <h3>Criterios de búsqueda</h3>
+  <h3>{{ t('search.criteria') }}</h3>
   <form
     method="post"
     action="{{ url_for('cemetery.search_graves') }}"
@@ -16,38 +16,38 @@
   >
     <div class="form-grid">
       <div>
-        <label>Bloque</label>
+        <label>{{ t('field.block') }}</label>
         <select name="bloque">
-          <option value="">Todos</option>
+          <option value="">{{ t('search.all') }}</option>
           {% for block in blocks %}
           <option value="{{ block }}" {% if filters.bloque == block %}selected{% endif %}>{{ block }}</option>
           {% endfor %}
         </select>
       </div>
       <div>
-        <label>Número</label>
+        <label>{{ t('field.number') }}</label>
         <input type="number" name="numero" value="{{ filters.numero }}">
       </div>
       <div>
-        <label>Fila</label>
+        <label>{{ t('field.row') }}</label>
         <input type="number" name="fila" value="{{ filters.fila }}">
       </div>
       <div>
-        <label>Columna</label>
+        <label>{{ t('field.column') }}</label>
         <input type="number" name="columna" value="{{ filters.columna }}">
       </div>
       <div>
-        <label>Titular</label>
+        <label>{{ t('field.holder') }}</label>
         <input type="text" name="titular" value="{{ filters.titular }}">
       </div>
       <div>
-        <label>Difunto</label>
+        <label>{{ t('field.deceased') }}</label>
         <input type="text" name="difunto" value="{{ filters.difunto }}">
       </div>
     </div>
     <div class="actions-row">
-      <a class="btn" href="{{ url_for('cemetery.search_graves') }}">Limpiar</a>
-      <button type="submit" class="primary">Buscar</button>
+      <a class="btn" href="{{ url_for('cemetery.search_graves') }}">{{ t('common.clear') }}</a>
+      <button type="submit" class="primary">{{ t('common.search') }}</button>
     </div>
   </form>
 </div>

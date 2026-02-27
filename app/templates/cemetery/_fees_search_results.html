@@ -3,12 +3,12 @@
   <table>
     <thead>
       <tr>
-        <th>Ubicacion</th>
-        <th>Modalidad</th>
-        <th>Estado</th>
-        <th>Titular actual</th>
-        <th>Deuda</th>
-        <th>Accion</th>
+        <th>{{ t('reporting.graves') }}</th>
+        <th>{{ t('reporting.modality') }}</th>
+        <th>{{ t('field.status') }}</th>
+        <th>{{ t('field.holder') }}</th>
+        <th>{{ t('reporting.debt') }}</th>
+        <th>{{ t('common.actions') }}</th>
       </tr>
     </thead>
     <tbody>
@@ -20,15 +20,15 @@
         <td>{{ row.titular_name }}</td>
         <td>{{ money(row.deuda) }}</td>
         <td>
-          <a class="btn primary" href="{{ url_for('cemetery.fee_collection', sepultura_id=row.sepultura.id) }}">Cobrar tasas</a>
+          <a class="btn primary" href="{{ url_for('cemetery.fee_collection', sepultura_id=row.sepultura.id) }}">{{ t('action.collect_fees') }}</a>
         </td>
       </tr>
       {% else %}
       <tr>
-        <td colspan="6" class="muted">Sin resultados.</td>
+        <td colspan="6" class="muted">{{ t('common.no_results') }}.</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
-  <p class="small muted">Tip: usa "Cobrar tasas" para abrir el cobro de la sepultura seleccionada.</p>
+  <p class="small muted">{{ t('fees.tip_open_collection') }}</p>
 </div>

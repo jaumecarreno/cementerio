@@ -3,12 +3,12 @@
   <table>
     <thead>
       <tr>
-        <th>Ubicación</th>
-        <th>Modalidad</th>
-        <th>Estado</th>
-        <th>Titular actual</th>
-        <th>Deuda</th>
-        <th>Acción</th>
+        <th>{{ t('reporting.graves') }}</th>
+        <th>{{ t('reporting.modality') }}</th>
+        <th>{{ t('field.status') }}</th>
+        <th>{{ t('field.holder') }}</th>
+        <th>{{ t('reporting.debt') }}</th>
+        <th>{{ t('common.actions') }}</th>
       </tr>
     </thead>
     <tbody>
@@ -20,15 +20,15 @@
         <td>{{ row.titular_name }}</td>
         <td>{{ money(row.deuda) }}</td>
         <td>
-          <a class="btn" href="{{ url_for('cemetery.grave_detail', sepultura_id=row.sepultura.id) }}">Abrir ficha</a>
+          <a class="btn" href="{{ url_for('cemetery.grave_detail', sepultura_id=row.sepultura.id) }}">{{ t('search.open_record') }}</a>
         </td>
       </tr>
       {% else %}
       <tr>
-        <td colspan="6" class="muted">Sin resultados.</td>
+        <td colspan="6" class="muted">{{ t('common.no_results') }}.</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
-  <p class="small muted">Tip: abre la ficha para cobrar tasas o revisar titulares/beneficiarios/movimientos.</p>
+  <p class="small muted">{{ t('search.tip_open_record') }}</p>
 </div>
