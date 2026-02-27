@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% set active_cem = 'lapidas' %}
 {% set breadcrumbs = [
-  {'label': 'Cementerio', 'href': url_for('cemetery.panel')},
-  {'label': 'Lapidas e inscripciones', 'href': None}
+  {'label': t('menu.cemetery'), 'href': url_for('cemetery.panel')},
+  {'label': t('cem.engraving'), 'href': None}
 ] %}
-{% block title %}Lapidas e inscripciones{% endblock %}
+{% block title %}{{ t('cem.engraving') }}{% endblock %}
 {% block content %}
-<h1 class="page-title">Lapidas e inscripciones</h1>
+<h1 class="page-title">{{ t('cem.engraving') }}</h1>
 
 <div class="split">
   <div class="box">
@@ -14,24 +14,24 @@
     <form method="post" action="{{ url_for('cemetery.lapidas_stock_entrada') }}">
       <div class="form-grid">
         <div>
-          <label>Codigo</label>
+          <label>{{ t('field.code') }}</label>
           <input type="text" name="codigo" required>
         </div>
         <div>
-          <label>Descripcion</label>
+          <label>{{ t('field.description') }}</label>
           <input type="text" name="descripcion">
         </div>
         <div>
-          <label>Cantidad</label>
+          <label>{{ t('field.quantity') }}</label>
           <input type="number" name="quantity" min="1" required>
         </div>
         <div>
-          <label>Notas</label>
+          <label>{{ t('field.notes') }}</label>
           <input type="text" name="notes">
         </div>
       </div>
       <div class="actions-row">
-        <button class="btn primary" type="submit">Registrar entrada</button>
+        <button class="btn primary" type="submit">Registrar stock de entrada</button>
       </div>
     </form>
   </div>
@@ -41,32 +41,32 @@
     <form method="post" action="{{ url_for('cemetery.lapidas_stock_salida') }}">
       <div class="form-grid">
         <div>
-          <label>Stock id</label>
+          <label>ID stock</label>
           <input type="number" name="stock_id">
         </div>
         <div>
-          <label>Codigo (alternativo)</label>
+          <label>Código (alternativo)</label>
           <input type="text" name="codigo">
         </div>
         <div>
-          <label>Cantidad</label>
+          <label>{{ t('field.quantity') }}</label>
           <input type="number" name="quantity" min="1" required>
         </div>
         <div>
-          <label>Sepultura id</label>
+          <label>Sepultura ID</label>
           <input type="number" name="sepultura_id" value="{{ filters.sepultura_id }}">
         </div>
         <div>
-          <label>Expediente id</label>
+          <label>Expediente ID</label>
           <input type="number" name="expediente_id">
         </div>
         <div>
-          <label>Notas</label>
+          <label>{{ t('field.notes') }}</label>
           <input type="text" name="notes">
         </div>
       </div>
       <div class="actions-row">
-        <button class="btn primary" type="submit">Registrar salida</button>
+        <button class="btn primary" type="submit">Registrar stock de salida</button>
       </div>
     </form>
   </div>
@@ -77,10 +77,10 @@
   <table>
     <thead>
       <tr>
-        <th>Id</th>
-        <th>Codigo</th>
-        <th>Descripcion</th>
-        <th>Estado</th>
+        <th>{{ t('common.id') }}</th>
+        <th>{{ t('field.code') }}</th>
+        <th>{{ t('field.description') }}</th>
+        <th>{{ t('field.status') }}</th>
         <th>Disponible</th>
       </tr>
     </thead>
@@ -108,7 +108,7 @@
         <th>Fecha</th>
         <th>Stock</th>
         <th>Movimiento</th>
-        <th>Cantidad</th>
+        <th>{{ t('field.quantity') }}</th>
         <th>Sepultura</th>
         <th>Expediente</th>
       </tr>
@@ -144,7 +144,7 @@
         </select>
       </div>
       <div>
-        <label>Sepultura id</label>
+        <label>Sepultura ID</label>
         <input type="text" name="sepultura_id" value="{{ filters.sepultura_id }}">
       </div>
       <div>
@@ -161,11 +161,11 @@
   <form method="post" action="{{ url_for('cemetery.lapidas_create_inscripcion') }}">
     <div class="form-grid">
       <div>
-        <label>Sepultura id</label>
+        <label>Sepultura ID</label>
         <input type="number" name="sepultura_id" required>
       </div>
       <div>
-        <label>Expediente id</label>
+        <label>Expediente ID</label>
         <input type="number" name="expediente_id">
       </div>
       <div style="grid-column: 1 / -1;">
@@ -174,19 +174,19 @@
       </div>
     </div>
     <div class="actions-row">
-      <button class="btn primary" type="submit">Crear inscripcion</button>
+      <button class="btn primary" type="submit">Crear inscripción</button>
     </div>
   </form>
 
   <table>
     <thead>
       <tr>
-        <th>Id</th>
+        <th>{{ t('common.id') }}</th>
         <th>Sepultura</th>
         <th>Expediente</th>
         <th>Texto</th>
-        <th>Estado</th>
-        <th>Accion</th>
+        <th>{{ t('field.status') }}</th>
+        <th>Acción</th>
       </tr>
     </thead>
     <tbody>

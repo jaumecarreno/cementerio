@@ -1,17 +1,17 @@
 <!-- Spec 9.4.1 - Previsualización de alta masiva -->
 <div class="box">
-  <h3>Previsualización</h3>
+  <h3>{{ t('mass_create.preview') }}</h3>
   {% if preview %}
-    <p>Se crearán {{ preview.total }} sepulturas en estado "Lliure" (pendiente de revisión).</p>
+    <p>{{ t('mass_create.preview_summary').format(total=preview.total) }}</p>
     <table>
       <thead>
         <tr>
-          <th>Bloque</th>
-          <th>Fila</th>
-          <th>Columna</th>
-          <th>Vía</th>
-          <th>Número</th>
-          <th>Modalidad</th>
+          <th>{{ t('field.block') }}</th>
+          <th>{{ t('field.row') }}</th>
+          <th>{{ t('field.column') }}</th>
+          <th>{{ t('field.via') }}</th>
+          <th>{{ t('field.number') }}</th>
+          <th>{{ t('field.type') }}</th>
         </tr>
       </thead>
       <tbody>
@@ -27,8 +27,8 @@
         {% endfor %}
       </tbody>
     </table>
-    <p class="small muted">Vista parcial (muestra de las primeras 15).</p>
+    <p class="small muted">{{ t('mass_create.preview_partial') }}</p>
   {% else %}
-    <p class="muted">Sin previsualización todavía. Usa "Validar".</p>
+    <p class="muted">{{ t('mass_create.no_preview') }}</p>
   {% endif %}
 </div>

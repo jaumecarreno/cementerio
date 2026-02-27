@@ -1,16 +1,16 @@
 <!-- Spec 9.1.3 + 5.3.4 - Cobro de tasas de mantenimiento -->
 {% extends "base.html" %}
 {% set active_cem = 'tasas' %}
-{% block title %}Cementerio - Tasas - Cobro{% endblock %}
+{% block title %}{{ t('fees.collection_title') }}{% endblock %}
 {% block content %}
-<h1 class="page-title">Cementerio &gt; Tasas &gt; Cobro de mantenimiento (tiquets)</h1>
+<h1 class="page-title">{{ t('fees.collection_title') }}</h1>
 
 <div class="box">
   <div class="meta-row">
-    <div><strong>Sepultura:</strong> {{ data.sepultura.location_label }}</div>
+    <div><strong>{{ t('field.grave') }}:</strong> {{ data.sepultura.location_label }}</div>
     {% if data.titularidad %}
     <div>
-      <strong>Titular:</strong> {{ data.titularidad.person.full_name }}
+      <strong>{{ t('cem.ownership') }}:</strong> {{ data.titularidad.person.full_name }}
       {% if data.titularidad.pensionista %}
       (Pensionista: Si)
       {% endif %}
@@ -22,7 +22,7 @@
 
 {% if not data.beneficiario and data.contrato %}
 <div class="warning">
-  <p><strong>Atencion:</strong> la sepultura no tiene beneficiario.</p>
+  <p><strong>Atención:</strong> la sepultura no tiene beneficiario.</p>
   <form method="post" action="{{ url_for('cemetery.nominate_beneficiary', contract_id=data.contrato.id) }}">
     <input type="hidden" name="sepultura_id" value="{{ data.sepultura.id }}">
     {% with
@@ -35,7 +35,7 @@
       {% include "components/person_picker.html" %}
     {% endwith %}
     <div class="actions-row">
-      <button class="btn" type="submit">Nombrar beneficiario</button>
+      <button class="btn" type="submit">Asignar beneficiario</button>
     </div>
   </form>
 </div>
@@ -45,12 +45,12 @@
   <input type="hidden" name="sepultura_id" value="{{ data.sepultura.id }}">
   <div class="split">
     <div class="box">
-      <h3>Tiquets no facturados (pendientes)</h3>
+      <h3>Tiques no facturados (pendientes)</h3>
       <table>
         <thead>
           <tr>
             <th>Sel.</th>
-            <th>Anio</th>
+            <th>Año</th>
             <th>Importe</th>
             <th>Descuento</th>
             <th>Aplicar desc.</th>
@@ -80,7 +80,7 @@
             <td>No facturado</td>
           </tr>
           {% else %}
-          <tr><td colspan="7">Sin tiquets pendientes.</td></tr>
+          <tr><td colspan="7">Sin tiques pendientes.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -117,7 +117,7 @@
     <div class="meta-row">
       <div><strong>Total pendiente:</strong> {{ money(data.total_pending) }}</div>
       <div>
-        <label>Forma de pago</label>
+        <label>{{ t('field.payment_method') }}</label>
         <select name="payment_method">
           <option value="EFECTIVO">Efectivo</option>
           <option value="TARJETA">Tarjeta</option>

@@ -5,18 +5,18 @@
 <h1 class="page-title">{{ t('ownership.title') }} · {{ data.case.case_number }}</h1>
 
 <div class="box">
-  <h3>Resumen</h3>
+  <h3>{{ t('common.summary') }}</h3>
   <div class="meta-row">
-    <div><strong>Tipo:</strong> {{ data.case.type.value }}</div>
-    <div><strong>Estado:</strong> {{ data.case.status.value }}</div>
-    <div><strong>Contrato:</strong> {{ data.contract.id }}</div>
-    <div><strong>Sepultura:</strong> {{ data.sepultura.location_label }}</div>
-    <div><strong>Abierto:</strong> {{ data.case.opened_at.date() }}</div>
-    <div><strong>Asignado:</strong> {{ data.case.assigned_to.full_name if data.case.assigned_to else '-' }}</div>
+    <div><strong>{{ t('field.type') }}:</strong> {{ data.case.type.value }}</div>
+    <div><strong>{{ t('field.status') }}:</strong> {{ data.case.status.value }}</div>
+    <div><strong>{{ t('field.contract') }}:</strong> {{ data.contract.id }}</div>
+    <div><strong>{{ t('field.grave') }}:</strong> {{ data.sepultura.location_label }}</div>
+    <div><strong>{{ t('field.opened') }}:</strong> {{ data.case.opened_at.date() }}</div>
+    <div><strong>{{ t('field.assigned') }}:</strong> {{ data.case.assigned_to.full_name if data.case.assigned_to else '-' }}</div>
   </div>
   <div class="meta-row">
     {% if data.case.resolution_number %}
-    <div><strong>Resolucion:</strong> {{ data.case.resolution_number }}</div>
+    <div><strong>{{ t('field.resolution') }}:</strong> {{ data.case.resolution_number }}</div>
     <div><a class="btn" href="{{ url_for('cemetery.ownership_case_resolution_pdf_route', case_id=data.case.id) }}" target="_blank">{{ t('common.view_pdf') }}</a></div>
     {% endif %}
     {% if data.case.type.value == 'PROVISIONAL' %}
@@ -27,13 +27,13 @@
 </div>
 
 <div class="box">
-  <h3>Partes</h3>
+  <h3>{{ t('ownership.parts') }}</h3>
   <table>
     <thead>
       <tr>
-        <th>Rol</th>
-        <th>Persona</th>
-        <th>Documento</th>
+        <th>{{ t('field.type') }}</th>
+        <th>{{ t('field.person') }}</th>
+        <th>{{ t('common.document') }}</th>
         <th>%</th>
       </tr>
     </thead>
@@ -46,14 +46,14 @@
         <td>{{ party.percentage or '-' }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="4">Sin partes</td></tr>
+      <tr><td colspan="4">{{ t('ownership.no_parts') }}</td></tr>
       {% endfor %}
     </tbody>
   </table>
   <form method="post" action="{{ url_for('cemetery.ownership_case_add_party', case_id=data.case.id) }}">
     <div class="form-grid">
       <div>
-        <label>Rol</label>
+        <label>{{ t('field.type') }}</label>
         <select name="role" required>
           <option value="ANTERIOR_TITULAR">ANTERIOR_TITULAR</option>
           <option value="NUEVO_TITULAR">NUEVO_TITULAR</option>
@@ -66,7 +66,7 @@
         {% with
           picker_id='case-party-' ~ data.case.id,
           field_name='person_id',
-          label='Persona',
+          label=t('field.person'),
           selected_person=None,
           required=True
         %}
@@ -74,27 +74,27 @@
         {% endwith %}
       </div>
       <div>
-        <label>% (opcional)</label>
+        <label>{{ t('common.percentage_optional') }}</label>
         <input type="text" name="percentage">
       </div>
     </div>
     <div class="actions-row">
-      <button class="btn" type="submit">Guardar parte</button>
+      <button class="btn" type="submit">{{ t('ownership.save_party') }}</button>
     </div>
   </form>
 </div>
 
 <div class="box">
-  <h3>Documentacion</h3>
+  <h3>{{ t('ownership.documentation') }}</h3>
   <table>
     <thead>
       <tr>
-        <th>Tipo</th>
-        <th>Oblig.</th>
-        <th>Estado</th>
-        <th>Fichero</th>
-        <th>Subir</th>
-        <th>Verificar</th>
+        <th>{{ t('field.type') }}</th>
+        <th>{{ t('common.required') }}</th>
+        <th>{{ t('field.status') }}</th>
+        <th>{{ t('ownership.file') }}</th>
+        <th>{{ t('ownership.upload') }}</th>
+        <th>{{ t('ownership.verify') }}</th>
       </tr>
     </thead>
     <tbody>
