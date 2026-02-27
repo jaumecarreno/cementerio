@@ -15,6 +15,7 @@ I18N: dict[str, dict[str, str]] = {
     "menu.reports": {"es": "Informes", "ca": "Informes"},
     "menu.reporting": {"es": "Informes", "ca": "Informes"},
     "menu.settings": {"es": "Configuraci\u00f3n", "ca": "Configuraci\u00f3"},
+    "menu.demo": {"es": "DEMO", "ca": "DEMO"},
     "menu.logout": {"es": "Cerrar sesi\u00f3n", "ca": "Tancar sessi\u00f3"},
     "cem.panel": {"es": "Panel", "ca": "Panell"},
     "cem.graves": {"es": "Sepulturas", "ca": "Sepultures"},
@@ -124,40 +125,41 @@ I18N: dict[str, dict[str, str]] = {
         "es": "Pr\u00f3rroga de derecho funerario",
         "ca": "Pr\u00f2rroga de dret funerari",
     },
-    "demo.title": {"es": "Herramientas demo", "ca": "Eines demo"},
-    "demo.checklist": {"es": "Checklist", "ca": "Checklist"},
-    "demo.checklist_case": {
-        "es": "Crear caso de transmisi\u00f3n de ejemplo",
-        "ca": "Crear cas de transmissi\u00f3 d'exemple",
+    "demo.page_title": {"es": "Herramientas DEMO", "ca": "Eines DEMO"},
+    "demo.description": {
+        "es": "Acciones para reiniciar y reconstruir el dataset de demostracion de la organizacion activa.",
+        "ca": "Accions per reiniciar i reconstruir el dataset de demostracio de l'organitzacio activa.",
     },
-    "demo.checklist_expediente": {
-        "es": "Crear expediente de inhumaci\u00f3n de ejemplo",
-        "ca": "Crear expedient d'inhumaci\u00f3 d'exemple",
+    "demo.reset_zero_title": {"es": "Poner base de datos a 0", "ca": "Posar base de dades a 0"},
+    "demo.reset_zero_warning": {
+        "es": "Esta accion dejara en blanco todos los datos operativos de personas, sepulturas, contratos, expedientes, casos, tasas, lapidas e inscripciones.",
+        "ca": "Aquesta accio deixara en blanc totes les dades operatives de persones, sepultures, contractes, expedients, casos, taxes, lapides i inscripcions.",
     },
-    "demo.checklist_tickets": {
-        "es": "Generar tiquets del a\u00f1o actual",
-        "ca": "Generar tiquets de l'any actual",
+    "demo.reset_zero_button": {"es": "Poner base de datos a 0", "ca": "Posar base de dades a 0"},
+    "demo.load_initial_title": {
+        "es": "Cargar DEMO inicial",
+        "ca": "Carregar DEMO inicial",
     },
-    "demo.checklist_reset": {
-        "es": "Reset de datos demo por organizaci\u00f3n (solo DEV)",
-        "ca": "Reset de dades demo per organitzaci\u00f3 (nom\u00e9s DEV)",
+    "demo.load_initial_warning": {
+        "es": "Esta accion reiniciara tus cambios y restaurara el dataset DEMO inicial con casuistica completa.",
+        "ca": "Aquesta accio reiniciara els teus canvis i restaurara el dataset DEMO inicial amb casuistica completa.",
     },
-    "demo.create_case_example": {"es": "Crear caso ejemplo", "ca": "Crear cas exemple"},
-    "demo.create_expediente_example": {
-        "es": "Crear expediente ejemplo",
-        "ca": "Crear expedient exemple",
+    "demo.load_initial_button": {
+        "es": "Cargar DEMO inicial (350 sepulturas / 300 titulares)",
+        "ca": "Carregar DEMO inicial (350 sepultures / 300 titulars)",
     },
-    "demo.generate_tickets_current_year": {
-        "es": "Generar tiquets a\u00f1o actual",
-        "ca": "Generar tiquets any actual",
+    "demo.confirm_reset": {
+        "es": "Se eliminara toda la informacion operativa de la organizacion activa. Deseas continuar?",
+        "ca": "S'eliminara tota la informacio operativa de l'organitzacio activa. Vols continuar?",
     },
-    "demo.reset_data": {"es": "Reset demo data", "ca": "Reset demo data"},
-    "demo.explicit_confirmation": {"es": "Confirmaci\u00f3n expl\u00edcita", "ca": "Confirmaci\u00f3 expl\u00edcita"},
-    "demo.reset_placeholder": {
-        "es": "Escribe RESET-DEMO",
-        "ca": "Escriu RESET-DEMO",
+    "demo.confirm_load": {
+        "es": "Se restauraran los datos DEMO iniciales y se perderan los cambios actuales. Deseas continuar?",
+        "ca": "Es restauraran les dades DEMO inicials i es perdran els canvis actuals. Vols continuar?",
     },
-    "demo.reset_button": {"es": "Reset por organizaci\u00f3n", "ca": "Reset per organitzaci\u00f3"},
+    "demo.admin_only_info": {
+        "es": "Solo un usuario con rol admin puede ejecutar acciones DEMO.",
+        "ca": "Nomes un usuari amb rol admin pot executar accions DEMO.",
+    },
     "error.403_title": {"es": "Acceso denegado", "ca": "Acc\u00e9s denegat"},
     "error.403_message": {
         "es": "No tienes permisos para realizar esta acci\u00f3n.",

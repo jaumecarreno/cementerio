@@ -1,48 +1,37 @@
 {% extends "base.html" %}
-{% set active_global = 'dashboard' %}
+{% set active_global = 'demo' %}
 {% set breadcrumbs = [
-  {'label': t('demo.title'), 'href': None}
+  {'label': t('menu.demo'), 'href': None}
 ] %}
-{% block title %}{{ t('demo.title') }}{% endblock %}
+{% block title %}{{ t('demo.page_title') }}{% endblock %}
 {% block content %}
-<h1 class="page-title">{{ t('demo.title') }}</h1>
-<div class="box">
-  <h3>{{ t('demo.checklist') }}</h3>
-  <ul>
-    <li>{{ t('demo.checklist_case') }}</li>
-    <li>{{ t('demo.checklist_expediente') }}</li>
-    <li>{{ t('demo.checklist_tickets') }}</li>
-    <li>{{ t('demo.checklist_reset') }}</li>
-  </ul>
-</div>
+<h1 class="page-title">{{ t('demo.page_title') }}</h1>
 
 <div class="box">
-  <h3>{{ t('common.actions') }}</h3>
-  <div class="quick-actions">
-    <form class="inline-form" method="post" action="{{ url_for('demo_create_case') }}">
-      <button class="btn" type="submit">{{ t('demo.create_case_example') }}</button>
-    </form>
-    <form class="inline-form" method="post" action="{{ url_for('demo_create_expediente') }}">
-      <button class="btn" type="submit">{{ t('demo.create_expediente_example') }}</button>
-    </form>
-    <form class="inline-form" method="post" action="{{ url_for('demo_generate_tickets') }}">
-      <button class="btn" type="submit">{{ t('demo.generate_tickets_current_year') }}</button>
-    </form>
-  </div>
+  <p class="muted">{{ t('demo.description') }}</p>
 </div>
 
+{% if g.membership and (g.membership.role or '').lower() == 'admin' %}
 <div class="box">
-  <h3>{{ t('demo.reset_data') }}</h3>
-  <form method="post" action="{{ url_for('demo_reset') }}">
-    <div class="form-grid">
-      <div>
-        <label>{{ t('demo.explicit_confirmation') }}</label>
-        <input type="text" name="confirm" placeholder="{{ t('demo.reset_placeholder') }}" required>
-      </div>
-    </div>
+  <h3>{{ t('demo.reset_zero_title') }}</h3>
+  <div class="warning">{{ t('demo.reset_zero_warning') }}</div>
+  <form method="post" action="{{ url_for('demo_reset') }}" onsubmit="return confirm({{ t('demo.confirm_reset')|tojson }})">
     <div class="actions-row">
-      <button class="btn primary" type="submit">{{ t('demo.reset_button') }}</button>
+      <button class="btn primary" type="submit">{{ t('demo.reset_zero_button') }}</button>
     </div>
   </form>
 </div>
+
+<div class="box">
+  <h3>{{ t('demo.load_initial_title') }}</h3>
+  <div class="warning">{{ t('demo.load_initial_warning') }}</div>
+  <form method="post" action="{{ url_for('demo_load_initial') }}" onsubmit="return confirm({{ t('demo.confirm_load')|tojson }})">
+    <div class="actions-row">
+      <button class="btn primary" type="submit">{{ t('demo.load_initial_button') }}</button>
+    </div>
+  </form>
+</div>
+{% else %}
+<div class="warning">{{ t('demo.admin_only_info') }}</div>
+{% endif %}
 {% endblock %}

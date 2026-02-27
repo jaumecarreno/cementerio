@@ -75,6 +75,9 @@
         <a class="menu-link {% if active_global == 'settings' %}active{% endif %}" href="{{ url_for('config_page') }}">
           <span class="menu-label">{{ t('menu.settings') }}</span>
         </a>
+        <a class="menu-link {% if active_global == 'demo' %}active{% endif %}" href="{{ url_for('demo_page') }}">
+          <span class="menu-label">{{ t('menu.demo') }}</span>
+        </a>
       </aside>
       <main class="main">
         {% if active_global in ['cemetery', 'reports'] %}

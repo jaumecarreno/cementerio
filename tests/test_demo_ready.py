@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from io import BytesIO
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -13,6 +14,7 @@ from app.core.models import (
     CaseDocumentStatus,
     DerechoFunerarioContrato,
     Expediente,
+    Invoice,
     InscripcionLateral,
     LapidaStock,
     MovimientoSepultura,
@@ -20,8 +22,15 @@ from app.core.models import (
     OrdenTrabajo,
     OwnershipRecord,
     OwnershipTransferCase,
+    OwnershipTransferStatus,
     OwnershipTransferType,
+    Payment,
+    Person,
+    Publication,
     Sepultura,
+    SepulturaDifunto,
+    TasaMantenimientoTicket,
+    TicketEstado,
 )
 
 
@@ -52,6 +61,7 @@ def test_navigation_main_menu_routes_no_404(app, client, login_admin):
         "/cementerio/lapidas",
         "/cementerio/reporting",
         "/config",
+        "/demo",
         "/modulo/servicios-funerarios",
     ]
     for path in paths:
@@ -364,7 +374,120 @@ def test_operator_rbac_readonly_titularidad_and_config_but_expedientes_allowed(a
     assert expediente_flow.status_code == 200
 
 
-def test_demo_reset_blocked_outside_dev(app, client, login_admin):
+def test_demo_sidebar_link_present_and_last(app, client, login_admin):
     login_admin()
-    response = client.post("/demo/reset", data={"confirm": "RESET-DEMO"}, follow_redirects=False)
+    response = client.get("/dashboard")
+    assert response.status_code == 200
+    assert b'href="/demo"' in response.data
+    assert response.data.rfind(b'href="/demo"') > response.data.rfind(b'href="/config"')
+
+
+def test_demo_page_access_for_admin_and_operator(app, client, login_admin, login_operator):
+    login_admin()
+    admin_response = client.get("/demo")
+    assert admin_response.status_code == 200
+
+    client.post("/auth/logout", follow_redirects=True)
+    login_operator()
+    operator_response = client.get("/demo")
+    assert operator_response.status_code == 200
+
+
+def test_demo_operator_cannot_execute_actions(app, client, login_operator):
+    login_operator()
+    reset_response = client.post("/demo/reset", follow_redirects=False)
+    assert reset_response.status_code == 403
+
+    load_response = client.post("/demo/load-initial", follow_redirects=False)
+    assert load_response.status_code == 403
+
+
+def test_demo_page_uses_native_confirm_for_both_actions(app, client, login_admin):
+    login_admin()
+    response = client.get("/demo")
+    assert response.status_code == 200
+    assert b"return confirm(" in response.data
+    assert b'action="/demo/reset"' in response.data
+    assert b'action="/demo/load-initial"' in response.data
+
+
+def test_demo_admin_can_load_initial_dataset_and_reset_to_zero(app, client, login_admin):
+    login_admin()
+
+    load_response = client.post("/demo/load-initial", follow_redirects=True)
+    assert load_response.status_code == 200
+
+    with app.app_context():
+        assert Person.query.count() == 480
+        assert Sepultura.query.count() == 350
+        assert DerechoFunerarioContrato.query.count() == 300
+        assert OwnershipRecord.query.filter(OwnershipRecord.end_date.is_(None)).count() == 300
+        assert Beneficiario.query.filter(Beneficiario.activo_hasta.is_(None)).count() == 180
+        assert Beneficiario.query.filter(Beneficiario.activo_hasta.is_not(None)).count() == 30
+        assert SepulturaDifunto.query.count() == 180
+        assert Expediente.query.count() == 140
+        assert OrdenTrabajo.query.count() == 220
+        assert OwnershipTransferCase.query.count() == 90
+        assert TasaMantenimientoTicket.query.count() == 360
+        assert Invoice.query.count() > 0
+        assert Payment.query.count() > 0
+        assert CaseDocument.query.count() > 0
+        assert Publication.query.count() > 0
+        assert (
+            Expediente.query.filter(Expediente.declarante_id.is_not(None)).count() > 0
+        )
+        case_types = {row.type for row in OwnershipTransferCase.query.all()}
+        assert OwnershipTransferType.MORTIS_CAUSA_CON_BENEFICIARIO in case_types
+        blocked_scenarios = (
+            db.session.query(OwnershipRecord)
+            .join(DerechoFunerarioContrato, DerechoFunerarioContrato.id == OwnershipRecord.contract_id)
+            .join(SepulturaDifunto, SepulturaDifunto.sepultura_id == DerechoFunerarioContrato.sepultura_id)
+            .filter(OwnershipRecord.end_date.is_(None))
+            .filter(OwnershipRecord.is_provisional.is_(True))
+            .count()
+        )
+        assert blocked_scenarios > 0
+
+    reset_response = client.post("/demo/reset", follow_redirects=True)
+    assert reset_response.status_code == 200
+
+    with app.app_context():
+        assert Person.query.count() == 0
+        assert Sepultura.query.count() == 0
+        assert DerechoFunerarioContrato.query.count() == 0
+        assert OwnershipRecord.query.count() == 0
+        assert Beneficiario.query.count() == 0
+        assert SepulturaDifunto.query.count() == 0
+        assert Expediente.query.count() == 0
+        assert OrdenTrabajo.query.count() == 0
+        assert OwnershipTransferCase.query.count() == 0
+        assert CaseDocument.query.count() == 0
+        assert Publication.query.count() == 0
+        assert TasaMantenimientoTicket.query.count() == 0
+        assert Invoice.query.count() == 0
+        assert Payment.query.count() == 0
+        assert LapidaStock.query.count() == 0
+        assert InscripcionLateral.query.count() == 0
+
+
+def test_demo_actions_blocked_outside_dev_and_test(app, client, login_admin):
+    login_admin()
+    prev_testing = app.config.get("TESTING")
+    prev_app_env = app.config.get("APP_ENV")
+    prev_debug = app.debug
+    prev_flask_env = os.getenv("FLASK_ENV")
+    app.config["TESTING"] = False
+    app.config["APP_ENV"] = "production"
+    app.debug = False
+    os.environ["FLASK_ENV"] = "production"
+    try:
+        response = client.post("/demo/reset", follow_redirects=False)
+    finally:
+        app.config["TESTING"] = prev_testing
+        app.config["APP_ENV"] = prev_app_env
+        app.debug = prev_debug
+        if prev_flask_env is None:
+            os.environ.pop("FLASK_ENV", None)
+        else:
+            os.environ["FLASK_ENV"] = prev_flask_env
     assert response.status_code == 403

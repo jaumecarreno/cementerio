@@ -1,7 +1,7 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from io import BytesIO, StringIO
 from pathlib import Path
@@ -48,6 +48,7 @@ from app.core.models import (
     Sepultura,
     SepulturaDifunto,
     SepulturaEstado,
+    SepulturaUbicacion,
     TasaMantenimientoTicket,
     TicketDescuentoTipo,
     TicketEstado,
@@ -120,7 +121,7 @@ def org_record() -> Organization:
 def org_cemetery() -> Cemetery:
     cemetery = Cemetery.query.filter_by(org_id=org_id()).order_by(Cemetery.id.asc()).first()
     if not cemetery:
-        raise ValueError("No hay cementerio configurado para esta organizaciÃ³n")
+        raise ValueError("No hay cementerio configurado para esta organización")
     return cemetery
 
 
@@ -849,7 +850,7 @@ def search_sepulturas(filters: dict[str, str]) -> list[dict[str, object]]:
         rows.append(
             {
                 "sepultura": sep,
-                "titular_name": titular_name or "â€”",
+                "titular_name": titular_name or "—",
                 "beneficiario_name": beneficiario.person.full_name if beneficiario else "",
                 "deuda": debt,
                 "difuntos": difuntos,
@@ -879,11 +880,11 @@ def sepultura_by_id(sepultura_id: int) -> Sepultura:
 def change_sepultura_state(sepultura: Sepultura, new_state: SepulturaEstado) -> None:
     # Spec 9.4.2 - cambio de estado manual no permite asignar OCUPADA
     if new_state == SepulturaEstado.OCUPADA:
-        raise ValueError("El estado Ocupada se asigna automÃ¡ticamente al crear contrato")
+        raise ValueError("El estado Ocupada se asigna automáticamente al crear contrato")
     if sepultura.estado == SepulturaEstado.OCUPADA and new_state == SepulturaEstado.LLIURE:
         raise ValueError("No se puede pasar de Ocupada a Lliure manualmente")
     if sepultura.estado == SepulturaEstado.PROPIA and new_state == SepulturaEstado.OCUPADA:
-        raise ValueError("Una sepultura PrÃ²pia no puede contratarse")
+        raise ValueError("Una sepultura Pròpia no puede contratarse")
     sepultura.estado = new_state
     db.session.add(sepultura)
     db.session.commit()
@@ -937,7 +938,7 @@ def sepultura_tickets_and_invoices(sepultura_id: int) -> dict[str, object]:
 
 def validate_oldest_prefix_selection(tickets: list[TasaMantenimientoTicket], selected_ids: list[int]) -> None:
     if not selected_ids:
-        raise ValueError("Selecciona al menos un aÃ±o")
+        raise ValueError("Selecciona al menos un año")
     ordered = sorted(tickets, key=lambda t: t.anio)
     selected_set = set(selected_ids)
     prefix_count = 0
@@ -948,7 +949,7 @@ def validate_oldest_prefix_selection(tickets: list[TasaMantenimientoTicket], sel
             break
     expected = {ticket.id for ticket in ordered[:prefix_count]}
     if selected_set != expected:
-        raise ValueError("Debes cobrar empezando por el aÃ±o pendiente mÃ¡s antiguo")
+        raise ValueError("Debes cobrar empezando por el año pendiente más antiguo")
 
 
 def _next_invoice_number() -> str:
@@ -1075,10 +1076,10 @@ def parse_range(value: str) -> tuple[int, int]:
     cleaned = value.replace(" ", "")
     parts = cleaned.split("-")
     if len(parts) != 2:
-        raise ValueError("Formato de rango invÃ¡lido, usa desde-hasta")
+        raise ValueError("Formato de rango inválido, usa desde-hasta")
     start, end = int(parts[0]), int(parts[1])
     if start <= 0 or end < start:
-        raise ValueError("Rango invÃ¡lido")
+        raise ValueError("Rango inválido")
     return start, end
 
 
@@ -1791,17 +1792,52 @@ def reporting_csv_bytes(
 
 
 def reset_demo_org_data(user_id: int | None = None) -> dict[str, int]:
-    # Spec Cementiri DEMO - reset scoped by active org
-    oid = org_id()
+    # Backward compatibility alias for older callers.
+    return load_demo_org_initial_dataset(user_id)
 
-    # Delete uploaded ownership case files for org.
-    storage_root = (
+
+def _demo_storage_root(oid: int) -> Path:
+    return (
         Path(current_app.instance_path)
         / "storage"
         / "cemetery"
         / "ownership_cases"
         / str(oid)
     )
+
+
+def _demo_operational_counts(oid: int) -> dict[str, int]:
+    return {
+        "persons": Person.query.filter_by(org_id=oid).count(),
+        "sepulturas": Sepultura.query.filter_by(org_id=oid).count(),
+        "contracts": DerechoFunerarioContrato.query.filter_by(org_id=oid).count(),
+        "titulares_activos": OwnershipRecord.query.filter_by(org_id=oid)
+        .filter(OwnershipRecord.end_date.is_(None))
+        .count(),
+        "beneficiarios_activos": Beneficiario.query.filter_by(org_id=oid)
+        .filter(Beneficiario.activo_hasta.is_(None))
+        .count(),
+        "beneficiarios_historicos": Beneficiario.query.filter_by(org_id=oid)
+        .filter(Beneficiario.activo_hasta.is_not(None))
+        .count(),
+        "difuntos": SepulturaDifunto.query.filter_by(org_id=oid).count(),
+        "expedientes": Expediente.query.filter_by(org_id=oid).count(),
+        "ots": OrdenTrabajo.query.filter_by(org_id=oid).count(),
+        "casos": OwnershipTransferCase.query.filter_by(org_id=oid).count(),
+        "documents": CaseDocument.query.filter_by(org_id=oid).count(),
+        "publications": Publication.query.filter_by(org_id=oid).count(),
+        "tickets": TasaMantenimientoTicket.query.filter_by(org_id=oid).count(),
+        "invoices": Invoice.query.filter_by(org_id=oid).count(),
+        "payments": Payment.query.filter_by(org_id=oid).count(),
+        "lapida_stock": LapidaStock.query.filter_by(org_id=oid).count(),
+        "lapida_movements": LapidaStockMovimiento.query.filter_by(org_id=oid).count(),
+        "inscripciones": InscripcionLateral.query.filter_by(org_id=oid).count(),
+    }
+
+
+def _purge_org_operational_data() -> None:
+    oid = org_id()
+    storage_root = _demo_storage_root(oid)
     if storage_root.exists():
         shutil.rmtree(storage_root, ignore_errors=True)
 
@@ -1820,299 +1856,644 @@ def reset_demo_org_data(user_id: int | None = None) -> dict[str, int]:
     db.session.query(Beneficiario).filter_by(org_id=oid).delete(synchronize_session=False)
     db.session.query(OwnershipRecord).filter_by(org_id=oid).delete(synchronize_session=False)
     db.session.query(DerechoFunerarioContrato).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(SepulturaUbicacion).filter_by(org_id=oid).delete(synchronize_session=False)
     db.session.query(SepulturaDifunto).filter_by(org_id=oid).delete(synchronize_session=False)
     db.session.query(MovimientoSepultura).filter_by(org_id=oid).delete(synchronize_session=False)
     db.session.query(LapidaStock).filter_by(org_id=oid).delete(synchronize_session=False)
     db.session.query(Sepultura).filter_by(org_id=oid).delete(synchronize_session=False)
     db.session.query(Person).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.commit()
 
+
+def _ensure_demo_cemetery(oid: int) -> Cemetery:
     cemetery = Cemetery.query.filter_by(org_id=oid).order_by(Cemetery.id.asc()).first()
-    if not cemetery:
-        cemetery = Cemetery(org_id=oid, name="Cementeri Demo", location="Terrassa")
-        db.session.add(cemetery)
-        db.session.flush()
-
-    titular = Person(
-        org_id=oid,
-        first_name="Marta",
-        last_name="Soler",
-        dni_nif="11111111A",
-        telefono="600111111",
-        email="marta.soler@example.com",
-    )
-    titular_alt = Person(
-        org_id=oid,
-        first_name="Joan",
-        last_name="Riera",
-        dni_nif="22222222B",
-        telefono="600222222",
-    )
-    difunto = Person(
-        org_id=oid,
-        first_name="Antoni",
-        last_name="Ferrer",
-        dni_nif="33333333C",
-    )
-    sucesor = Person(
-        org_id=oid,
-        first_name="Carla",
-        last_name="Mora",
-        dni_nif="88888888H",
-        email="carla.mora@example.com",
-    )
-    extra_people = [
-        Person(org_id=oid, first_name="Sonia", last_name="Pons", dni_nif="99999999J"),
-        Person(org_id=oid, first_name="Marc", last_name="Vila", dni_nif="10101010K"),
-        Person(org_id=oid, first_name="Lucia", last_name="Navarro", dni_nif="12121212L"),
-        Person(org_id=oid, first_name="Ramon", last_name="Ibanez", telefono="600131313"),
-        Person(org_id=oid, first_name="Elisabet", last_name="Puig", dni_nif="14141414M"),
-        Person(org_id=oid, first_name="Noelia", last_name="Crespo"),
-    ]
-    db.session.add_all([titular, titular_alt, difunto, sucesor, *extra_people])
+    if cemetery:
+        return cemetery
+    cemetery = Cemetery(org_id=oid, name="Cementeri Demo", location="Terrassa")
+    db.session.add(cemetery)
     db.session.flush()
+    return cemetery
 
-    sep_1 = Sepultura(
-        org_id=oid,
-        cemetery_id=cemetery.id,
-        bloque="B-12",
-        fila=4,
-        columna=18,
-        via="V-3",
-        numero=127,
-        modalidad="Ninxol",
-        estado=SepulturaEstado.DISPONIBLE,
-        tipo_bloque="Ninxols",
-        tipo_lapida="Resina",
-        orientacion="Nord",
-    )
-    sep_2 = Sepultura(
-        org_id=oid,
-        cemetery_id=cemetery.id,
-        bloque="B-12",
-        fila=4,
-        columna=19,
-        via="V-3",
-        numero=128,
-        modalidad="Ninxol",
-        estado=SepulturaEstado.DISPONIBLE,
-        tipo_bloque="Ninxols",
-        tipo_lapida="Resina",
-        orientacion="Nord",
-    )
-    sep_3 = Sepultura(
-        org_id=oid,
-        cemetery_id=cemetery.id,
-        bloque="B-30",
-        fila=2,
-        columna=3,
-        via="V-7",
-        numero=510,
-        modalidad="Ninxol",
-        estado=SepulturaEstado.DISPONIBLE,
-        tipo_bloque="Ninxols",
-        tipo_lapida="Resina",
-        orientacion="Est",
-    )
-    db.session.add_all([sep_1, sep_2, sep_3])
-    db.session.flush()
 
-    contrato_1 = DerechoFunerarioContrato(
-        org_id=oid,
-        sepultura_id=sep_1.id,
-        tipo=DerechoTipo.CONCESION,
-        fecha_inicio=date(2012, 1, 1),
-        fecha_fin=date(2037, 1, 1),
-        annual_fee_amount=Decimal("45.00"),
-        estado="ACTIVO",
-    )
-    contrato_2 = DerechoFunerarioContrato(
-        org_id=oid,
-        sepultura_id=sep_2.id,
-        tipo=DerechoTipo.USO_INMEDIATO,
-        fecha_inicio=date(2024, 1, 1),
-        fecha_fin=date(2030, 1, 1),
-        annual_fee_amount=Decimal("30.00"),
-        estado="ACTIVO",
-    )
-    db.session.add_all([contrato_1, contrato_2])
-    db.session.flush()
+def reset_demo_org_data_to_zero() -> dict[str, int]:
+    _purge_org_operational_data()
+    oid = org_id()
+    _ensure_demo_cemetery(oid)
+    db.session.commit()
+    return _demo_operational_counts(oid)
 
-    db.session.add_all(
-        [
-            OwnershipRecord(
-                org_id=oid,
-                contract_id=contrato_1.id,
-                person_id=titular.id,
-                start_date=date(2012, 1, 1),
-                is_pensioner=False,
-            ),
-            OwnershipRecord(
-                org_id=oid,
-                contract_id=contrato_2.id,
-                person_id=titular_alt.id,
-                start_date=date(2024, 1, 1),
-                is_pensioner=False,
-            ),
-            Beneficiario(
-                org_id=oid,
-                contrato_id=contrato_1.id,
-                person_id=titular_alt.id,
-                activo_desde=date(2024, 1, 1),
-            ),
-            SepulturaDifunto(
-                org_id=oid,
-                sepultura_id=sep_1.id,
-                person_id=difunto.id,
-                notes="Cadaver",
-            ),
-        ]
-    )
 
-    for year in [2024, 2025, 2026]:
-        db.session.add(
-            TasaMantenimientoTicket(
+def _demo_case_document_status(
+    case_status: OwnershipTransferStatus,
+    required: bool,
+    case_type: OwnershipTransferType,
+    doc_type: str,
+    case_index: int,
+) -> CaseDocumentStatus:
+    if case_status in {OwnershipTransferStatus.APPROVED, OwnershipTransferStatus.CLOSED}:
+        if required:
+            return CaseDocumentStatus.VERIFIED
+        return CaseDocumentStatus.PROVIDED if case_index % 2 == 0 else CaseDocumentStatus.MISSING
+    if case_status == OwnershipTransferStatus.DRAFT:
+        return CaseDocumentStatus.MISSING
+    if case_status == OwnershipTransferStatus.DOCS_PENDING:
+        if not required:
+            return CaseDocumentStatus.MISSING
+        if (case_index + len(doc_type)) % 2 == 0:
+            return CaseDocumentStatus.PROVIDED
+        return CaseDocumentStatus.MISSING
+    if case_status == OwnershipTransferStatus.UNDER_REVIEW:
+        if not required:
+            return CaseDocumentStatus.PROVIDED if case_index % 3 == 0 else CaseDocumentStatus.MISSING
+        if case_type == OwnershipTransferType.INTER_VIVOS and doc_type == "ACREDITACION_PARENTESCO_2_GRADO":
+            return CaseDocumentStatus.VERIFIED if case_index % 2 == 0 else CaseDocumentStatus.PROVIDED
+        return CaseDocumentStatus.VERIFIED if (case_index + len(doc_type)) % 3 == 0 else CaseDocumentStatus.PROVIDED
+    if case_status == OwnershipTransferStatus.REJECTED:
+        if required:
+            return CaseDocumentStatus.REJECTED if (case_index + len(doc_type)) % 2 == 0 else CaseDocumentStatus.PROVIDED
+        return CaseDocumentStatus.MISSING
+    return CaseDocumentStatus.MISSING
+
+
+def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
+    _purge_org_operational_data()
+    oid = org_id()
+    cemetery = _ensure_demo_cemetery(oid)
+
+    holders: list[Person] = []
+    extras: list[Person] = []
+    for idx in range(1, 301):
+        holders.append(
+            Person(
                 org_id=oid,
-                contrato_id=contrato_1.id,
-                anio=year,
-                importe=Decimal("45.00"),
-                descuento_tipo=TicketDescuentoTipo.NONE,
-                estado=TicketEstado.PENDIENTE,
+                first_name="Titular",
+                last_name=f"Demo {idx:03d}",
+                dni_nif=f"HD{idx:07d}",
+                telefono=f"600{idx:06d}",
+                email=f"titular{idx:03d}@demo.local",
+                direccion=f"Calle Demo {idx:03d}",
             )
         )
-
-    db.session.add(
-        Invoice(
-            org_id=oid,
-            contrato_id=contrato_1.id,
-            sepultura_id=sep_1.id,
-            numero=f"F-CEM-{date.today().year}-9001",
-            estado=InvoiceEstado.IMPAGADA,
-            total_amount=Decimal("45.00"),
-            issued_at=datetime.now(timezone.utc),
-        )
-    )
-
-    exp_a = Expediente(
-        org_id=oid,
-        numero=f"C-{date.today().year}-1001",
-        tipo="INHUMACION",
-        estado="ABIERTO",
-        sepultura_id=sep_1.id,
-        difunto_id=difunto.id,
-        fecha_prevista=date.today(),
-        notas="Demo reset",
-    )
-    exp_b = Expediente(
-        org_id=oid,
-        numero=f"C-{date.today().year}-1002",
-        tipo="EXHUMACION",
-        estado="EN_TRAMITE",
-        sepultura_id=sep_2.id,
-        fecha_prevista=date.today(),
-        notas="Demo reset",
-    )
-    db.session.add_all([exp_a, exp_b])
-    db.session.flush()
-    db.session.add(
-        OrdenTrabajo(
-            org_id=oid,
-            expediente_id=exp_b.id,
-            titulo=f"OT {exp_b.numero}",
-            estado="PENDIENTE",
-        )
-    )
-
-    stock = LapidaStock(
-        org_id=oid,
-        codigo="LAP-STD",
-        descripcion="Lapida estandar",
-        estado="ACTIVO",
-        available_qty=10,
-    )
-    db.session.add(stock)
-    db.session.flush()
-    db.session.add(
-        LapidaStockMovimiento(
-            org_id=oid,
-            lapida_stock_id=stock.id,
-            movimiento="ENTRADA",
-            quantity=10,
-            notes="Reset demo",
-        )
-    )
-
-    inscripcion = InscripcionLateral(
-        org_id=oid,
-        sepultura_id=sep_1.id,
-        expediente_id=exp_a.id,
-        texto="Familia Ferrer",
-        estado="PENDIENTE_GRABAR",
-    )
-    db.session.add(inscripcion)
-
-    case = OwnershipTransferCase(
-        org_id=oid,
-        case_number=f"TR-{date.today().year}-9001",
-        contract_id=contrato_1.id,
-        type=OwnershipTransferType.INTER_VIVOS,
-        status=OwnershipTransferStatus.DRAFT,
-        created_by_user_id=user_id,
-        notes="Caso demo reset",
-    )
-    case2 = OwnershipTransferCase(
-        org_id=oid,
-        case_number=f"TR-{date.today().year}-9002",
-        contract_id=contrato_2.id,
-        type=OwnershipTransferType.MORTIS_CAUSA_TESTAMENTO,
-        status=OwnershipTransferStatus.DOCS_PENDING,
-        created_by_user_id=user_id,
-        notes="Caso demo reset",
-    )
-    db.session.add_all([case, case2])
-    db.session.flush()
-    db.session.add_all(
-        [
-            OwnershipTransferParty(
+    for idx in range(1, 181):
+        extras.append(
+            Person(
                 org_id=oid,
-                case_id=case.id,
-                role=OwnershipPartyRole.ANTERIOR_TITULAR,
-                person_id=titular.id,
+                first_name="Persona",
+                last_name=f"Extra {idx:03d}",
+                dni_nif=f"EX{idx:07d}" if idx <= 120 else None,
+                telefono=f"700{idx:06d}" if idx <= 120 else "",
+                email=f"extra{idx:03d}@demo.local" if idx <= 90 else "",
+                direccion=f"Avenida Extra {idx:03d}" if idx <= 60 else "",
+                notas="Registro demo",
+            )
+        )
+    db.session.add_all([*holders, *extras])
+    db.session.flush()
+
+    modalidades = ("Ninxol", "Columbario", "Panteon", "Fosa")
+    tipos_bloque = {
+        "Ninxol": "Ninxols",
+        "Columbario": "Columbaris",
+        "Panteon": "Panteons",
+        "Fosa": "Fosses",
+    }
+    tipo_lapidas = ("Resina", "Marmol", "Granito", "Sin lapida")
+    orientaciones = ("Nord", "Sud", "Est", "Oest")
+    sepulturas: list[Sepultura] = []
+    for idx in range(1, 351):
+        block_index = ((idx - 1) // 25) + 1
+        local_index = (idx - 1) % 25
+        fila = (local_index // 5) + 1
+        columna = (local_index % 5) + 1
+        if idx <= 300:
+            estado = SepulturaEstado.DISPONIBLE
+        elif idx <= 320:
+            estado = SepulturaEstado.LLIURE
+        elif idx <= 335:
+            estado = SepulturaEstado.DISPONIBLE
+        elif idx <= 345:
+            estado = SepulturaEstado.INACTIVA
+        else:
+            estado = SepulturaEstado.PROPIA
+
+        modalidad = modalidades[(idx - 1) % len(modalidades)]
+        if estado == SepulturaEstado.PROPIA:
+            modalidad = "Fosa"
+
+        sepulturas.append(
+            Sepultura(
+                org_id=oid,
+                cemetery_id=cemetery.id,
+                bloque=f"B-{block_index:02d}",
+                fila=fila,
+                columna=columna,
+                via=f"V-{((block_index - 1) % 8) + 1}",
+                numero=1000 + idx,
+                modalidad=modalidad,
+                estado=estado,
+                tipo_bloque=tipos_bloque[modalidad],
+                tipo_lapida=tipo_lapidas[(idx - 1) % len(tipo_lapidas)],
+                orientacion=orientaciones[(idx - 1) % len(orientaciones)],
+            )
+        )
+    db.session.add_all(sepulturas)
+    db.session.flush()
+
+    contracts: list[DerechoFunerarioContrato] = []
+    for idx, sep in enumerate(sepulturas[:300], start=1):
+        contract_type = DerechoTipo.CONCESION if idx <= 240 else DerechoTipo.USO_INMEDIATO
+        start_year = 1998 + (idx % 22)
+        fecha_inicio = date(start_year, ((idx - 1) % 12) + 1, ((idx - 1) % 28) + 1)
+        duration_years = 30 + (idx % 20) if contract_type == DerechoTipo.CONCESION else 10 + (idx % 15)
+        contracts.append(
+            DerechoFunerarioContrato(
+                org_id=oid,
+                sepultura_id=sep.id,
+                tipo=contract_type,
+                fecha_inicio=fecha_inicio,
+                fecha_fin=_add_years(fecha_inicio, duration_years),
+                annual_fee_amount=Decimal(35 + (idx % 25)).quantize(Decimal("0.01")),
+                estado="ACTIVO",
+            )
+        )
+    db.session.add_all(contracts)
+    db.session.flush()
+
+    ownership_records: list[OwnershipRecord] = []
+    owner_person_by_contract_id: dict[int, int] = {}
+    for idx, contract in enumerate(contracts, start=1):
+        is_pensioner = idx <= 72
+        is_provisional = idx <= 18
+        record = OwnershipRecord(
+            org_id=oid,
+            contract_id=contract.id,
+            person_id=holders[idx - 1].id,
+            start_date=contract.fecha_inicio,
+            is_pensioner=is_pensioner,
+            pensioner_since_date=date(2024, 1, 1) if is_pensioner else None,
+            is_provisional=is_provisional,
+            provisional_until=date(2036, 1, 1) if is_provisional else None,
+            notes="Titularidad demo",
+        )
+        ownership_records.append(record)
+        owner_person_by_contract_id[contract.id] = record.person_id
+    db.session.add_all(ownership_records)
+
+    active_beneficiaries: list[Beneficiario] = []
+    active_beneficiary_person_by_contract_id: dict[int, int] = {}
+    for idx, contract in enumerate(contracts[:180], start=1):
+        beneficiary = Beneficiario(
+            org_id=oid,
+            contrato_id=contract.id,
+            person_id=extras[idx - 1].id,
+            activo_desde=_add_years(contract.fecha_inicio, 1),
+        )
+        active_beneficiaries.append(beneficiary)
+        active_beneficiary_person_by_contract_id[contract.id] = beneficiary.person_id
+    db.session.add_all(active_beneficiaries)
+
+    historical_beneficiaries: list[Beneficiario] = []
+    for idx, contract in enumerate(contracts[180:210], start=1):
+        started_at = date(2016 + (idx % 5), ((idx - 1) % 12) + 1, ((idx - 1) % 28) + 1)
+        historical_beneficiaries.append(
+            Beneficiario(
+                org_id=oid,
+                contrato_id=contract.id,
+                person_id=extras[(idx + 89) % len(extras)].id,
+                activo_desde=started_at,
+                activo_hasta=_add_years(started_at, 3),
+            )
+        )
+    db.session.add_all(historical_beneficiaries)
+
+    remains: list[SepulturaDifunto] = []
+    for idx, sep in enumerate(sepulturas[:180], start=1):
+        remains.append(
+            SepulturaDifunto(
+                org_id=oid,
+                sepultura_id=sep.id,
+                person_id=extras[(idx - 1) % len(extras)].id,
+                notes=f"Restos previos demo {idx:03d}",
+            )
+        )
+    db.session.add_all(remains)
+
+    expediente_states = (
+        ["ABIERTO"] * 40
+        + ["EN_TRAMITE"] * 40
+        + ["FINALIZADO"] * 35
+        + ["CANCELADO"] * 25
+    )
+    expediente_types = ("INHUMACION", "EXHUMACION", "RESCATE", "FINALIZACION")
+    expedientes: list[Expediente] = []
+    for idx in range(1, 141):
+        expedientes.append(
+            Expediente(
+                org_id=oid,
+                numero=f"C-2026-{idx:04d}",
+                tipo=expediente_types[(idx - 1) % len(expediente_types)],
+                estado=expediente_states[idx - 1],
+                sepultura_id=sepulturas[(idx - 1) % 300].id,
+                difunto_id=extras[(idx - 1) % len(extras)].id if idx % 2 == 0 else None,
+                declarante_id=(
+                    holders[(idx + 37) % len(holders)].id
+                    if idx % 3 == 0
+                    else extras[(idx + 23) % len(extras)].id
+                ),
+                fecha_prevista=date(2026, ((idx - 1) % 12) + 1, ((idx - 1) % 28) + 1),
+                notas=f"Expediente demo {idx:04d}",
+            )
+        )
+    db.session.add_all(expedientes)
+    db.session.flush()
+
+    ot_states = ["PENDIENTE"] * 100 + ["EN_CURSO"] * 70 + ["COMPLETADA"] * 50
+    ots: list[OrdenTrabajo] = []
+    for idx in range(1, 221):
+        state = ot_states[idx - 1]
+        completed_at = (
+            datetime(2026, 1, 1, tzinfo=timezone.utc) + timedelta(days=idx)
+            if state == "COMPLETADA"
+            else None
+        )
+        ots.append(
+            OrdenTrabajo(
+                org_id=oid,
+                expediente_id=expedientes[(idx - 1) % len(expedientes)].id,
+                titulo=f"OT DEMO {idx:04d}",
+                estado=state,
+                completed_at=completed_at,
+                notes="Orden de trabajo demo",
+            )
+        )
+    db.session.add_all(ots)
+
+    case_types = (
+        OwnershipTransferType.MORTIS_CAUSA_TESTAMENTO,
+        OwnershipTransferType.MORTIS_CAUSA_SIN_TESTAMENTO,
+        OwnershipTransferType.MORTIS_CAUSA_CON_BENEFICIARIO,
+        OwnershipTransferType.INTER_VIVOS,
+        OwnershipTransferType.PROVISIONAL,
+    )
+    case_status_cycle = (
+        OwnershipTransferStatus.DRAFT,
+        OwnershipTransferStatus.DOCS_PENDING,
+        OwnershipTransferStatus.UNDER_REVIEW,
+        OwnershipTransferStatus.APPROVED,
+        OwnershipTransferStatus.REJECTED,
+        OwnershipTransferStatus.CLOSED,
+    )
+    ownership_cases: list[OwnershipTransferCase] = []
+    resolution_counter = 1
+    for idx in range(1, 91):
+        transfer_type = case_types[(idx - 1) % len(case_types)]
+        status = case_status_cycle[(idx - 1) % len(case_status_cycle)]
+        if transfer_type == OwnershipTransferType.MORTIS_CAUSA_CON_BENEFICIARIO:
+            contract = contracts[(idx - 1) % 180]
+        else:
+            contract = contracts[(idx - 1) % 300]
+        opened_at = datetime(2026, 1, 1, tzinfo=timezone.utc) + timedelta(days=idx)
+        resolution_number = None
+        if status in {OwnershipTransferStatus.APPROVED, OwnershipTransferStatus.CLOSED}:
+            resolution_number = f"RES-2026-{resolution_counter:04d}"
+            resolution_counter += 1
+        case = OwnershipTransferCase(
+            org_id=oid,
+            case_number=f"TR-2026-{idx:04d}",
+            contract_id=contract.id,
+            type=transfer_type,
+            status=status,
+            opened_at=opened_at,
+            closed_at=opened_at + timedelta(days=21) if status == OwnershipTransferStatus.CLOSED else None,
+            created_by_user_id=user_id,
+            assigned_to_user_id=user_id if user_id and idx % 4 == 0 else None,
+            resolution_number=resolution_number,
+            rejection_reason=(
+                f"Falta documentacion demo {idx:03d}"
+                if status == OwnershipTransferStatus.REJECTED
+                else None
             ),
+            notes=f"Caso demo {idx:03d}",
+            internal_notes="Dataset de demostracion",
+        )
+        if transfer_type == OwnershipTransferType.PROVISIONAL:
+            provisional_start = date(2025, ((idx - 1) % 12) + 1, 1)
+            case.provisional_start_date = provisional_start
+            case.provisional_until = _add_years(provisional_start, 10)
+        ownership_cases.append(case)
+    db.session.add_all(ownership_cases)
+    db.session.flush()
+
+    case_parties: list[OwnershipTransferParty] = []
+    for idx, case in enumerate(ownership_cases, start=1):
+        previous_holder_person_id = owner_person_by_contract_id.get(case.contract_id)
+        if previous_holder_person_id:
+            case_parties.append(
+                OwnershipTransferParty(
+                    org_id=oid,
+                    case_id=case.id,
+                    role=OwnershipPartyRole.ANTERIOR_TITULAR,
+                    person_id=previous_holder_person_id,
+                )
+            )
+        if case.type == OwnershipTransferType.MORTIS_CAUSA_CON_BENEFICIARIO:
+            new_holder_person_id = active_beneficiary_person_by_contract_id[case.contract_id]
+        else:
+            new_holder_person_id = extras[(idx + 41) % len(extras)].id
+        case_parties.append(
             OwnershipTransferParty(
                 org_id=oid,
                 case_id=case.id,
                 role=OwnershipPartyRole.NUEVO_TITULAR,
-                person_id=sucesor.id,
-            ),
-            OwnershipTransferParty(
-                org_id=oid,
-                case_id=case2.id,
-                role=OwnershipPartyRole.ANTERIOR_TITULAR,
-                person_id=titular_alt.id,
-            ),
-            OwnershipTransferParty(
-                org_id=oid,
-                case_id=case2.id,
-                role=OwnershipPartyRole.NUEVO_TITULAR,
-                person_id=sucesor.id,
-            ),
-        ]
-    )
-    for case_item in [case, case2]:
-        for doc_type, required in CASE_CHECKLIST[case_item.type]:
-            db.session.add(
+                person_id=new_holder_person_id,
+            )
+        )
+        if idx % 10 == 0:
+            case_parties.append(
+                OwnershipTransferParty(
+                    org_id=oid,
+                    case_id=case.id,
+                    role=OwnershipPartyRole.REPRESENTANTE,
+                    person_id=holders[(idx + 5) % len(holders)].id,
+                )
+            )
+    db.session.add_all(case_parties)
+
+    case_documents: list[CaseDocument] = []
+    for idx, case in enumerate(ownership_cases, start=1):
+        for doc_type, required in CASE_CHECKLIST[case.type]:
+            doc_status = _demo_case_document_status(case.status, required, case.type, doc_type, idx)
+            uploaded_at = None
+            verified_at = None
+            verified_by_user_id = None
+            if doc_status in {CaseDocumentStatus.PROVIDED, CaseDocumentStatus.VERIFIED, CaseDocumentStatus.REJECTED}:
+                uploaded_at = case.opened_at + timedelta(days=1)
+            if doc_status == CaseDocumentStatus.VERIFIED:
+                verified_at = case.opened_at + timedelta(days=2)
+                verified_by_user_id = user_id
+            case_documents.append(
                 CaseDocument(
                     org_id=oid,
-                    case_id=case_item.id,
+                    case_id=case.id,
                     doc_type=doc_type,
                     required=required,
-                    status=CaseDocumentStatus.MISSING,
+                    status=doc_status,
+                    uploaded_at=uploaded_at,
+                    verified_at=verified_at,
+                    verified_by_user_id=verified_by_user_id,
+                    notes="Documento demo",
+                )
+            )
+    db.session.add_all(case_documents)
+
+    publications: list[Publication] = []
+    provisional_cases = [case for case in ownership_cases if case.type == OwnershipTransferType.PROVISIONAL]
+    for idx, case in enumerate(provisional_cases, start=1):
+        published_date = date(2026, ((idx - 1) % 12) + 1, ((idx - 1) % 27) + 1)
+        mode = idx % 3
+        if mode in {0, 1}:
+            publications.append(
+                Publication(
+                    org_id=oid,
+                    case_id=case.id,
+                    published_at=published_date,
+                    channel="BOP",
+                    reference_text=f"BOP-2026-{idx:04d}",
+                    notes="Publicacion demo",
+                )
+            )
+        if mode in {0, 2}:
+            publications.append(
+                Publication(
+                    org_id=oid,
+                    case_id=case.id,
+                    published_at=published_date + timedelta(days=2),
+                    channel="DIARIO",
+                    reference_text=f"DIARIO-2026-{idx:04d}",
+                    notes="Publicacion demo",
+                )
+            )
+    db.session.add_all(publications)
+
+    contract_by_id = {contract.id: contract for contract in contracts}
+    contract_events: list[ContractEvent] = []
+    movements: list[MovimientoSepultura] = []
+    for idx, case in enumerate(ownership_cases, start=1):
+        contract_events.append(
+            ContractEvent(
+                org_id=oid,
+                contract_id=case.contract_id,
+                case_id=case.id,
+                event_type="INICIO_TRANSMISION",
+                event_at=case.opened_at,
+                details=f"Inicio de caso {case.case_number}",
+                user_id=user_id,
+            )
+        )
+        if case.status in {OwnershipTransferStatus.APPROVED, OwnershipTransferStatus.CLOSED}:
+            contract_events.append(
+                ContractEvent(
+                    org_id=oid,
+                    contract_id=case.contract_id,
+                    case_id=case.id,
+                    event_type="APROBACION",
+                    event_at=case.opened_at + timedelta(days=10),
+                    details=f"Aprobado {case.case_number}",
+                    user_id=user_id,
+                )
+            )
+        if case.status == OwnershipTransferStatus.REJECTED:
+            contract_events.append(
+                ContractEvent(
+                    org_id=oid,
+                    contract_id=case.contract_id,
+                    case_id=case.id,
+                    event_type="RECHAZO",
+                    event_at=case.opened_at + timedelta(days=7),
+                    details=f"Rechazado {case.case_number}",
+                    user_id=user_id,
+                )
+            )
+        contract = contract_by_id.get(case.contract_id)
+        if contract:
+            movements.append(
+                MovimientoSepultura(
+                    org_id=oid,
+                    sepultura_id=contract.sepultura_id,
+                    tipo=MovimientoTipo.INICIO_TRANSMISION,
+                    fecha=case.opened_at + timedelta(days=1),
+                    detalle=f"Seguimiento {case.case_number}",
+                    user_id=user_id,
+                )
+            )
+    for idx, contract in enumerate(contracts[:30], start=1):
+        movements.append(
+            MovimientoSepultura(
+                org_id=oid,
+                sepultura_id=contract.sepultura_id,
+                tipo=MovimientoTipo.BENEFICIARIO,
+                fecha=datetime(2026, 6, 1, tzinfo=timezone.utc) + timedelta(days=idx),
+                detalle=f"Revision beneficiario contrato {contract.id}",
+                user_id=user_id,
+            )
+        )
+    for idx, contract in enumerate(contracts[:20], start=1):
+        movements.append(
+            MovimientoSepultura(
+                org_id=oid,
+                sepultura_id=contract.sepultura_id,
+                tipo=MovimientoTipo.PENSIONISTA,
+                fecha=datetime(2026, 7, 1, tzinfo=timezone.utc) + timedelta(days=idx),
+                detalle=f"Revision pensionista contrato {contract.id}",
+                user_id=user_id,
+            )
+        )
+    closed_cases = [case for case in ownership_cases if case.status == OwnershipTransferStatus.CLOSED]
+    for idx, case in enumerate(closed_cases[:20], start=1):
+        contract = contract_by_id.get(case.contract_id)
+        if not contract:
+            continue
+        movements.append(
+            MovimientoSepultura(
+                org_id=oid,
+                sepultura_id=contract.sepultura_id,
+                tipo=MovimientoTipo.CAMBIO_TITULARIDAD,
+                fecha=case.opened_at + timedelta(days=22),
+                detalle=f"Cierre titularidad {case.case_number}",
+                user_id=user_id,
+            )
+        )
+    db.session.add_all(contract_events)
+    db.session.add_all(movements)
+
+    ticket_years = (2024, 2025, 2026)
+    discount_pct = Decimal("10.00")
+    invoice_counter = 1
+    receipt_counter = 1
+    for contract_index, contract in enumerate(contracts[:120], start=1):
+        holder = ownership_records[contract_index - 1]
+        for year in ticket_years:
+            amount = Decimal(contract.annual_fee_amount or Decimal("0.00")).quantize(Decimal("0.01"))
+            discount_type = TicketDescuentoTipo.NONE
+            if holder.is_pensioner and holder.pensioner_since_date and year >= holder.pensioner_since_date.year:
+                amount = _apply_discount(amount, discount_pct)
+                discount_type = TicketDescuentoTipo.PENSIONISTA
+
+            state_bucket = (contract_index + year) % 3
+            if state_bucket == 0:
+                ticket_state = TicketEstado.PENDIENTE
+            elif state_bucket == 1:
+                ticket_state = TicketEstado.FACTURADO
+            else:
+                ticket_state = TicketEstado.COBRADO
+
+            invoice_id = None
+            if ticket_state in {TicketEstado.FACTURADO, TicketEstado.COBRADO}:
+                invoice = Invoice(
+                    org_id=oid,
+                    contrato_id=contract.id,
+                    sepultura_id=contract.sepultura_id,
+                    numero=f"F-DEMO-2026-{invoice_counter:06d}",
+                    estado=InvoiceEstado.IMPAGADA if ticket_state == TicketEstado.FACTURADO else InvoiceEstado.PAGADA,
+                    total_amount=amount,
+                    issued_at=datetime(year, ((contract_index - 1) % 12) + 1, 15, tzinfo=timezone.utc),
+                )
+                db.session.add(invoice)
+                db.session.flush()
+                invoice_id = invoice.id
+                invoice_counter += 1
+                if ticket_state == TicketEstado.COBRADO:
+                    db.session.add(
+                        Payment(
+                            org_id=oid,
+                            invoice_id=invoice.id,
+                            user_id=user_id,
+                            amount=amount,
+                            method="EFECTIVO",
+                            receipt_number=f"R-DEMO-2026-{receipt_counter:06d}",
+                            paid_at=invoice.issued_at + timedelta(days=5),
+                        )
+                    )
+                    receipt_counter += 1
+
+            db.session.add(
+                TasaMantenimientoTicket(
+                    org_id=oid,
+                    contrato_id=contract.id,
+                    invoice_id=invoice_id,
+                    anio=year,
+                    importe=amount,
+                    descuento_tipo=discount_type,
+                    estado=ticket_state,
                 )
             )
 
-    db.session.commit()
-    return {"sepulturas": 3, "contracts": 2, "expedientes": 2, "casos": 2}
+    lapida_stocks: list[LapidaStock] = []
+    for idx in range(1, 9):
+        lapida_stocks.append(
+            LapidaStock(
+                org_id=oid,
+                codigo=f"LAP-DEMO-{idx:02d}",
+                descripcion=f"Modelo lapida demo {idx:02d}",
+                estado="ACTIVO",
+                available_qty=25 + idx,
+            )
+        )
+    db.session.add_all(lapida_stocks)
+    db.session.flush()
 
+    lapida_movements: list[LapidaStockMovimiento] = []
+    for idx in range(1, 31):
+        stock = lapida_stocks[(idx - 1) % len(lapida_stocks)]
+        quantity = (idx % 4) + 1
+        stock.available_qty += quantity
+        lapida_movements.append(
+            LapidaStockMovimiento(
+                org_id=oid,
+                lapida_stock_id=stock.id,
+                movimiento="ENTRADA",
+                quantity=quantity,
+                notes=f"Entrada demo {idx:03d}",
+            )
+        )
+    for idx in range(1, 31):
+        stock = lapida_stocks[(idx + 2) % len(lapida_stocks)]
+        quantity = (idx % 3) + 1
+        stock.available_qty -= quantity
+        lapida_movements.append(
+            LapidaStockMovimiento(
+                org_id=oid,
+                lapida_stock_id=stock.id,
+                movimiento="SALIDA",
+                quantity=quantity,
+                sepultura_id=sepulturas[(idx * 3) % 300].id,
+                expediente_id=expedientes[(idx * 2) % len(expedientes)].id if idx % 2 == 0 else None,
+                notes=f"Salida demo {idx:03d}",
+            )
+        )
+    db.session.add_all(lapida_movements)
+
+    inscripcion_states = (
+        ["PENDIENTE_GRABAR"] * 20
+        + ["PENDIENTE_COLOCAR"] * 20
+        + ["PENDIENTE_NOTIFICAR"] * 20
+        + ["NOTIFICADA"] * 10
+    )
+    inscripciones: list[InscripcionLateral] = []
+    for idx in range(1, 71):
+        inscripciones.append(
+            InscripcionLateral(
+                org_id=oid,
+                sepultura_id=sepulturas[(idx - 1) % 300].id,
+                expediente_id=expedientes[(idx - 1) % len(expedientes)].id if idx % 2 == 0 else None,
+                texto=f"Inscripcion demo {idx:03d}",
+                estado=inscripcion_states[idx - 1],
+            )
+        )
+    db.session.add_all(inscripciones)
+
+    db.session.commit()
+    return _demo_operational_counts(oid)
 
 def _get_case_or_404(case_id: int) -> OwnershipTransferCase:
     case = (
