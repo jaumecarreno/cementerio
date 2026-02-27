@@ -893,6 +893,17 @@ def search_sepulturas(filters: dict[str, str]) -> list[dict[str, object]]:
     return rows
 
 
+def list_sepultura_blocks() -> list[str]:
+    rows = (
+        db.session.query(Sepultura.bloque)
+        .filter(Sepultura.org_id == org_id())
+        .distinct()
+        .order_by(Sepultura.bloque.asc())
+        .all()
+    )
+    return [str(bloque) for (bloque,) in rows if bloque]
+
+
 def sepultura_by_id(sepultura_id: int) -> Sepultura:
     sep = Sepultura.query.filter_by(org_id=org_id(), id=sepultura_id).first()
     if not sep:

@@ -54,7 +54,7 @@
           </summary>
           <div class="menu-subsection">
             <a class="menu-sublink {% if active_cem == 'panel' %}active{% endif %}" href="{{ url_for('cemetery.panel') }}">{{ t('cem.panel') }}</a>
-            <a class="menu-sublink {% if active_cem == 'tasas' %}active{% endif %}" href="{{ url_for('cemetery.search_graves') }}">{{ t('cem.fees') }}</a>
+            <a class="menu-sublink {% if active_cem == 'tasas' %}active{% endif %}" href="{{ url_for('cemetery.fees_search') }}">{{ t('cem.fees') }}</a>
           </div>
         </details>
         <a class="menu-link {% if active_global == 'funeral_services' %}active{% endif %}" href="{{ url_for('module_pending', slug='servicios-funerarios') }}">

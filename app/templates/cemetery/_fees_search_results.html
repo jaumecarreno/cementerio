@@ -1,0 +1,34 @@
+<!-- Resultados para seleccionar sepultura y abrir cobro de tasas -->
+<div class="box">
+  <table>
+    <thead>
+      <tr>
+        <th>Ubicacion</th>
+        <th>Modalidad</th>
+        <th>Estado</th>
+        <th>Titular actual</th>
+        <th>Deuda</th>
+        <th>Accion</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.sepultura.bloque }} / F{{ row.sepultura.fila }} C{{ row.sepultura.columna }} / N{{ row.sepultura.numero }}</td>
+        <td>{{ row.sepultura.modalidad }}</td>
+        <td>{{ row.sepultura.estado.value }}</td>
+        <td>{{ row.titular_name }}</td>
+        <td>{{ money(row.deuda) }}</td>
+        <td>
+          <a class="btn primary" href="{{ url_for('cemetery.fee_collection', sepultura_id=row.sepultura.id) }}">Cobrar tasas</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="6" class="muted">Sin resultados.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="small muted">Tip: usa "Cobrar tasas" para abrir el cobro de la sepultura seleccionada.</p>
+</div>

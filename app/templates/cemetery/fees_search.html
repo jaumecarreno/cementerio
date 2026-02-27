@@ -1,17 +1,17 @@
-<!-- Spec 5.3.4 + 9.4.x - Buscador de sepulturas -->
+<!-- Punto de entrada al modulo de tasas -->
 {% extends "base.html" %}
-{% set active_cem = 'sepulturas' %}
-{% block title %}Cementerio - Sepulturas - Buscar{% endblock %}
+{% set active_cem = 'tasas' %}
+{% block title %}Cementerio - Tasas - Buscar sepultura{% endblock %}
 {% block content %}
-<h1 class="page-title">Cementerio &gt; Sepulturas &gt; Buscar</h1>
+<h1 class="page-title">Cementerio &gt; Tasas &gt; Buscar sepultura</h1>
 
 <div class="box">
-  <h3>Criterios de búsqueda</h3>
+  <h3>Criterios de busqueda</h3>
   <form
     method="post"
-    action="{{ url_for('cemetery.search_graves') }}"
-    hx-post="{{ url_for('cemetery.search_graves') }}"
-    hx-target="#search-results"
+    action="{{ url_for('cemetery.fees_search') }}"
+    hx-post="{{ url_for('cemetery.fees_search') }}"
+    hx-target="#fees-search-results"
     hx-swap="innerHTML"
   >
     <div class="form-grid">
@@ -25,7 +25,7 @@
         </select>
       </div>
       <div>
-        <label>Número</label>
+        <label>Numero</label>
         <input type="number" name="numero" value="{{ filters.numero }}">
       </div>
       <div>
@@ -46,13 +46,13 @@
       </div>
     </div>
     <div class="actions-row">
-      <a class="btn" href="{{ url_for('cemetery.search_graves') }}">Limpiar</a>
+      <a class="btn" href="{{ url_for('cemetery.fees_search') }}">Limpiar</a>
       <button type="submit" class="primary">Buscar</button>
     </div>
   </form>
 </div>
 
-<div id="search-results">
-  {% include "cemetery/_search_results.html" %}
+<div id="fees-search-results">
+  {% include "cemetery/_fees_search_results.html" %}
 </div>
 {% endblock %}

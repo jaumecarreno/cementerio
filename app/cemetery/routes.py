@@ -36,6 +36,7 @@ from app.cemetery.services import (
     list_lapida_stock_movements,
     list_ownership_cases,
     list_people,
+    list_sepultura_blocks,
     nominate_contract_beneficiary,
     ownership_case_document_download,
     ownership_case_detail,
@@ -438,7 +439,38 @@ def search_graves():
     rows = search_sepulturas(filters) if any(filters.values()) else []
     if _is_htmx():
         return render_template("cemetery/_search_results.html", rows=rows, money=money)
-    return render_template("cemetery/search.html", filters=filters, rows=rows, money=money)
+    return render_template(
+        "cemetery/search.html",
+        filters=filters,
+        rows=rows,
+        money=money,
+        blocks=list_sepultura_blocks(),
+    )
+
+
+@cemetery_bp.route("/tasas", methods=["GET", "POST"])
+@login_required
+@require_membership
+def fees_search():
+    # Punto de entrada a Tasas: buscar sepultura para abrir cobro.
+    filters = {
+        "bloque": request.values.get("bloque", "").strip(),
+        "fila": request.values.get("fila", "").strip(),
+        "columna": request.values.get("columna", "").strip(),
+        "numero": request.values.get("numero", "").strip(),
+        "titular": request.values.get("titular", "").strip(),
+        "difunto": request.values.get("difunto", "").strip(),
+    }
+    rows = search_sepulturas(filters) if any(filters.values()) else []
+    if _is_htmx():
+        return render_template("cemetery/_fees_search_results.html", rows=rows, money=money)
+    return render_template(
+        "cemetery/fees_search.html",
+        filters=filters,
+        rows=rows,
+        money=money,
+        blocks=list_sepultura_blocks(),
+    )
 
 
 @cemetery_bp.get("/sepulturas/<int:sepultura_id>")
