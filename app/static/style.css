@@ -123,30 +123,45 @@ a {
   font-weight: 700;
 }
 
-.menu-icon {
-  width: 24px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.menu-icon svg {
-  width: 100%;
-  height: 100%;
-}
-
-.menu-icon svg * {
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
 .menu-label {
   flex: 1;
+}
+
+.menu-accordion > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.menu-accordion > summary::-webkit-details-marker {
+  display: none;
+}
+
+.accordion-arrow {
+  display: inline-flex;
+  width: 16px;
+  justify-content: center;
+  align-items: center;
+  font-size: 16px;
+  transition: transform 0.16s ease;
+}
+
+.menu-accordion:not([open]) .accordion-arrow {
+  transform: rotate(-90deg);
+}
+
+.menu-subsection {
+  padding: 0 0 8px;
+}
+
+.menu-sublink {
+  display: block;
+  padding: 8px 24px 8px 44px;
+  font-size: 22px;
+}
+
+.menu-sublink.active {
+  background: var(--active-2);
+  font-weight: 700;
 }
 
 .main {
@@ -465,6 +480,11 @@ select {
   .menu-link {
     font-size: 18px;
     padding: 10px 14px;
+  }
+
+  .menu-sublink {
+    font-size: 16px;
+    padding: 8px 14px 8px 34px;
   }
 
   .main,
