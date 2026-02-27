@@ -91,7 +91,7 @@ def register_routes(app: Flask) -> None:
         from app.cemetery.services import reset_demo_org_data_to_zero
 
         if not _demo_actions_enabled(app):
-            flash("Acciones DEMO bloqueadas fuera de entorno DEV/TEST", "error")
+            flash("Acciones DEMO bloqueadas por configuracion del entorno", "error")
             return redirect(url_for("demo_page")), 403
         summary = reset_demo_org_data_to_zero()
         flash(
@@ -108,7 +108,7 @@ def register_routes(app: Flask) -> None:
         from app.cemetery.services import load_demo_org_initial_dataset
 
         if not _demo_actions_enabled(app):
-            flash("Acciones DEMO bloqueadas fuera de entorno DEV/TEST", "error")
+            flash("Acciones DEMO bloqueadas por configuracion del entorno", "error")
             return redirect(url_for("demo_page")), 403
         summary = load_demo_org_initial_dataset(current_user.id)
         flash(
@@ -170,13 +170,21 @@ def _template_context() -> dict[str, object]:
 
 
 def _demo_actions_enabled(app: Flask) -> bool:
-    if app.config.get("TESTING"):
+    configured = app.config.get("DEMO_ACTIONS_ENABLED")
+    if configured is None:
+        configured = os.getenv("DEMO_ACTIONS_ENABLED")
+
+    if isinstance(configured, bool):
+        return configured
+
+    normalized = str(configured or "").strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
         return True
-    if app.debug:
-        return True
-    flask_env = (os.getenv("FLASK_ENV") or "").strip().lower()
-    app_env = (app.config.get("APP_ENV") or os.getenv("APP_ENV") or "").strip().lower()
-    return flask_env == "development" or app_env in {"dev", "development"}
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+
+    # Enabled by default for DEMO tenants; can be disabled explicitly with DEMO_ACTIONS_ENABLED=0.
+    return True
 
 
 @login_manager.user_loader

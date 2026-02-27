@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from io import BytesIO
-import os
 from pathlib import Path
 import subprocess
 import sys
@@ -470,24 +469,12 @@ def test_demo_admin_can_load_initial_dataset_and_reset_to_zero(app, client, logi
         assert InscripcionLateral.query.count() == 0
 
 
-def test_demo_actions_blocked_outside_dev_and_test(app, client, login_admin):
+def test_demo_actions_can_be_disabled_by_config(app, client, login_admin):
     login_admin()
-    prev_testing = app.config.get("TESTING")
-    prev_app_env = app.config.get("APP_ENV")
-    prev_debug = app.debug
-    prev_flask_env = os.getenv("FLASK_ENV")
-    app.config["TESTING"] = False
-    app.config["APP_ENV"] = "production"
-    app.debug = False
-    os.environ["FLASK_ENV"] = "production"
+    prev_demo_flag = app.config.get("DEMO_ACTIONS_ENABLED")
+    app.config["DEMO_ACTIONS_ENABLED"] = False
     try:
         response = client.post("/demo/reset", follow_redirects=False)
     finally:
-        app.config["TESTING"] = prev_testing
-        app.config["APP_ENV"] = prev_app_env
-        app.debug = prev_debug
-        if prev_flask_env is None:
-            os.environ.pop("FLASK_ENV", None)
-        else:
-            os.environ["FLASK_ENV"] = prev_flask_env
+        app.config["DEMO_ACTIONS_ENABLED"] = prev_demo_flag
     assert response.status_code == 403

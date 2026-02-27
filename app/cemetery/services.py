@@ -1920,31 +1920,151 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
     oid = org_id()
     cemetery = _ensure_demo_cemetery(oid)
 
+    holder_first_names = (
+        "Jose",
+        "Antonio",
+        "Manuel",
+        "Francisco",
+        "David",
+        "Javier",
+        "Juan",
+        "Carlos",
+        "Daniel",
+        "Miguel",
+        "Maria",
+        "Carmen",
+        "Ana",
+        "Laura",
+        "Isabel",
+        "Marta",
+        "Elena",
+        "Rosa",
+        "Silvia",
+        "Lucia",
+        "Jordi",
+        "Pere",
+        "Joan",
+        "Montserrat",
+        "Nuria",
+        "Merce",
+    )
+    extra_first_names = (
+        "Adria",
+        "Aina",
+        "Albert",
+        "Aleix",
+        "Alba",
+        "Alex",
+        "Amparo",
+        "Andrea",
+        "Arnau",
+        "Berta",
+        "Carla",
+        "Celia",
+        "Claudia",
+        "Cristina",
+        "Dolors",
+        "Eloi",
+        "Emma",
+        "Eric",
+        "Eva",
+        "Felix",
+        "Gemma",
+        "Hector",
+        "Irene",
+        "Ivan",
+        "Laia",
+        "Lluis",
+        "Lola",
+        "Marc",
+        "Mireia",
+        "Noelia",
+        "Oriol",
+        "Paula",
+        "Raul",
+        "Ruben",
+        "Sergi",
+        "Sonia",
+        "Teresa",
+        "Victor",
+    )
+    last_names = (
+        "Garcia",
+        "Martinez",
+        "Lopez",
+        "Sanchez",
+        "Perez",
+        "Gonzalez",
+        "Rodriguez",
+        "Fernandez",
+        "Alvarez",
+        "Ruiz",
+        "Moreno",
+        "Romero",
+        "Navarro",
+        "Torres",
+        "Dominguez",
+        "Vidal",
+        "Riera",
+        "Pons",
+        "Puig",
+        "Soler",
+        "Mora",
+        "Serra",
+        "Casals",
+        "Costa",
+        "Ferrer",
+        "Prat",
+        "Ribas",
+        "Campos",
+        "Ibanez",
+        "Serrano",
+        "Ortega",
+        "Mendez",
+    )
+
     holders: list[Person] = []
     extras: list[Person] = []
     for idx in range(1, 301):
+        first_name = holder_first_names[(idx - 1) % len(holder_first_names)]
+        last_name = (
+            f"{last_names[(idx - 1) % len(last_names)]} {last_names[(idx + 7) % len(last_names)]}"
+        )
         holders.append(
             Person(
                 org_id=oid,
-                first_name="Titular",
-                last_name=f"Demo {idx:03d}",
+                first_name=first_name,
+                last_name=last_name,
                 dni_nif=f"HD{idx:07d}",
                 telefono=f"600{idx:06d}",
                 email=f"titular{idx:03d}@demo.local",
-                direccion=f"Calle Demo {idx:03d}",
+                direccion=f"Carrer Exemple {idx:03d}, Terrassa",
+                notas=(
+                    "Titular con expediente pendiente"
+                    if idx <= 80
+                    else "Titular demo"
+                ),
             )
         )
     for idx in range(1, 181):
+        first_name = extra_first_names[(idx - 1) % len(extra_first_names)]
+        last_name = (
+            f"{last_names[(idx + 3) % len(last_names)]} {last_names[(idx + 15) % len(last_names)]}"
+        )
         extras.append(
             Person(
                 org_id=oid,
-                first_name="Persona",
-                last_name=f"Extra {idx:03d}",
+                first_name=first_name,
+                last_name=last_name,
                 dni_nif=f"EX{idx:07d}" if idx <= 120 else None,
                 telefono=f"700{idx:06d}" if idx <= 120 else "",
                 email=f"extra{idx:03d}@demo.local" if idx <= 90 else "",
-                direccion=f"Avenida Extra {idx:03d}" if idx <= 60 else "",
-                notas="Registro demo",
+                direccion=f"Avinguda Prova {idx:03d}, Terrassa" if idx <= 60 else "",
+                notas=(
+                    "Difunto con casuistica pendiente"
+                    if idx <= 90
+                    else "Persona relacionada con tramites"
+                ),
             )
         )
     db.session.add_all([*holders, *extras])
