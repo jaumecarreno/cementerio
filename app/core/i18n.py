@@ -6,13 +6,13 @@ SUPPORTED_LANGS = {"es", "ca"}
 
 I18N: dict[str, dict[str, str]] = {
     "menu.home": {"es": "Dashboard", "ca": "Dashboard"},
-    "menu.dashboard": {"es": "Dashboard", "ca": "Dashboard"},
+    "menu.dashboard": {"es": "DASHBOARD", "ca": "DASHBOARD"},
     "menu.funeral_services": {"es": "Servicios funerarios", "ca": "Serveis funeraris"},
     "menu.crematorium": {"es": "Crematorio", "ca": "Crematori"},
     "menu.cemetery": {"es": "Cementerio", "ca": "Cementiri"},
     "menu.billing": {"es": "Facturaci\u00f3n", "ca": "Facturaci\u00f3"},
     "menu.inventory": {"es": "Inventario", "ca": "Inventari"},
-    "menu.reports": {"es": "Informes globales", "ca": "Informes globals"},
+    "menu.reports": {"es": "Informes", "ca": "Informes"},
     "menu.reporting": {"es": "Informes", "ca": "Informes"},
     "menu.settings": {"es": "Configuraci\u00f3n", "ca": "Configuraci\u00f3"},
     "menu.logout": {"es": "Cerrar sesi\u00f3n", "ca": "Tancar sessi\u00f3"},
@@ -27,7 +27,6 @@ I18N: dict[str, dict[str, str]] = {
     "cem.rights": {"es": "Derechos funerarios", "ca": "Drets funeraris"},
     "theme.to_light": {"es": "Modo claro", "ca": "Mode clar"},
     "theme.to_dark": {"es": "Modo oscuro", "ca": "Mode fosc"},
-    "status.pending": {"es": "Pendiente", "ca": "Pendent"},
     "common.search": {"es": "Buscar", "ca": "Cercar"},
     "common.clear": {"es": "Limpiar", "ca": "Netejar"},
     "common.apply": {"es": "Aplicar", "ca": "Aplicar"},

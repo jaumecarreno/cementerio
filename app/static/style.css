@@ -149,23 +149,6 @@ a {
   flex: 1;
 }
 
-.menu-badge {
-  border: 1px solid var(--btn-border);
-  background: var(--surface-2);
-  color: var(--muted);
-  font-size: 14px;
-  font-weight: 600;
-  padding: 3px 8px;
-  border-radius: 999px;
-  line-height: 1;
-}
-
-.menu-link.active .menu-badge {
-  border-color: var(--btn-text);
-  color: var(--btn-text);
-  background: transparent;
-}
-
 .main {
   padding: 24px;
 }

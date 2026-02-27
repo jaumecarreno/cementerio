@@ -16,7 +16,7 @@
 </head>
 <body>
   {% from "partials/icons.html" import sidebar_icon %}
-  {% set active_global = active_global|default('dashboard') %}
+  {% set active_global = active_global|default('cemetery') %}
   {% set active_cem = active_cem|default('panel') %}
   <div class="layout">
     <div class="topbar">
@@ -49,30 +49,29 @@
           <span class="menu-icon">{{ sidebar_icon("dashboard") }}</span>
           <span class="menu-label">{{ t('menu.dashboard') }}</span>
         </a>
+        <a class="menu-link {% if active_global == 'cemetery' %}active{% endif %}" href="{{ url_for('cemetery.panel') }}">
+          <span class="menu-icon">{{ sidebar_icon("funeral_services") }}</span>
+          <span class="menu-label">{{ t('menu.cemetery') }}</span>
+        </a>
         <a class="menu-link {% if active_global == 'funeral_services' %}active{% endif %}" href="{{ url_for('module_pending', slug='servicios-funerarios') }}">
           <span class="menu-icon">{{ sidebar_icon("funeral_services") }}</span>
           <span class="menu-label">{{ t('menu.funeral_services') }}</span>
-          <span class="menu-badge">{{ t('status.pending') }}</span>
         </a>
         <a class="menu-link {% if active_global == 'crematorium' %}active{% endif %}" href="{{ url_for('module_pending', slug='crematorio') }}">
           <span class="menu-icon">{{ sidebar_icon("crematorium") }}</span>
           <span class="menu-label">{{ t('menu.crematorium') }}</span>
-          <span class="menu-badge">{{ t('status.pending') }}</span>
         </a>
         <a class="menu-link {% if active_global == 'billing' %}active{% endif %}" href="{{ url_for('module_pending', slug='facturacion') }}">
           <span class="menu-icon">{{ sidebar_icon("billing") }}</span>
           <span class="menu-label">{{ t('menu.billing') }}</span>
-          <span class="menu-badge">{{ t('status.pending') }}</span>
         </a>
         <a class="menu-link {% if active_global == 'inventory' %}active{% endif %}" href="{{ url_for('module_pending', slug='inventario') }}">
           <span class="menu-icon">{{ sidebar_icon("inventory") }}</span>
           <span class="menu-label">{{ t('menu.inventory') }}</span>
-          <span class="menu-badge">{{ t('status.pending') }}</span>
         </a>
-        <a class="menu-link {% if active_global == 'reports_global' %}active{% endif %}" href="{{ url_for('module_pending', slug='reporting-global') }}">
+        <a class="menu-link {% if active_global == 'reports' %}active{% endif %}" href="{{ url_for('cemetery.reporting') }}">
           <span class="menu-icon">{{ sidebar_icon("reports") }}</span>
           <span class="menu-label">{{ t('menu.reports') }}</span>
-          <span class="menu-badge">{{ t('status.pending') }}</span>
         </a>
         <a class="menu-link {% if active_global == 'settings' %}active{% endif %}" href="{{ url_for('config_page') }}">
           <span class="menu-icon">{{ sidebar_icon("settings") }}</span>
@@ -80,7 +79,7 @@
         </a>
       </aside>
       <main class="main">
-        {% if active_global == 'dashboard' %}
+        {% if active_global in ['dashboard', 'cemetery', 'reports'] %}
         <div class="cem-submenu">
           <a class="tab-link {% if active_cem == 'panel' %}active{% endif %}" href="{{ url_for('cemetery.panel') }}">{{ t('cem.panel') }}</a>
           <a class="tab-link {% if active_cem == 'sepulturas' %}active{% endif %}" href="{{ url_for('cemetery.search_graves') }}">{{ t('cem.graves') }}</a>
