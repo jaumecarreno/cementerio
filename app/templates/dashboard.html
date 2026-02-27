@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% set active_global = 'dashboard' %}
+{% block title %}{{ t('menu.dashboard') }}{% endblock %}
+{% block content %}
+<h1 class="page-title">{{ t('menu.dashboard') }}</h1>
+
+<div class="box">
+  <h3>Modulos</h3>
+  <div class="cards">
+    <div class="card">
+      <h4>{{ t('menu.cemetery') }}</h4>
+      <div class="quick-actions">
+        <a class="btn primary" href="{{ url_for('cemetery.panel') }}">Abrir</a>
+      </div>
+    </div>
+    <div class="card">
+      <h4>{{ t('menu.reports') }}</h4>
+      <div class="quick-actions">
+        <a class="btn" href="{{ url_for('cemetery.reporting') }}">Abrir</a>
+      </div>
+    </div>
+    <div class="card">
+      <h4>{{ t('menu.settings') }}</h4>
+      <div class="quick-actions">
+        <a class="btn" href="{{ url_for('config_page') }}">Abrir</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -39,7 +39,13 @@ def create_app(config_object: type[Config] | None = None) -> Flask:
 def register_routes(app: Flask) -> None:
     @app.get("/")
     def home():
-        return redirect(url_for("cemetery.panel"))
+        return redirect(url_for("dashboard_page"))
+
+    @app.get("/dashboard")
+    @login_required
+    @require_membership
+    def dashboard_page():
+        return render_template("dashboard.html")
 
     @app.get("/config")
     @login_required
@@ -56,16 +62,16 @@ def register_routes(app: Flask) -> None:
             "crematorio": ("menu.crematorium", "crematorium"),
             "facturacion": ("menu.billing", "billing"),
             "inventario": ("menu.inventory", "inventory"),
-            "reporting-global": ("menu.reports", "reports_global"),
-            "ampliacion-derecho": ("module.right_extension", "dashboard"),
-            "prorroga-derecho": ("module.right_renewal", "dashboard"),
+            "reporting-global": ("menu.reports", "reports"),
+            "ampliacion-derecho": ("module.right_extension", "cemetery"),
+            "prorroga-derecho": ("module.right_renewal", "cemetery"),
         }
         mapped = mapping.get(slug)
         return render_template(
             "module_pending.html",
             title_key=mapped[0] if mapped else "",
             title=slug.replace("-", " ").title(),
-            active_global=mapped[1] if mapped else "dashboard",
+            active_global=mapped[1] if mapped else "cemetery",
             tracking_code=f"PEND-{slug.upper()}",
         )
 

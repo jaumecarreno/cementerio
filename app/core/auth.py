@@ -20,10 +20,10 @@ def login_post():
     password = request.form.get("password", "")
     user = User.query.filter_by(email=email).first()
     if not user or not check_password_hash(user.password_hash, password):
-        flash("Credenciales inválidas", "error")
+        flash("Credenciales invÃ¡lidas", "error")
         return redirect(url_for("auth.login"))
     login_user(user)
-    return redirect(url_for("cemetery.panel"))
+    return redirect(url_for("dashboard_page"))
 
 
 @auth_bp.post("/logout")
@@ -39,5 +39,6 @@ def set_lang():
     if lang not in {"es", "ca"}:
         lang = "es"
     session["lang"] = lang
-    next_url = request.form.get("next") or request.referrer or url_for("cemetery.panel")
+    next_url = request.form.get("next") or request.referrer or url_for("dashboard_page")
     return redirect(next_url)
+

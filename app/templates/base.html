@@ -45,7 +45,7 @@
     </div>
     <div class="content">
       <aside class="sidebar">
-        <a class="menu-link {% if active_global == 'dashboard' %}active{% endif %}" href="{{ url_for('cemetery.panel') }}">
+        <a class="menu-link {% if active_global == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard_page') }}">
           <span class="menu-icon">{{ sidebar_icon("dashboard") }}</span>
           <span class="menu-label">{{ t('menu.dashboard') }}</span>
         </a>
@@ -79,7 +79,7 @@
         </a>
       </aside>
       <main class="main">
-        {% if active_global in ['dashboard', 'cemetery', 'reports'] %}
+        {% if active_global in ['cemetery', 'reports'] %}
         <div class="cem-submenu">
           <a class="tab-link {% if active_cem == 'panel' %}active{% endif %}" href="{{ url_for('cemetery.panel') }}">{{ t('cem.panel') }}</a>
           <a class="tab-link {% if active_cem == 'sepulturas' %}active{% endif %}" href="{{ url_for('cemetery.search_graves') }}">{{ t('cem.graves') }}</a>
