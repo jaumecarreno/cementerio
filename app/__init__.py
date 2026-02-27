@@ -45,7 +45,10 @@ def register_routes(app: Flask) -> None:
     @login_required
     @require_membership
     def dashboard_page():
-        return render_template("dashboard.html")
+        from app.cemetery.services import panel_data
+
+        data = panel_data()
+        return render_template("dashboard.html", data=data)
 
     @app.get("/config")
     @login_required
