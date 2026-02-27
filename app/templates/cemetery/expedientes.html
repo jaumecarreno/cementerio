@@ -27,8 +27,26 @@
         <input type="number" name="sepultura_id" value="{{ request.args.get('sepultura_id', '') }}">
       </div>
       <div>
-        <label>Difunto (person id)</label>
-        <input type="number" name="difunto_id">
+        {% with
+          picker_id='expediente-difunto-create',
+          field_name='difunto_id',
+          label=t('dashboard.deceased'),
+          selected_person=None,
+          required=False
+        %}
+          {% include "components/person_picker.html" %}
+        {% endwith %}
+      </div>
+      <div>
+        {% with
+          picker_id='expediente-declarante-create',
+          field_name='declarante_id',
+          label=t('field.declarant'),
+          selected_person=None,
+          required=False
+        %}
+          {% include "components/person_picker.html" %}
+        {% endwith %}
       </div>
       <div>
         <label>Fecha prevista</label>
@@ -92,6 +110,7 @@
         <th>Estado</th>
         <th>Sepultura</th>
         <th>Difunto</th>
+        <th>Declarante</th>
         <th>Prevista</th>
         <th></th>
       </tr>
@@ -103,12 +122,13 @@
         <td>{{ row.tipo }}</td>
         <td>{{ row.estado }}</td>
         <td>{{ row.sepultura_id or '-' }}</td>
-        <td>{{ row.difunto_id or '-' }}</td>
+        <td>{{ row.difunto.full_name if row.difunto else '-' }}</td>
+        <td>{{ row.declarante.full_name if row.declarante else '-' }}</td>
         <td>{{ row.fecha_prevista or '-' }}</td>
         <td><a class="btn" href="{{ url_for('cemetery.expediente_detail', expediente_id=row.id) }}">Abrir</a></td>
       </tr>
       {% else %}
-      <tr><td colspan="7">Sin expedientes</td></tr>
+      <tr><td colspan="8">Sin expedientes</td></tr>
       {% endfor %}
     </tbody>
   </table>

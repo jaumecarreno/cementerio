@@ -41,6 +41,7 @@ from app.core.models import (
     MovimientoTipo,
     OrdenTrabajo,
     Organization,
+    OWNERSHIP_CASE_CHECKLIST,
     Payment,
     Person,
     Publication,
@@ -83,44 +84,8 @@ CASE_STATUS_TRANSITIONS: dict[OwnershipTransferStatus, set[OwnershipTransferStat
 }
 
 
-CASE_CHECKLIST: dict[OwnershipTransferType, list[tuple[str, bool]]] = {
-    OwnershipTransferType.MORTIS_CAUSA_TESTAMENTO: [
-        ("CERT_DEFUNCION", True),
-        ("TITULO_SEPULTURA", True),
-        ("SOLICITUD_CAMBIO_TITULARIDAD", True),
-        ("CERT_ULTIMAS_VOLUNTADES", True),
-        ("TESTAMENTO_O_ACEPTACION_HERENCIA", True),
-        ("CESION_DERECHOS", False),
-        ("SOLICITUD_BENEFICIARIO", False),
-        ("DNI_NUEVO_BENEFICIARIO", False),
-    ],
-    OwnershipTransferType.MORTIS_CAUSA_SIN_TESTAMENTO: [
-        ("CERT_DEFUNCION", True),
-        ("TITULO_SEPULTURA", True),
-        ("SOLICITUD_CAMBIO_TITULARIDAD", True),
-        ("CERT_ULTIMAS_VOLUNTADES", True),
-        ("LIBRO_FAMILIA_O_TESTIGOS", False),
-        ("CESION_DERECHOS", False),
-        ("SOLICITUD_BENEFICIARIO", False),
-        ("DNI_NUEVO_BENEFICIARIO", False),
-    ],
-    OwnershipTransferType.INTER_VIVOS: [
-        ("SOLICITUD_CAMBIO_TITULARIDAD", True),
-        ("TITULO_SEPULTURA", True),
-        ("DNI_TITULAR_ACTUAL", True),
-        ("DNI_NUEVO_TITULAR", True),
-        ("SOLICITUD_BENEFICIARIO", False),
-        ("DNI_NUEVO_BENEFICIARIO", False),
-    ],
-    OwnershipTransferType.PROVISIONAL: [
-        ("SOLICITUD_CAMBIO_TITULARIDAD", True),
-        ("ACEPTACION_SMSFT", True),
-        ("PUBLICACION_BOP", True),
-        ("PUBLICACION_DIARIO", True),
-        ("SOLICITUD_BENEFICIARIO", False),
-        ("DNI_NUEVO_BENEFICIARIO", False),
-    ],
-}
+CASE_CHECKLIST: dict[OwnershipTransferType, list[tuple[str, bool]]] = OWNERSHIP_CASE_CHECKLIST
+BENEFICIARY_REPLACE_REQUIRED_DOC_TYPES = ("SOLICITUD_BENEFICIARIO", "DNI_NUEVO_BENEFICIARIO")
 
 EXPEDIENTE_STATES = ("ABIERTO", "EN_TRAMITE", "FINALIZADO", "CANCELADO")
 EXPEDIENTE_TRANSITIONS: dict[str, set[str]] = {
@@ -1256,7 +1221,8 @@ def _next_expediente_number(year: int) -> str:
 
 def list_expedientes(filters: dict[str, str]) -> list[Expediente]:
     query = (
-        Expediente.query.filter(Expediente.org_id == org_id())
+        Expediente.query.options(joinedload(Expediente.difunto), joinedload(Expediente.declarante))
+        .filter(Expediente.org_id == org_id())
         .order_by(Expediente.created_at.desc(), Expediente.id.desc())
     )
     tipo = (filters.get("tipo") or "").strip().upper()
@@ -1297,6 +1263,12 @@ def create_expediente(payload: dict[str, str], user_id: int | None) -> Expedient
     sepultura_id = int(sepultura_id_raw) if sepultura_id_raw.isdigit() else None
     if sepultura_id:
         sepultura_by_id(sepultura_id)
+        if tipo in {"EXHUMACION", "RESCATE"}:
+            active_contract = active_contract_for_sepultura(sepultura_id)
+            active_owner = active_titular_for_contract(active_contract.id) if active_contract else None
+            has_prior_remains = SepulturaDifunto.query.filter_by(org_id=org_id(), sepultura_id=sepultura_id).first()
+            if active_owner and active_owner.is_provisional and has_prior_remains:
+                raise ValueError(translate("validation.expediente.provisional_restriction"))
 
     difunto_id_raw = (payload.get("difunto_id") or "").strip()
     difunto_id = int(difunto_id_raw) if difunto_id_raw.isdigit() else None
@@ -1305,6 +1277,13 @@ def create_expediente(payload: dict[str, str], user_id: int | None) -> Expedient
         if not difunto:
             raise ValueError("Difunto no encontrado")
 
+    declarante_id_raw = (payload.get("declarante_id") or "").strip()
+    declarante_id = int(declarante_id_raw) if declarante_id_raw.isdigit() else None
+    if declarante_id:
+        declarante = Person.query.filter_by(org_id=org_id(), id=declarante_id).first()
+        if not declarante:
+            raise ValueError("Declarante no encontrado")
+
     expediente = Expediente(
         org_id=org_id(),
         numero=_next_expediente_number(date.today().year),
@@ -1312,6 +1291,7 @@ def create_expediente(payload: dict[str, str], user_id: int | None) -> Expedient
         estado="ABIERTO",
         sepultura_id=sepultura_id,
         difunto_id=difunto_id,
+        declarante_id=declarante_id,
         fecha_prevista=_parse_optional_iso_date(payload.get("fecha_prevista")),
         notas=(payload.get("notas") or "").strip(),
     )
@@ -2357,6 +2337,11 @@ def create_ownership_case(payload: dict[str, str], user_id: int | None) -> Owner
     contract = contract_by_id(contract_id)
 
     transfer_type = _parse_transfer_type(payload.get("type", ""))
+    beneficiary_for_new_holder = None
+    if transfer_type == OwnershipTransferType.MORTIS_CAUSA_CON_BENEFICIARIO:
+        beneficiary_for_new_holder = active_beneficiario_for_contract(contract.id)
+        if not beneficiary_for_new_holder:
+            raise ValueError(translate("validation.transfer.beneficiary_required_for_mortis_with_beneficiary"))
     case = OwnershipTransferCase(
         org_id=org_id(),
         case_number=_next_transfer_number("TR", datetime.now(timezone.utc).year),
@@ -2390,6 +2375,15 @@ def create_ownership_case(payload: dict[str, str], user_id: int | None) -> Owner
                 case_id=case.id,
                 role=OwnershipPartyRole.ANTERIOR_TITULAR,
                 person_id=active_owner.person_id,
+            )
+        )
+    if transfer_type == OwnershipTransferType.MORTIS_CAUSA_CON_BENEFICIARIO:
+        db.session.add(
+            OwnershipTransferParty(
+                org_id=org_id(),
+                case_id=case.id,
+                role=OwnershipPartyRole.NUEVO_TITULAR,
+                person_id=beneficiary_for_new_holder.person_id,
             )
         )
     _log_case_movement(contract, MovimientoTipo.INICIO_TRANSMISION, f"Inicio de transmision {case.case_number}", user_id)
@@ -2577,7 +2571,7 @@ def reject_ownership_case(case_id: int, reason: str, user_id: int | None) -> Own
     return case
 
 
-def _validate_case_ready_to_close(case: OwnershipTransferCase) -> None:
+def _validate_case_ready_to_close(case: OwnershipTransferCase, payload: dict[str, str]) -> None:
     if case.status != OwnershipTransferStatus.APPROVED:
         raise ValueError("Solo se pueden cerrar casos en estado APPROVED")
     pending_required = [d for d in case.documents if d.required and d.status != CaseDocumentStatus.VERIFIED]
@@ -2591,12 +2585,37 @@ def _validate_case_ready_to_close(case: OwnershipTransferCase) -> None:
         has_other = any((pub.channel or "").upper() != "BOP" for pub in case.publications)
         if not (has_bop and has_other):
             raise ValueError("El caso provisional requiere publicacion en BOP y en otro canal")
+    decision_raw = (payload.get("beneficiary_close_decision") or "").strip().upper()
+    if decision_raw == BeneficiaryCloseDecision.REPLACE.value:
+        for doc_type in BENEFICIARY_REPLACE_REQUIRED_DOC_TYPES:
+            document = next((doc for doc in case.documents if doc.doc_type == doc_type), None)
+            if not document or document.status != CaseDocumentStatus.VERIFIED:
+                raise ValueError(translate("validation.transfer.beneficiary_replace_docs_missing"))
+    if case.type == OwnershipTransferType.INTER_VIVOS:
+        relation_doc = next((doc for doc in case.documents if doc.doc_type == "ACREDITACION_PARENTESCO_2_GRADO"), None)
+        if not relation_doc or relation_doc.status != CaseDocumentStatus.VERIFIED:
+            raise ValueError(translate("validation.transfer.intervivos_requires_second_degree_doc"))
 
 
 def close_ownership_case(case_id: int, payload: dict[str, str], user_id: int | None) -> OwnershipTransferCase:
     # Spec Cementiri: ver cementerio_extract.md (9.1.5)
     case = _get_case_or_404(case_id)
-    _validate_case_ready_to_close(case)
+    if case.type == OwnershipTransferType.MORTIS_CAUSA_CON_BENEFICIARIO:
+        new_holder = _case_party(case, OwnershipPartyRole.NUEVO_TITULAR)
+        if not new_holder:
+            active_beneficiary = active_beneficiario_for_contract(case.contract_id)
+            if not active_beneficiary:
+                raise ValueError(translate("validation.transfer.beneficiary_required_for_mortis_with_beneficiary"))
+            db.session.add(
+                OwnershipTransferParty(
+                    org_id=org_id(),
+                    case_id=case.id,
+                    role=OwnershipPartyRole.NUEVO_TITULAR,
+                    person_id=active_beneficiary.person_id,
+                )
+            )
+            db.session.flush()
+    _validate_case_ready_to_close(case, payload)
 
     _transition_case_status(case, OwnershipTransferStatus.CLOSED)
     today = date.today()

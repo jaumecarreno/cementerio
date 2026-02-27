@@ -47,6 +47,7 @@ I18N: dict[str, dict[str, str]] = {
     "field.email": {"es": "Email", "ca": "Email"},
     "field.address": {"es": "Direcci\u00f3n", "ca": "Adre\u00e7a"},
     "field.notes": {"es": "Notas", "ca": "Notes"},
+    "field.declarant": {"es": "Declarante", "ca": "Declarant"},
     "action.new_inhumation": {"es": "Nueva inhumaci\u00f3n", "ca": "Nova inhumaci\u00f3"},
     "action.new_exhumation": {"es": "Nueva exhumaci\u00f3n", "ca": "Nova exhumaci\u00f3"},
     "action.generate_yearly_tickets": {
@@ -195,6 +196,22 @@ I18N: dict[str, dict[str, str]] = {
     "person_picker.search_hint": {
         "es": "Escribe un criterio y pulsa buscar.",
         "ca": "Escriu un criteri i prem cercar.",
+    },
+    "validation.transfer.beneficiary_required_for_mortis_with_beneficiary": {
+        "es": "El caso mortis-causa con beneficiario requiere beneficiario activo.",
+        "ca": "El cas mortis-causa amb beneficiari requereix beneficiari actiu.",
+    },
+    "validation.transfer.intervivos_requires_second_degree_doc": {
+        "es": "Inter-vivos requiere documento verificado de parentesco hasta 2\u00ba grado.",
+        "ca": "Inter-vivos requereix document verificat de parentiu fins a 2n grau.",
+    },
+    "validation.transfer.beneficiary_replace_docs_missing": {
+        "es": "Faltan documentos de beneficiario para poder sustituirlo.",
+        "ca": "Falten documents de beneficiari per poder substituir-lo.",
+    },
+    "validation.expediente.provisional_restriction": {
+        "es": "No se puede crear EXHUMACION o RESCATE en titularidad provisional con restos previos.",
+        "ca": "No es pot crear EXHUMACIO o RESCAT en titularitat provisional amb restes pr\u00e8vies.",
     },
     "state.lliure": {"es": "Lliure", "ca": "Lliure"},
     "state.disponible": {"es": "Disponible", "ca": "Disponible"},

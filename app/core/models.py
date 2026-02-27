@@ -73,6 +73,7 @@ class InvoiceEstado(str, Enum):
 class OwnershipTransferType(str, Enum):
     MORTIS_CAUSA_TESTAMENTO = "MORTIS_CAUSA_TESTAMENTO"
     MORTIS_CAUSA_SIN_TESTAMENTO = "MORTIS_CAUSA_SIN_TESTAMENTO"
+    MORTIS_CAUSA_CON_BENEFICIARIO = "MORTIS_CAUSA_CON_BENEFICIARIO"
     INTER_VIVOS = "INTER_VIVOS"
     PROVISIONAL = "PROVISIONAL"
 
@@ -104,6 +105,55 @@ class CaseDocumentStatus(str, Enum):
 class BeneficiaryCloseDecision(str, Enum):
     KEEP = "KEEP"
     REPLACE = "REPLACE"
+
+
+OWNERSHIP_CASE_CHECKLIST: dict[OwnershipTransferType, list[tuple[str, bool]]] = {
+    OwnershipTransferType.MORTIS_CAUSA_TESTAMENTO: [
+        ("CERT_DEFUNCION", True),
+        ("TITULO_SEPULTURA", True),
+        ("SOLICITUD_CAMBIO_TITULARIDAD", True),
+        ("CERT_ULTIMAS_VOLUNTADES", True),
+        ("TESTAMENTO_O_ACEPTACION_HERENCIA", True),
+        ("CESION_DERECHOS", False),
+        ("SOLICITUD_BENEFICIARIO", False),
+        ("DNI_NUEVO_BENEFICIARIO", False),
+    ],
+    OwnershipTransferType.MORTIS_CAUSA_SIN_TESTAMENTO: [
+        ("CERT_DEFUNCION", True),
+        ("TITULO_SEPULTURA", True),
+        ("SOLICITUD_CAMBIO_TITULARIDAD", True),
+        ("CERT_ULTIMAS_VOLUNTADES", True),
+        ("LIBRO_FAMILIA_O_TESTIGOS", True),
+        ("CESION_DERECHOS", False),
+        ("SOLICITUD_BENEFICIARIO", False),
+        ("DNI_NUEVO_BENEFICIARIO", False),
+    ],
+    OwnershipTransferType.MORTIS_CAUSA_CON_BENEFICIARIO: [
+        ("CERT_DEFUNCION", True),
+        ("SOLICITUD_CAMBIO_TITULARIDAD", True),
+        ("TITULO_SEPULTURA", True),
+        ("SOLICITUD_BENEFICIARIO", False),
+        ("DNI_NUEVO_BENEFICIARIO", False),
+    ],
+    OwnershipTransferType.INTER_VIVOS: [
+        ("SOLICITUD_CAMBIO_TITULARIDAD", True),
+        ("TITULO_SEPULTURA", True),
+        ("DNI_TITULAR_ACTUAL", True),
+        ("DNI_NUEVO_TITULAR", True),
+        ("LIBRO_FAMILIA_O_TESTIGOS", True),
+        ("ACREDITACION_PARENTESCO_2_GRADO", True),
+        ("SOLICITUD_BENEFICIARIO", False),
+        ("DNI_NUEVO_BENEFICIARIO", False),
+    ],
+    OwnershipTransferType.PROVISIONAL: [
+        ("SOLICITUD_CAMBIO_TITULARIDAD", True),
+        ("ACEPTACION_SMSFT", True),
+        ("PUBLICACION_BOP", True),
+        ("PUBLICACION_DIARIO", True),
+        ("SOLICITUD_BENEFICIARIO", False),
+        ("DNI_NUEVO_BENEFICIARIO", False),
+    ],
+}
 
 
 class Organization(db.Model):
@@ -643,9 +693,13 @@ class Expediente(db.Model):
     estado: Mapped[str] = mapped_column(db.String(40), nullable=False)
     sepultura_id: Mapped[int | None] = mapped_column(ForeignKey("sepultura.id"), nullable=True)
     difunto_id: Mapped[int | None] = mapped_column(ForeignKey("person.id"), nullable=True)
+    declarante_id: Mapped[int | None] = mapped_column(ForeignKey("person.id"), nullable=True, index=True)
     fecha_prevista: Mapped[date | None] = mapped_column(nullable=True)
     notas: Mapped[str] = mapped_column(db.Text(), nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
+
+    difunto = relationship("Person", foreign_keys=[difunto_id])
+    declarante = relationship("Person", foreign_keys=[declarante_id])
 
 
 class OrdenTrabajo(db.Model):
@@ -1301,44 +1355,7 @@ def seed_demo_data(session) -> None:
     )
 
     for case in [case_1, case_2, case_3, case_4]:
-        checklist = {
-            OwnershipTransferType.MORTIS_CAUSA_TESTAMENTO: [
-                ("CERT_DEFUNCION", True),
-                ("TITULO_SEPULTURA", True),
-                ("SOLICITUD_CAMBIO_TITULARIDAD", True),
-                ("CERT_ULTIMAS_VOLUNTADES", True),
-                ("TESTAMENTO_O_ACEPTACION_HERENCIA", True),
-                ("CESION_DERECHOS", False),
-                ("SOLICITUD_BENEFICIARIO", False),
-                ("DNI_NUEVO_BENEFICIARIO", False),
-            ],
-            OwnershipTransferType.MORTIS_CAUSA_SIN_TESTAMENTO: [
-                ("CERT_DEFUNCION", True),
-                ("TITULO_SEPULTURA", True),
-                ("SOLICITUD_CAMBIO_TITULARIDAD", True),
-                ("CERT_ULTIMAS_VOLUNTADES", True),
-                ("LIBRO_FAMILIA_O_TESTIGOS", False),
-                ("CESION_DERECHOS", False),
-                ("SOLICITUD_BENEFICIARIO", False),
-                ("DNI_NUEVO_BENEFICIARIO", False),
-            ],
-            OwnershipTransferType.INTER_VIVOS: [
-                ("SOLICITUD_CAMBIO_TITULARIDAD", True),
-                ("TITULO_SEPULTURA", True),
-                ("DNI_TITULAR_ACTUAL", True),
-                ("DNI_NUEVO_TITULAR", True),
-                ("SOLICITUD_BENEFICIARIO", False),
-                ("DNI_NUEVO_BENEFICIARIO", False),
-            ],
-            OwnershipTransferType.PROVISIONAL: [
-                ("SOLICITUD_CAMBIO_TITULARIDAD", True),
-                ("ACEPTACION_SMSFT", True),
-                ("PUBLICACION_BOP", True),
-                ("PUBLICACION_DIARIO", True),
-                ("SOLICITUD_BENEFICIARIO", False),
-                ("DNI_NUEVO_BENEFICIARIO", False),
-            ],
-        }[case.type]
+        checklist = OWNERSHIP_CASE_CHECKLIST[case.type]
         for doc_type, required in checklist:
             status = CaseDocumentStatus.MISSING
             if case.status == OwnershipTransferStatus.APPROVED and required:

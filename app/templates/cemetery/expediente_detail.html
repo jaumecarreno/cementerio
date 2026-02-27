@@ -15,7 +15,8 @@
     <div><strong>Tipo:</strong> {{ expediente.tipo }}</div>
     <div><strong>Estado:</strong> {{ expediente.estado }}</div>
     <div><strong>Sepultura:</strong> {{ expediente.sepultura_id or '-' }}</div>
-    <div><strong>Difunto:</strong> {{ expediente.difunto_id or '-' }}</div>
+    <div><strong>Difunto:</strong> {{ expediente.difunto.full_name if expediente.difunto else '-' }}</div>
+    <div><strong>Declarante:</strong> {{ expediente.declarante.full_name if expediente.declarante else '-' }}</div>
     <div><strong>Fecha prevista:</strong> {{ expediente.fecha_prevista or '-' }}</div>
   </div>
   <div><strong>Notas:</strong> {{ expediente.notas or '-' }}</div>

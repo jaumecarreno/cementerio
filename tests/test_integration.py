@@ -12,14 +12,18 @@ from app.core.models import (
     ContractEvent,
     DerechoFunerarioContrato,
     DerechoTipo,
+    Expediente,
     MovimientoSepultura,
     MovimientoTipo,
     OwnershipRecord,
     OwnershipTransferCase,
+    OwnershipPartyRole,
     OwnershipTransferParty,
     OwnershipTransferStatus,
     OwnershipTransferType,
+    Person,
     Sepultura,
+    SepulturaDifunto,
     SepulturaEstado,
     TasaMantenimientoTicket,
     TicketEstado,
@@ -469,3 +473,154 @@ def test_ownership_case_provisional_requires_publications_and_sets_until(app, cl
         )
         assert active.is_provisional is True
         assert active.provisional_until == date(2036, 1, 1)
+
+
+def test_mortis_causa_con_beneficiario_requires_active_beneficiary_and_preloads_new_holder(app, client, login_admin):
+    login_admin()
+    with app.app_context():
+        contract_with_benef = (
+            DerechoFunerarioContrato.query.join(Sepultura)
+            .filter(Sepultura.bloque == "B-20", Sepultura.numero == 210)
+            .first()
+        )
+        active_benef = Beneficiario.query.filter_by(contrato_id=contract_with_benef.id, activo_hasta=None).first()
+        contract_without_benef = (
+            DerechoFunerarioContrato.query.join(Sepultura)
+            .filter(Sepultura.bloque == "B-12", Sepultura.numero == 127)
+            .first()
+        )
+        assert active_benef is not None
+
+    create_ok = client.post(
+        "/cementerio/titularidad/casos",
+        data={"contract_id": str(contract_with_benef.id), "type": "MORTIS_CAUSA_CON_BENEFICIARIO"},
+        follow_redirects=True,
+    )
+    assert create_ok.status_code == 200
+
+    with app.app_context():
+        case = (
+            OwnershipTransferCase.query.filter_by(
+                contract_id=contract_with_benef.id,
+                type=OwnershipTransferType.MORTIS_CAUSA_CON_BENEFICIARIO,
+            )
+            .order_by(OwnershipTransferCase.id.desc())
+            .first()
+        )
+        assert case is not None
+        new_holder_party = (
+            OwnershipTransferParty.query.filter_by(case_id=case.id, role=OwnershipPartyRole.NUEVO_TITULAR)
+            .order_by(OwnershipTransferParty.id.desc())
+            .first()
+        )
+        assert new_holder_party is not None
+        assert new_holder_party.person_id == active_benef.person_id
+
+    create_fail = client.post(
+        "/cementerio/titularidad/casos",
+        data={"contract_id": str(contract_without_benef.id), "type": "MORTIS_CAUSA_CON_BENEFICIARIO"},
+        follow_redirects=True,
+    )
+    assert create_fail.status_code == 200
+    assert b"requiere beneficiario activo" in create_fail.data
+
+
+def test_provisional_owner_blocks_exhumacion_and_rescate_with_prior_remains(app, client, login_admin):
+    login_admin()
+    with app.app_context():
+        contrato = (
+            DerechoFunerarioContrato.query.join(Sepultura)
+            .filter(Sepultura.bloque == "B-12", Sepultura.numero == 128)
+            .first()
+        )
+        sep = contrato.sepultura
+        sep_id = sep.id
+        owner = (
+            OwnershipRecord.query.filter_by(contract_id=contrato.id)
+            .filter(OwnershipRecord.end_date.is_(None))
+            .first()
+        )
+        person = Person.query.filter_by(org_id=sep.org_id).order_by(Person.id.asc()).first()
+        owner.is_provisional = True
+        owner.provisional_until = date(2036, 1, 1)
+        has_remains = SepulturaDifunto.query.filter_by(org_id=sep.org_id, sepultura_id=sep.id).first()
+        if not has_remains:
+            db.session.add(
+                SepulturaDifunto(
+                    org_id=sep.org_id,
+                    sepultura_id=sep.id,
+                    person_id=person.id,
+                    notes="restos previos test",
+                )
+            )
+        db.session.add(owner)
+        db.session.commit()
+
+    blocked_exh = client.post(
+        "/cementerio/expedientes",
+        data={"tipo": "EXHUMACION", "sepultura_id": str(sep_id), "notas": "test"},
+        follow_redirects=True,
+    )
+    assert blocked_exh.status_code == 200
+    assert b"titularidad provisional con restos previos" in blocked_exh.data
+
+    blocked_rescate = client.post(
+        "/cementerio/expedientes",
+        data={"tipo": "RESCATE", "sepultura_id": str(sep_id), "notas": "test"},
+        follow_redirects=True,
+    )
+    assert blocked_rescate.status_code == 200
+    assert b"titularidad provisional con restos previos" in blocked_rescate.data
+
+    allowed_inh = client.post(
+        "/cementerio/expedientes",
+        data={"tipo": "INHUMACION", "sepultura_id": str(sep_id), "notas": "permitido"},
+        follow_redirects=True,
+    )
+    assert allowed_inh.status_code == 200
+    assert b"Expediente" in allowed_inh.data
+
+
+def test_expediente_accepts_declarante_and_shows_person_names(app, client, login_admin):
+    login_admin()
+    with app.app_context():
+        sep = Sepultura.query.filter_by(bloque="B-12", numero=127).first()
+        difunto = Person.query.filter_by(first_name="Antoni", last_name="Ferrer").first()
+        declarante = Person.query.filter_by(first_name="Lucia", last_name="Navarro").first()
+        assert sep is not None
+        assert difunto is not None
+        assert declarante is not None
+
+    create = client.post(
+        "/cementerio/expedientes",
+        data={
+            "tipo": "INHUMACION",
+            "sepultura_id": str(sep.id),
+            "difunto_id": str(difunto.id),
+            "declarante_id": str(declarante.id),
+            "fecha_prevista": "2026-03-15",
+            "notas": "expediente con declarante",
+        },
+        follow_redirects=True,
+    )
+    assert create.status_code == 200
+    assert b"Expediente" in create.data
+
+    with app.app_context():
+        created = (
+            Expediente.query.filter_by(
+                org_id=sep.org_id,
+                sepultura_id=sep.id,
+                difunto_id=difunto.id,
+                declarante_id=declarante.id,
+            )
+            .order_by(Expediente.id.desc())
+            .first()
+        )
+        assert created is not None
+        expediente_id = created.id
+
+    detail = client.get(f"/cementerio/expedientes/{expediente_id}")
+    assert detail.status_code == 200
+    assert b"Antoni Ferrer" in detail.data
+    assert b"Lucia Navarro" in detail.data
