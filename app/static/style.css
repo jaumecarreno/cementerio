@@ -310,6 +310,11 @@ button.primary {
   font-weight: 700;
 }
 
+.btn.secondary,
+button.secondary {
+  font-weight: 500;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -325,6 +330,29 @@ td {
 
 th {
   background: var(--table-head-bg);
+}
+
+.table-sticky-head thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.table-zebra tbody tr:nth-child(even) {
+  background: var(--surface-2);
+}
+
+.table-pagination {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.actions-cell {
+  display: flex;
+  gap: 8px;
+  white-space: nowrap;
 }
 
 label {

@@ -1,0 +1,6 @@
+<td class="actions-cell">
+  <a class="btn {% if primary %}primary{% endif %}" href="{{ primary_href }}">{{ primary_label }}</a>
+  {% if secondary_href and secondary_label %}
+  <a class="btn secondary" href="{{ secondary_href }}">{{ secondary_label }}</a>
+  {% endif %}
+</td>

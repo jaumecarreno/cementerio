@@ -1,27 +1,35 @@
 <!-- Resultados para seleccionar sepultura y abrir cobro de tasas -->
 <div class="box">
-  <table>
+  <p class="small muted">Mostrando {{ paged.shown }} de {{ paged.total }} resultados.</p>
+  <table class="table-zebra table-sticky-head">
     <thead>
       <tr>
-        <th>{{ t('reporting.graves') }}</th>
+        {% set next_ubicacion = 'desc' if sort_by == 'ubicacion' and sort_dir == 'asc' else 'asc' %}
+        {% set next_estado = 'desc' if sort_by == 'estado' and sort_dir == 'asc' else 'asc' %}
+        {% set next_titular = 'desc' if sort_by == 'titular' and sort_dir == 'asc' else 'asc' %}
+        {% set next_deuda = 'desc' if sort_by == 'deuda' and sort_dir == 'asc' else 'asc' %}
+        <th><a href="{{ url_for('cemetery.fees_search', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, titular=filters.titular, difunto=filters.difunto, sort_by='ubicacion', sort_dir=next_ubicacion, page=1, page_size=paged.page_size) }}">{{ t('reporting.graves') }}</a></th>
         <th>{{ t('reporting.modality') }}</th>
-        <th>{{ t('field.status') }}</th>
-        <th>{{ t('field.holder') }}</th>
-        <th>{{ t('reporting.debt') }}</th>
+        <th><a href="{{ url_for('cemetery.fees_search', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, titular=filters.titular, difunto=filters.difunto, sort_by='estado', sort_dir=next_estado, page=1, page_size=paged.page_size) }}">{{ t('field.status') }}</a></th>
+        <th><a href="{{ url_for('cemetery.fees_search', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, titular=filters.titular, difunto=filters.difunto, sort_by='titular', sort_dir=next_titular, page=1, page_size=paged.page_size) }}">{{ t('field.holder') }}</a></th>
+        <th><a href="{{ url_for('cemetery.fees_search', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, titular=filters.titular, difunto=filters.difunto, sort_by='deuda', sort_dir=next_deuda, page=1, page_size=paged.page_size) }}">{{ t('reporting.debt') }}</a></th>
         <th>{{ t('common.actions') }}</th>
       </tr>
     </thead>
     <tbody>
-      {% for row in rows %}
+      {% for row in paged.rows %}
       <tr>
         <td>{{ row.sepultura.bloque }} / F{{ row.sepultura.fila }} C{{ row.sepultura.columna }} / N{{ row.sepultura.numero }}</td>
         <td>{{ row.sepultura.modalidad }}</td>
         <td>{{ row.sepultura.estado.value }}</td>
         <td>{{ row.titular_name }}</td>
         <td>{{ money(row.deuda) }}</td>
-        <td>
-          <a class="btn primary" href="{{ url_for('cemetery.fee_collection', sepultura_id=row.sepultura.id) }}">{{ t('action.collect_fees') }}</a>
-        </td>
+        {% set primary_href = url_for('cemetery.fee_collection', sepultura_id=row.sepultura.id) %}
+        {% set primary_label = t('action.collect_fees') %}
+        {% set primary = true %}
+        {% set secondary_href = '' %}
+        {% set secondary_label = '' %}
+        {% include "cemetery/_action_cell.html" %}
       </tr>
       {% else %}
       <tr>
@@ -30,5 +38,14 @@
       {% endfor %}
     </tbody>
   </table>
+  <div class="table-pagination small">
+    {% if paged.has_prev %}
+      <a class="btn" href="{{ url_for('cemetery.fees_search', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, titular=filters.titular, difunto=filters.difunto, sort_by=sort_by, sort_dir=sort_dir, page=paged.page-1, page_size=paged.page_size) }}">Anterior</a>
+    {% endif %}
+    <span>Pagina {{ paged.page }} de {{ paged.total_pages }}</span>
+    {% if paged.has_next %}
+      <a class="btn" href="{{ url_for('cemetery.fees_search', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, titular=filters.titular, difunto=filters.difunto, sort_by=sort_by, sort_dir=sort_dir, page=paged.page+1, page_size=paged.page_size) }}">Siguiente</a>
+    {% endif %}
+  </div>
   <p class="small muted">{{ t('fees.tip_open_collection') }}</p>
 </div>
