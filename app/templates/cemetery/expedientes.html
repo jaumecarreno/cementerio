@@ -1,20 +1,20 @@
 {% extends "base.html" %}
 {% set active_cem = 'expedientes' %}
 {% set breadcrumbs = [
-  {'label': 'Cementerio', 'href': url_for('cemetery.panel')},
-  {'label': 'Expedientes', 'href': None}
+  {'label': t('menu.cemetery'), 'href': url_for('cemetery.panel')},
+  {'label': t('cases.title'), 'href': None}
 ] %}
-{% block title %}Expedientes{% endblock %}
+{% block title %}{{ t('cases.title') }}{% endblock %}
 {% block content %}
-<h1 class="page-title">Expedientes</h1>
+<h1 class="page-title">{{ t('cases.title') }}</h1>
 {% set create_tipo = request.args.get('create_tipo', 'INHUMACION').upper() %}
 
 <div class="box">
-  <h3>Crear expediente</h3>
+  <h3>{{ t('cases.create_record') }}</h3>
   <form method="post" action="{{ url_for('cemetery.expedientes') }}">
     <div class="form-grid">
       <div>
-        <label>Tipo</label>
+        <label>{{ t('field.type') }}</label>
         <select name="tipo" required>
           <option value="INHUMACION" {% if create_tipo == 'INHUMACION' %}selected{% endif %}>INHUMACION</option>
           <option value="EXHUMACION" {% if create_tipo == 'EXHUMACION' %}selected{% endif %}>EXHUMACION</option>
@@ -23,7 +23,7 @@
         </select>
       </div>
       <div>
-        <label>Sepultura (id)</label>
+        <label>{{ t('cem.graves') }} (ID)</label>
         <input type="number" name="sepultura_id" value="{{ request.args.get('sepultura_id', '') }}">
       </div>
       <div>
@@ -49,68 +49,68 @@
         {% endwith %}
       </div>
       <div>
-        <label>Fecha prevista</label>
+        <label>{{ t('field.date') }} prevista</label>
         <input type="date" name="fecha_prevista">
       </div>
       <div style="grid-column: 1 / -1;">
-        <label>Notas</label>
-        <input type="text" name="notas" placeholder="Notas del expediente">
+        <label>{{ t('field.notes') }}</label>
+        <input type="text" name="notas" placeholder="{{ t('common.notes_placeholder_record') }}">
       </div>
     </div>
     <div class="actions-row">
-      <button class="btn primary" type="submit">Crear expediente</button>
+      <button class="btn primary" type="submit">{{ t('cases.create_record') }}</button>
     </div>
   </form>
 </div>
 
 <div class="box">
-  <h3>Filtros</h3>
+  <h3>{{ t('common.filter') }}s</h3>
   <form method="get" action="{{ url_for('cemetery.expedientes') }}">
     <div class="form-grid">
       <div>
-        <label>Tipo</label>
+        <label>{{ t('field.type') }}</label>
         <input type="text" name="tipo" value="{{ filters.tipo }}">
       </div>
       <div>
-        <label>Estado</label>
+        <label>{{ t('field.status') }}</label>
         <select name="estado">
-          <option value="">Todos</option>
+          <option value="">{{ t('search.all') }}</option>
           {% for st in states %}
           <option value="{{ st }}" {% if filters.estado == st %}selected{% endif %}>{{ st }}</option>
           {% endfor %}
         </select>
       </div>
       <div>
-        <label>Creado desde</label>
+        <label>{{ t('field.from') }}</label>
         <input type="date" name="created_from" value="{{ filters.created_from }}">
       </div>
       <div>
-        <label>Creado hasta</label>
+        <label>{{ t('field.to') }}</label>
         <input type="date" name="created_to" value="{{ filters.created_to }}">
       </div>
       <div>
-        <label>Sepultura id</label>
+        <label>{{ t('cem.graves') }} ID</label>
         <input type="text" name="sepultura_id" value="{{ filters.sepultura_id }}">
       </div>
       <div style="display:flex;align-items:flex-end;gap:8px;">
-        <button class="btn" type="submit">Aplicar</button>
-        <a class="btn" href="{{ url_for('cemetery.expedientes') }}">Limpiar</a>
+        <button class="btn" type="submit">{{ t('common.apply') }}</button>
+        <a class="btn" href="{{ url_for('cemetery.expedientes') }}">{{ t('common.clear') }}</a>
       </div>
     </div>
   </form>
 </div>
 
 <div class="box">
-  <h3>Listado</h3>
+  <h3>{{ t('cases.list') }}</h3>
   <table>
     <thead>
       <tr>
         <th>No</th>
-        <th>Tipo</th>
-        <th>Estado</th>
-        <th>Sepultura</th>
-        <th>Difunto</th>
-        <th>Declarante</th>
+        <th>{{ t('field.type') }}</th>
+        <th>{{ t('field.status') }}</th>
+        <th>{{ t('cem.graves') }}</th>
+        <th>{{ t('field.deceased') }}</th>
+        <th>{{ t('field.declarant') }}</th>
         <th>Prevista</th>
         <th></th>
       </tr>
@@ -125,10 +125,10 @@
         <td>{{ row.difunto.full_name if row.difunto else '-' }}</td>
         <td>{{ row.declarante.full_name if row.declarante else '-' }}</td>
         <td>{{ row.fecha_prevista or '-' }}</td>
-        <td><a class="btn" href="{{ url_for('cemetery.expediente_detail', expediente_id=row.id) }}">Abrir</a></td>
+        <td><a class="btn" href="{{ url_for('cemetery.expediente_detail', expediente_id=row.id) }}">{{ t('common.open') }}</a></td>
       </tr>
       {% else %}
-      <tr><td colspan="8">Sin expedientes</td></tr>
+      <tr><td colspan="8">{{ t('cases.none') }}</td></tr>
       {% endfor %}
     </tbody>
   </table>
