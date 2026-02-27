@@ -21,7 +21,8 @@
 </div>
 
 <div class="box">
-  <table>
+  <p class="small muted">Mostrando {{ paged.shown }} de {{ paged.total }} resultados.</p>
+  <table class="table-zebra table-sticky-head">
     <thead>
       <tr>
         <th>ID</th>
@@ -34,7 +35,7 @@
       </tr>
     </thead>
     <tbody>
-      {% for person in rows %}
+      {% for person in paged.rows %}
       <tr>
         <td>{{ person.id }}</td>
         <td>{{ person.full_name }}</td>
@@ -42,9 +43,12 @@
         <td>{{ person.telefono or '-' }}</td>
         <td>{{ person.email or '-' }}</td>
         <td>{{ person.direccion or '-' }}</td>
-        <td>
-          <a class="btn" href="{{ url_for('cemetery.person_edit', person_id=person.id) }}">Editar</a>
-        </td>
+        {% set primary_href = url_for('cemetery.person_edit', person_id=person.id) %}
+        {% set primary_label = 'Editar' %}
+        {% set primary = false %}
+        {% set secondary_href = '' %}
+        {% set secondary_label = '' %}
+        {% include "cemetery/_action_cell.html" %}
       </tr>
       {% else %}
       <tr>
@@ -53,5 +57,14 @@
       {% endfor %}
     </tbody>
   </table>
+  <div class="table-pagination small">
+    {% if paged.has_prev %}
+      <a class="btn" href="{{ url_for('cemetery.people_list', q=filters.q, page=paged.page-1, page_size=paged.page_size) }}">Anterior</a>
+    {% endif %}
+    <span>Pagina {{ paged.page }} de {{ paged.total_pages }}</span>
+    {% if paged.has_next %}
+      <a class="btn" href="{{ url_for('cemetery.people_list', q=filters.q, page=paged.page+1, page_size=paged.page_size) }}">Siguiente</a>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}

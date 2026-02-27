@@ -85,8 +85,13 @@ CASE_STATUS_TRANSITIONS: dict[OwnershipTransferStatus, set[OwnershipTransferStat
 }
 
 
-CASE_CHECKLIST: dict[OwnershipTransferType, list[tuple[str, bool]]] = OWNERSHIP_CASE_CHECKLIST
-BENEFICIARY_REPLACE_REQUIRED_DOC_TYPES = ("SOLICITUD_BENEFICIARIO", "DNI_NUEVO_BENEFICIARIO")
+CASE_CHECKLIST: dict[OwnershipTransferType, list[tuple[str, bool]]] = (
+    OWNERSHIP_CASE_CHECKLIST
+)
+BENEFICIARY_REPLACE_REQUIRED_DOC_TYPES = (
+    "SOLICITUD_BENEFICIARIO",
+    "DNI_NUEVO_BENEFICIARIO",
+)
 
 EXPEDIENTE_STATES = ("ABIERTO", "EN_TRAMITE", "FINALIZADO", "CANCELADO")
 EXPEDIENTE_TRANSITIONS: dict[str, set[str]] = {
@@ -119,7 +124,9 @@ def org_record() -> Organization:
 
 
 def org_cemetery() -> Cemetery:
-    cemetery = Cemetery.query.filter_by(org_id=org_id()).order_by(Cemetery.id.asc()).first()
+    cemetery = (
+        Cemetery.query.filter_by(org_id=org_id()).order_by(Cemetery.id.asc()).first()
+    )
     if not cemetery:
         raise ValueError("No hay cementerio configurado para esta organización")
     return cemetery
@@ -177,9 +184,9 @@ def panel_data() -> dict[str, object]:
         .filter(TasaMantenimientoTicket.estado != TicketEstado.COBRADO)
         .count()
     )
-    pendientes_notificar = (
-        InscripcionLateral.query.filter_by(org_id=oid, estado="PENDIENTE_NOTIFICAR").count()
-    )
+    pendientes_notificar = InscripcionLateral.query.filter_by(
+        org_id=oid, estado="PENDIENTE_NOTIFICAR"
+    ).count()
 
     recent_expedientes = (
         db.session.query(Expediente, Person)
@@ -197,16 +204,26 @@ def panel_data() -> dict[str, object]:
         .all()
     )
 
-    lliures = Sepultura.query.filter_by(org_id=oid, estado=SepulturaEstado.LLIURE).count()
+    lliures = Sepultura.query.filter_by(
+        org_id=oid, estado=SepulturaEstado.LLIURE
+    ).count()
     alerts: list[str] = []
-    pending_not_invoiced = (
-        TasaMantenimientoTicket.query.filter_by(org_id=oid, estado=TicketEstado.PENDIENTE).count()
-    )
+    pending_not_invoiced = TasaMantenimientoTicket.query.filter_by(
+        org_id=oid, estado=TicketEstado.PENDIENTE
+    ).count()
     if pending_not_invoiced > 0:
-        alerts.append(translate("dashboard.alert.pending_tickets").format(count=pending_not_invoiced))
-    pending_lateral = InscripcionLateral.query.filter_by(org_id=oid, estado="PENDIENTE_COLOCAR").count()
+        alerts.append(
+            translate("dashboard.alert.pending_tickets").format(
+                count=pending_not_invoiced
+            )
+        )
+    pending_lateral = InscripcionLateral.query.filter_by(
+        org_id=oid, estado="PENDIENTE_COLOCAR"
+    ).count()
     if pending_lateral > 0:
-        alerts.append(translate("dashboard.alert.pending_lateral").format(count=pending_lateral))
+        alerts.append(
+            translate("dashboard.alert.pending_lateral").format(count=pending_lateral)
+        )
     if lliures > 0:
         alerts.append(translate("dashboard.alert.lliures").format(count=lliures))
     if not alerts:
@@ -220,7 +237,9 @@ def panel_data() -> dict[str, object]:
             "pendientes_notificar": pendientes_notificar,
         },
         "recent_expedientes": recent_expedientes,
-        "recent_activity_by_titular": _recent_activity_by_titular(oid, recent_movements),
+        "recent_activity_by_titular": _recent_activity_by_titular(
+            oid, recent_movements
+        ),
         "alerts": alerts,
     }
 
@@ -249,8 +268,15 @@ def _recent_activity_by_titular(
             OwnershipRecord.query.options(joinedload(OwnershipRecord.person))
             .filter_by(org_id=oid)
             .filter(OwnershipRecord.contract_id.in_(contract_ids))
-            .filter(or_(OwnershipRecord.end_date.is_(None), OwnershipRecord.end_date >= date.today()))
-            .order_by(OwnershipRecord.contract_id.asc(), OwnershipRecord.start_date.desc())
+            .filter(
+                or_(
+                    OwnershipRecord.end_date.is_(None),
+                    OwnershipRecord.end_date >= date.today(),
+                )
+            )
+            .order_by(
+                OwnershipRecord.contract_id.asc(), OwnershipRecord.start_date.desc()
+            )
             .all()
         )
         for owner in owners:
@@ -282,7 +308,11 @@ def _recent_activity_by_titular(
             if movement.sepultura
             else translate("dashboard.grave_ref").format(id=movement.sepultura_id)
         )
-        movement_type = movement.tipo.value if hasattr(movement.tipo, "value") else str(movement.tipo)
+        movement_type = (
+            movement.tipo.value
+            if hasattr(movement.tipo, "value")
+            else str(movement.tipo)
+        )
         movements_rows.append(
             {
                 "fecha": movement.fecha,
@@ -311,7 +341,9 @@ def active_titular_for_contract(contract_id: int) -> OwnershipRecord | None:
     today = date.today()
     return (
         OwnershipRecord.query.filter_by(org_id=org_id(), contract_id=contract_id)
-        .filter(or_(OwnershipRecord.end_date.is_(None), OwnershipRecord.end_date >= today))
+        .filter(
+            or_(OwnershipRecord.end_date.is_(None), OwnershipRecord.end_date >= today)
+        )
         .order_by(OwnershipRecord.start_date.desc())
         .first()
     )
@@ -321,7 +353,9 @@ def active_beneficiario_for_contract(contract_id: int) -> Beneficiario | None:
     today = date.today()
     return (
         Beneficiario.query.filter_by(org_id=org_id(), contrato_id=contract_id)
-        .filter(or_(Beneficiario.activo_hasta.is_(None), Beneficiario.activo_hasta >= today))
+        .filter(
+            or_(Beneficiario.activo_hasta.is_(None), Beneficiario.activo_hasta >= today)
+        )
         .order_by(Beneficiario.activo_desde.desc())
         .first()
     )
@@ -339,7 +373,9 @@ def _person_by_org(person_id: int, role_label: str = "persona") -> Person:
     return person
 
 
-def _create_or_reuse_person(first_name: str, last_name: str, dni_nif: str | None) -> Person:
+def _create_or_reuse_person(
+    first_name: str, last_name: str, dni_nif: str | None
+) -> Person:
     # Spec Cementiri: ver cementerio_extract.md (9.1.5 / 9.1.6)
     first_name = (first_name or "").strip()
     last_name = (last_name or "").strip()
@@ -381,6 +417,47 @@ def list_people(search_text: str = "", limit: int = 200) -> list[Person]:
     )
 
 
+def list_people_paged(
+    search_text: str = "",
+    page: int = 1,
+    page_size: int = 25,
+) -> dict[str, object]:
+    query = Person.query.filter_by(org_id=org_id())
+    term = (search_text or "").strip()
+    if term:
+        pattern = f"%{term}%"
+        query = query.filter(
+            or_(
+                Person.first_name.ilike(pattern),
+                Person.last_name.ilike(pattern),
+                Person.dni_nif.ilike(pattern),
+            )
+        )
+
+    total = query.count()
+    page = max(1, page)
+    page_size = max(1, min(page_size, 100))
+    total_pages = max(1, (total + page_size - 1) // page_size)
+    page = min(page, total_pages)
+
+    rows = (
+        query.order_by(Person.last_name.asc(), Person.first_name.asc(), Person.id.asc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    return {
+        "rows": rows,
+        "total": total,
+        "shown": len(rows),
+        "page": page,
+        "page_size": page_size,
+        "total_pages": total_pages,
+        "has_prev": page > 1,
+        "has_next": page < total_pages,
+    }
+
+
 def person_by_id(person_id: int) -> Person:
     # Spec Cementiri: ver cementerio_extract.md (9.4.3 / 9.4.4)
     person = Person.query.filter_by(org_id=org_id(), id=person_id).first()
@@ -400,8 +477,12 @@ def _validate_email(value: str) -> str:
 
 def _person_payload(payload: dict[str, str]) -> dict[str, str | None]:
     return {
-        "first_name": (payload.get("nombre") or payload.get("first_name") or "").strip(),
-        "last_name": (payload.get("apellidos") or payload.get("last_name") or "").strip(),
+        "first_name": (
+            payload.get("nombre") or payload.get("first_name") or ""
+        ).strip(),
+        "last_name": (
+            payload.get("apellidos") or payload.get("last_name") or ""
+        ).strip(),
         "dni_nif": _clean_dni_nif(payload.get("dni_nif") or payload.get("document_id")),
         "telefono": (payload.get("telefono") or payload.get("phone") or "").strip(),
         "email": _validate_email(payload.get("email") or ""),
@@ -416,7 +497,9 @@ def create_person(payload: dict[str, str]) -> Person:
     if not values["first_name"]:
         raise ValueError("El nombre es obligatorio")
     if values["dni_nif"]:
-        existing = Person.query.filter_by(org_id=org_id(), dni_nif=values["dni_nif"]).first()
+        existing = Person.query.filter_by(
+            org_id=org_id(), dni_nif=values["dni_nif"]
+        ).first()
         if existing:
             raise ValueError("Ya existe una persona con ese DNI/NIF")
     person = Person(
@@ -460,7 +543,9 @@ def update_person(person_id: int, payload: dict[str, str]) -> Person:
     return person
 
 
-def create_funeral_right_contract(sepultura_id: int, payload: dict[str, str]) -> DerechoFunerarioContrato:
+def create_funeral_right_contract(
+    sepultura_id: int, payload: dict[str, str]
+) -> DerechoFunerarioContrato:
     # Spec Cementiri: ver cementerio_extract.md (9.1.7)
     sep = sepultura_by_id(sepultura_id)
     if sep.estado != SepulturaEstado.DISPONIBLE:
@@ -476,8 +561,15 @@ def create_funeral_right_contract(sepultura_id: int, payload: dict[str, str]) ->
 
     fecha_inicio = _parse_iso_date(payload.get("fecha_inicio", ""), "fecha inicio")
     fecha_fin = _parse_iso_date(payload.get("fecha_fin", ""), "fecha fin")
-    annual_fee_amount = _parse_decimal(payload.get("annual_fee_amount", ""), "importe anual")
-    legacy_99_years = (payload.get("legacy_99_years") or "").lower() in {"1", "on", "true", "yes"}
+    annual_fee_amount = _parse_decimal(
+        payload.get("annual_fee_amount", ""), "importe anual"
+    )
+    legacy_99_years = (payload.get("legacy_99_years") or "").lower() in {
+        "1",
+        "on",
+        "true",
+        "yes",
+    }
 
     titular_person_id = (payload.get("titular_person_id") or "").strip()
     if titular_person_id.isdigit():
@@ -502,7 +594,12 @@ def create_funeral_right_contract(sepultura_id: int, payload: dict[str, str]) ->
     db.session.add(contrato)
     db.session.flush()
 
-    pensionista = (payload.get("pensionista") or "").lower() in {"1", "on", "true", "yes"}
+    pensionista = (payload.get("pensionista") or "").lower() in {
+        "1",
+        "on",
+        "true",
+        "yes",
+    }
     pensionista_desde = payload.get("pensionista_desde", "").strip()
     pensionista_desde_date = None
     if pensionista_desde:
@@ -536,7 +633,8 @@ def create_funeral_right_contract(sepultura_id: int, payload: dict[str, str]) ->
             beneficiario = _create_or_reuse_person(
                 beneficiario_first_name,
                 payload.get("beneficiario_last_name", ""),
-                payload.get("beneficiario_dni_nif") or payload.get("beneficiario_document_id"),
+                payload.get("beneficiario_dni_nif")
+                or payload.get("beneficiario_document_id"),
             )
             db.session.add(
                 Beneficiario(
@@ -552,7 +650,9 @@ def create_funeral_right_contract(sepultura_id: int, payload: dict[str, str]) ->
 
 
 def contract_by_id(contract_id: int) -> DerechoFunerarioContrato:
-    contrato = DerechoFunerarioContrato.query.filter_by(org_id=org_id(), id=contract_id).first()
+    contrato = DerechoFunerarioContrato.query.filter_by(
+        org_id=org_id(), id=contract_id
+    ).first()
     if not contrato:
         raise ValueError("Contrato no encontrado")
     return contrato
@@ -603,7 +703,9 @@ def nominate_contract_beneficiary(
     return beneficiary
 
 
-def set_contract_holder_pensioner(contract_id: int, payload: dict[str, str], user_id: int | None) -> OwnershipRecord:
+def set_contract_holder_pensioner(
+    contract_id: int, payload: dict[str, str], user_id: int | None
+) -> OwnershipRecord:
     # Spec Cementiri 9.1.5 - marcar titular activo como pensionista no retroactivo por defecto
     contrato = contract_by_id(contract_id)
     titular = active_titular_for_contract(contrato.id)
@@ -611,9 +713,16 @@ def set_contract_holder_pensioner(contract_id: int, payload: dict[str, str], use
         raise ValueError("No hay titular activo")
 
     since_date = _parse_optional_iso_date(payload.get("since_date")) or date.today()
-    allow_retroactive = (payload.get("allow_retroactive") or "").strip().lower() in {"1", "on", "true", "yes"}
+    allow_retroactive = (payload.get("allow_retroactive") or "").strip().lower() in {
+        "1",
+        "on",
+        "true",
+        "yes",
+    }
     if since_date < date.today() and not allow_retroactive:
-        raise ValueError("La pensionista se aplica desde hoy o fecha futura (no retroactivo por defecto)")
+        raise ValueError(
+            "La pensionista se aplica desde hoy o fecha futura (no retroactivo por defecto)"
+        )
 
     titular.is_pensioner = True
     titular.pensioner_since_date = since_date
@@ -626,7 +735,9 @@ def set_contract_holder_pensioner(contract_id: int, payload: dict[str, str], use
     return titular
 
 
-def remove_contract_beneficiary(contract_id: int, payload: dict[str, str], user_id: int | None) -> Beneficiario:
+def remove_contract_beneficiary(
+    contract_id: int, payload: dict[str, str], user_id: int | None
+) -> Beneficiario:
     # Spec Cementiri 9.1.6 - baja de beneficiario activo
     contrato = contract_by_id(contract_id)
     active = (
@@ -644,7 +755,9 @@ def remove_contract_beneficiary(contract_id: int, payload: dict[str, str], user_
     active.activo_hasta = end_date
     db.session.add(active)
 
-    detail = f"Beneficiario dado de baja: {active.person.full_name} ({end_date.isoformat()})"
+    detail = (
+        f"Beneficiario dado de baja: {active.person.full_name} ({end_date.isoformat()})"
+    )
     _log_case_movement(contrato, MovimientoTipo.BENEFICIARIO, detail, user_id)
     _log_contract_event(contrato.id, None, "BENEFICIARIO_BAJA", detail, user_id)
     db.session.commit()
@@ -668,7 +781,9 @@ def _simple_pdf(lines: list[str]) -> bytes:
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
         b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 4 0 R >> >> >>",
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-        f"<< /Length {len(stream)} >>\nstream\n".encode("ascii") + stream + b"\nendstream",
+        f"<< /Length {len(stream)} >>\nstream\n".encode("ascii")
+        + stream
+        + b"\nendstream",
     ]
 
     pdf = BytesIO()
@@ -730,7 +845,12 @@ def _active_titular_for_contract_on(
     return (
         OwnershipRecord.query.filter_by(org_id=organization_id, contract_id=contract_id)
         .filter(OwnershipRecord.start_date <= reference_date)
-        .filter(or_(OwnershipRecord.end_date.is_(None), OwnershipRecord.end_date >= reference_date))
+        .filter(
+            or_(
+                OwnershipRecord.end_date.is_(None),
+                OwnershipRecord.end_date >= reference_date,
+            )
+        )
         .order_by(OwnershipRecord.start_date.desc())
         .first()
     )
@@ -741,12 +861,16 @@ def _apply_discount(amount: Decimal, discount_pct: Decimal) -> Decimal:
     return (Decimal(amount) * factor).quantize(Decimal("0.01"))
 
 
-def generate_maintenance_tickets_for_year(year: int, organization: Organization) -> TicketGenerationResult:
+def generate_maintenance_tickets_for_year(
+    year: int, organization: Organization
+) -> TicketGenerationResult:
     # Spec 5.2.5.2.2 / 5.3.4 - generacion de tiquets el 1 de enero para concesiones
     jan_1 = date(year, 1, 1)
     result = TicketGenerationResult()
     contracts = (
-        DerechoFunerarioContrato.query.join(Sepultura, Sepultura.id == DerechoFunerarioContrato.sepultura_id)
+        DerechoFunerarioContrato.query.join(
+            Sepultura, Sepultura.id == DerechoFunerarioContrato.sepultura_id
+        )
         .filter(DerechoFunerarioContrato.org_id == organization.id)
         .filter(DerechoFunerarioContrato.estado == "ACTIVO")
         .filter(DerechoFunerarioContrato.tipo == DerechoTipo.CONCESION)
@@ -776,8 +900,16 @@ def generate_maintenance_tickets_for_year(year: int, organization: Organization)
             and year >= titular.pensioner_since_date.year
         )
         base_amount = Decimal(contract.annual_fee_amount or Decimal("0.00"))
-        amount = _apply_discount(base_amount, discount_pct) if apply_pensionista else base_amount
-        discount_tipo = TicketDescuentoTipo.PENSIONISTA if apply_pensionista else TicketDescuentoTipo.NONE
+        amount = (
+            _apply_discount(base_amount, discount_pct)
+            if apply_pensionista
+            else base_amount
+        )
+        discount_tipo = (
+            TicketDescuentoTipo.PENSIONISTA
+            if apply_pensionista
+            else TicketDescuentoTipo.NONE
+        )
 
         db.session.add(
             TasaMantenimientoTicket(
@@ -793,7 +925,20 @@ def generate_maintenance_tickets_for_year(year: int, organization: Organization)
 
     db.session.commit()
     return result
+
+
 def search_sepulturas(filters: dict[str, str]) -> list[dict[str, object]]:
+    paged = search_sepulturas_paged(filters)
+    return list(paged["rows"])
+
+
+def search_sepulturas_paged(
+    filters: dict[str, str],
+    page: int = 1,
+    page_size: int = 25,
+    sort_by: str = "ubicacion",
+    sort_dir: str = "asc",
+) -> dict[str, object]:
     oid = org_id()
     query = Sepultura.query.filter_by(org_id=oid)
 
@@ -803,21 +948,59 @@ def search_sepulturas(filters: dict[str, str]) -> list[dict[str, object]]:
         try:
             query = query.filter(Sepultura.fila == int(filters["fila"]))
         except ValueError:
-            return []
+            return {
+                "rows": [],
+                "total": 0,
+                "shown": 0,
+                "page": 1,
+                "page_size": page_size,
+                "total_pages": 1,
+                "has_prev": False,
+                "has_next": False,
+            }
     if filters.get("columna"):
         try:
             query = query.filter(Sepultura.columna == int(filters["columna"]))
         except ValueError:
-            return []
+            return {
+                "rows": [],
+                "total": 0,
+                "shown": 0,
+                "page": 1,
+                "page_size": page_size,
+                "total_pages": 1,
+                "has_prev": False,
+                "has_next": False,
+            }
     if filters.get("numero"):
         try:
             query = query.filter(Sepultura.numero == int(filters["numero"]))
         except ValueError:
-            return []
+            return {
+                "rows": [],
+                "total": 0,
+                "shown": 0,
+                "page": 1,
+                "page_size": page_size,
+                "total_pages": 1,
+                "has_prev": False,
+                "has_next": False,
+            }
 
-    sepulturas = query.order_by(Sepultura.bloque, Sepultura.fila, Sepultura.columna, Sepultura.numero).all()
+    sepulturas = query.order_by(
+        Sepultura.bloque, Sepultura.fila, Sepultura.columna, Sepultura.numero
+    ).all()
     if not sepulturas:
-        return []
+        return {
+            "rows": [],
+            "total": 0,
+            "shown": 0,
+            "page": 1,
+            "page_size": page_size,
+            "total_pages": 1,
+            "has_prev": False,
+            "has_next": False,
+        }
 
     titular_filter = filters.get("titular", "").strip().lower()
     difunto_filter = filters.get("difunto", "").strip().lower()
@@ -835,7 +1018,9 @@ def search_sepulturas(filters: dict[str, str]) -> list[dict[str, object]]:
             if titular:
                 titular_name = titular.person.full_name
             debt = (
-                db.session.query(func.coalesce(func.sum(TasaMantenimientoTicket.importe), 0))
+                db.session.query(
+                    func.coalesce(func.sum(TasaMantenimientoTicket.importe), 0)
+                )
                 .filter_by(org_id=oid, contrato_id=contrato.id)
                 .filter(TasaMantenimientoTicket.estado != TicketEstado.COBRADO)
                 .scalar()
@@ -851,12 +1036,49 @@ def search_sepulturas(filters: dict[str, str]) -> list[dict[str, object]]:
             {
                 "sepultura": sep,
                 "titular_name": titular_name or "—",
-                "beneficiario_name": beneficiario.person.full_name if beneficiario else "",
+                "beneficiario_name": (
+                    beneficiario.person.full_name if beneficiario else ""
+                ),
                 "deuda": debt,
                 "difuntos": difuntos,
             }
         )
-    return rows
+    reverse = (sort_dir or "asc").lower() == "desc"
+    sort_key = (sort_by or "ubicacion").lower()
+    if sort_key == "estado":
+        rows.sort(key=lambda item: str(item["sepultura"].estado.value), reverse=reverse)
+    elif sort_key == "titular":
+        rows.sort(key=lambda item: str(item["titular_name"]).lower(), reverse=reverse)
+    elif sort_key == "deuda":
+        rows.sort(key=lambda item: item["deuda"], reverse=reverse)
+    else:
+        rows.sort(
+            key=lambda item: (
+                str(item["sepultura"].bloque),
+                item["sepultura"].fila,
+                item["sepultura"].columna,
+                item["sepultura"].numero,
+            ),
+            reverse=reverse,
+        )
+
+    page = max(1, page)
+    page_size = max(1, min(page_size, 100))
+    total = len(rows)
+    total_pages = max(1, (total + page_size - 1) // page_size)
+    page = min(page, total_pages)
+    start = (page - 1) * page_size
+    page_rows = rows[start : start + page_size]
+    return {
+        "rows": page_rows,
+        "total": total,
+        "shown": len(page_rows),
+        "page": page,
+        "page_size": page_size,
+        "total_pages": total_pages,
+        "has_prev": page > 1,
+        "has_next": page < total_pages,
+    }
 
 
 def list_sepultura_blocks() -> list[str]:
@@ -880,10 +1102,18 @@ def sepultura_by_id(sepultura_id: int) -> Sepultura:
 def change_sepultura_state(sepultura: Sepultura, new_state: SepulturaEstado) -> None:
     # Spec 9.4.2 - cambio de estado manual no permite asignar OCUPADA
     if new_state == SepulturaEstado.OCUPADA:
-        raise ValueError("El estado Ocupada se asigna automáticamente al crear contrato")
-    if sepultura.estado == SepulturaEstado.OCUPADA and new_state == SepulturaEstado.LLIURE:
+        raise ValueError(
+            "El estado Ocupada se asigna automáticamente al crear contrato"
+        )
+    if (
+        sepultura.estado == SepulturaEstado.OCUPADA
+        and new_state == SepulturaEstado.LLIURE
+    ):
         raise ValueError("No se puede pasar de Ocupada a Lliure manualmente")
-    if sepultura.estado == SepulturaEstado.PROPIA and new_state == SepulturaEstado.OCUPADA:
+    if (
+        sepultura.estado == SepulturaEstado.PROPIA
+        and new_state == SepulturaEstado.OCUPADA
+    ):
         raise ValueError("Una sepultura Pròpia no puede contratarse")
     sepultura.estado = new_state
     db.session.add(sepultura)
@@ -936,7 +1166,9 @@ def sepultura_tickets_and_invoices(sepultura_id: int) -> dict[str, object]:
     }
 
 
-def validate_oldest_prefix_selection(tickets: list[TasaMantenimientoTicket], selected_ids: list[int]) -> None:
+def validate_oldest_prefix_selection(
+    tickets: list[TasaMantenimientoTicket], selected_ids: list[int]
+) -> None:
     if not selected_ids:
         raise ValueError("Selecciona al menos un año")
     ordered = sorted(tickets, key=lambda t: t.anio)
@@ -976,9 +1208,13 @@ def _next_receipt_number() -> str:
     return f"{prefix}{count + 1:04d}"
 
 
-def _selected_pending_tickets(contract_id: int, selected_ids: list[int]) -> list[TasaMantenimientoTicket]:
+def _selected_pending_tickets(
+    contract_id: int, selected_ids: list[int]
+) -> list[TasaMantenimientoTicket]:
     return (
-        TasaMantenimientoTicket.query.filter_by(org_id=org_id(), contrato_id=contract_id, estado=TicketEstado.PENDIENTE)
+        TasaMantenimientoTicket.query.filter_by(
+            org_id=org_id(), contrato_id=contract_id, estado=TicketEstado.PENDIENTE
+        )
         .filter(TasaMantenimientoTicket.id.in_(selected_ids))
         .order_by(TasaMantenimientoTicket.anio.asc())
         .all()
@@ -1000,13 +1236,20 @@ def _ticket_amount_with_discount(
     base_amount = Decimal(contrato.annual_fee_amount or 0).quantize(Decimal("0.01"))
     if base_amount <= 0:
         base_amount = Decimal(ticket.importe).quantize(Decimal("0.01"))
-    if not titularidad or not titularidad.is_pensioner or not titularidad.pensioner_since_date:
+    if (
+        not titularidad
+        or not titularidad.is_pensioner
+        or not titularidad.pensioner_since_date
+    ):
         return base_amount, TicketDescuentoTipo.NONE
 
     since_year = titularidad.pensioner_since_date.year
     should_apply = ticket.anio >= since_year or ticket.id in discount_ticket_ids
     if should_apply:
-        return _apply_discount(base_amount, discount_pct), TicketDescuentoTipo.PENSIONISTA
+        return (
+            _apply_discount(base_amount, discount_pct),
+            TicketDescuentoTipo.PENSIONISTA,
+        )
     return base_amount, TicketDescuentoTipo.NONE
 
 
@@ -1143,7 +1386,9 @@ def create_mass_sepulturas(payload: dict[str, str]) -> int:
     return created
 
 
-def sepultura_tabs_data(sepultura_id: int, tab: str, mov_filters: dict[str, str]) -> dict[str, object]:
+def sepultura_tabs_data(
+    sepultura_id: int, tab: str, mov_filters: dict[str, str]
+) -> dict[str, object]:
     sep = sepultura_by_id(sepultura_id)
     contrato = active_contract_for_sepultura(sep.id)
     titulares = []
@@ -1154,17 +1399,27 @@ def sepultura_tabs_data(sepultura_id: int, tab: str, mov_filters: dict[str, str]
     if contrato:
         active_titular = active_titular_for_contract(contrato.id)
         active_beneficiario = active_beneficiario_for_contract(contrato.id)
-        titulares = OwnershipRecord.query.filter_by(org_id=org_id(), contract_id=contrato.id).order_by(
-            OwnershipRecord.start_date.desc()
-        ).all()
-        beneficiarios = Beneficiario.query.filter_by(org_id=org_id(), contrato_id=contrato.id).order_by(
-            Beneficiario.activo_desde.desc()
-        ).all()
-        tasas = TasaMantenimientoTicket.query.filter_by(org_id=org_id(), contrato_id=contrato.id).order_by(
-            TasaMantenimientoTicket.anio.desc()
-        ).all()
+        titulares = (
+            OwnershipRecord.query.filter_by(org_id=org_id(), contract_id=contrato.id)
+            .order_by(OwnershipRecord.start_date.desc())
+            .all()
+        )
+        beneficiarios = (
+            Beneficiario.query.filter_by(org_id=org_id(), contrato_id=contrato.id)
+            .order_by(Beneficiario.activo_desde.desc())
+            .all()
+        )
+        tasas = (
+            TasaMantenimientoTicket.query.filter_by(
+                org_id=org_id(), contrato_id=contrato.id
+            )
+            .order_by(TasaMantenimientoTicket.anio.desc())
+            .all()
+        )
 
-    movements_query = MovimientoSepultura.query.filter_by(org_id=org_id(), sepultura_id=sep.id)
+    movements_query = MovimientoSepultura.query.filter_by(
+        org_id=org_id(), sepultura_id=sep.id
+    )
     if mov_filters.get("tipo"):
         try:
             mtype = MovimientoTipo[mov_filters["tipo"]]
@@ -1172,9 +1427,13 @@ def sepultura_tabs_data(sepultura_id: int, tab: str, mov_filters: dict[str, str]
         except KeyError:
             pass
     if mov_filters.get("desde"):
-        movements_query = movements_query.filter(MovimientoSepultura.fecha >= mov_filters["desde"])
+        movements_query = movements_query.filter(
+            MovimientoSepultura.fecha >= mov_filters["desde"]
+        )
     if mov_filters.get("hasta"):
-        movements_query = movements_query.filter(MovimientoSepultura.fecha <= mov_filters["hasta"])
+        movements_query = movements_query.filter(
+            MovimientoSepultura.fecha <= mov_filters["hasta"]
+        )
     movimientos = movements_query.order_by(MovimientoSepultura.fecha.desc()).all()
 
     return {
@@ -1222,7 +1481,9 @@ def _next_expediente_number(year: int) -> str:
 
 def list_expedientes(filters: dict[str, str]) -> list[Expediente]:
     query = (
-        Expediente.query.options(joinedload(Expediente.difunto), joinedload(Expediente.declarante))
+        Expediente.query.options(
+            joinedload(Expediente.difunto), joinedload(Expediente.declarante)
+        )
         .filter(Expediente.org_id == org_id())
         .order_by(Expediente.created_at.desc(), Expediente.id.desc())
     )
@@ -1241,9 +1502,13 @@ def list_expedientes(filters: dict[str, str]) -> list[Expediente]:
     created_from = _parse_optional_iso_date(filters.get("created_from"))
     created_to = _parse_optional_iso_date(filters.get("created_to"))
     if created_from:
-        query = query.filter(Expediente.created_at >= datetime.combine(created_from, datetime.min.time()))
+        query = query.filter(
+            Expediente.created_at >= datetime.combine(created_from, datetime.min.time())
+        )
     if created_to:
-        query = query.filter(Expediente.created_at <= datetime.combine(created_to, datetime.max.time()))
+        query = query.filter(
+            Expediente.created_at <= datetime.combine(created_to, datetime.max.time())
+        )
     return query.all()
 
 
@@ -1266,10 +1531,18 @@ def create_expediente(payload: dict[str, str], user_id: int | None) -> Expedient
         sepultura_by_id(sepultura_id)
         if tipo in {"EXHUMACION", "RESCATE"}:
             active_contract = active_contract_for_sepultura(sepultura_id)
-            active_owner = active_titular_for_contract(active_contract.id) if active_contract else None
-            has_prior_remains = SepulturaDifunto.query.filter_by(org_id=org_id(), sepultura_id=sepultura_id).first()
+            active_owner = (
+                active_titular_for_contract(active_contract.id)
+                if active_contract
+                else None
+            )
+            has_prior_remains = SepulturaDifunto.query.filter_by(
+                org_id=org_id(), sepultura_id=sepultura_id
+            ).first()
             if active_owner and active_owner.is_provisional and has_prior_remains:
-                raise ValueError(translate("validation.expediente.provisional_restriction"))
+                raise ValueError(
+                    translate("validation.expediente.provisional_restriction")
+                )
 
     difunto_id_raw = (payload.get("difunto_id") or "").strip()
     difunto_id = int(difunto_id_raw) if difunto_id_raw.isdigit() else None
@@ -1309,7 +1582,9 @@ def create_expediente(payload: dict[str, str], user_id: int | None) -> Expedient
     return expediente
 
 
-def transition_expediente_state(expediente_id: int, new_state: str, user_id: int | None) -> Expediente:
+def transition_expediente_state(
+    expediente_id: int, new_state: str, user_id: int | None
+) -> Expediente:
     expediente = expediente_by_id(expediente_id)
     current = (expediente.estado or "").upper()
     target = (new_state or "").strip().upper()
@@ -1339,7 +1614,9 @@ def list_expediente_ots(expediente_id: int) -> list[OrdenTrabajo]:
     )
 
 
-def create_expediente_ot(expediente_id: int, payload: dict[str, str], user_id: int | None) -> OrdenTrabajo:
+def create_expediente_ot(
+    expediente_id: int, payload: dict[str, str], user_id: int | None
+) -> OrdenTrabajo:
     expediente = expediente_by_id(expediente_id)
     title = (payload.get("titulo") or "").strip()
     if not title:
@@ -1370,7 +1647,9 @@ def complete_expediente_ot(
     user_id: int | None,
 ) -> OrdenTrabajo:
     expediente = expediente_by_id(expediente_id)
-    ot = OrdenTrabajo.query.filter_by(org_id=org_id(), expediente_id=expediente.id, id=ot_id).first()
+    ot = OrdenTrabajo.query.filter_by(
+        org_id=org_id(), expediente_id=expediente.id, id=ot_id
+    ).first()
     if not ot:
         raise ValueError("Orden de trabajo no encontrada")
     if ot.estado == "COMPLETADA":
@@ -1394,7 +1673,9 @@ def complete_expediente_ot(
 
 def expediente_ot_pdf(expediente_id: int, ot_id: int) -> bytes:
     expediente = expediente_by_id(expediente_id)
-    ot = OrdenTrabajo.query.filter_by(org_id=org_id(), expediente_id=expediente.id, id=ot_id).first()
+    ot = OrdenTrabajo.query.filter_by(
+        org_id=org_id(), expediente_id=expediente.id, id=ot_id
+    ).first()
     if not ot:
         raise ValueError("Orden de trabajo no encontrada")
     sep = sepultura_by_id(expediente.sepultura_id) if expediente.sepultura_id else None
@@ -1423,7 +1704,9 @@ def list_lapida_stock() -> list[LapidaStock]:
 def list_lapida_stock_movements(limit: int = 50) -> list[LapidaStockMovimiento]:
     return (
         LapidaStockMovimiento.query.filter_by(org_id=org_id())
-        .order_by(LapidaStockMovimiento.created_at.desc(), LapidaStockMovimiento.id.desc())
+        .order_by(
+            LapidaStockMovimiento.created_at.desc(), LapidaStockMovimiento.id.desc()
+        )
         .limit(limit)
         .all()
     )
@@ -1432,9 +1715,13 @@ def list_lapida_stock_movements(limit: int = 50) -> list[LapidaStockMovimiento]:
 def _find_lapida_stock(stock_id_raw: str | None, codigo_raw: str | None) -> LapidaStock:
     stock = None
     if (stock_id_raw or "").strip().isdigit():
-        stock = LapidaStock.query.filter_by(org_id=org_id(), id=int(stock_id_raw)).first()
+        stock = LapidaStock.query.filter_by(
+            org_id=org_id(), id=int(stock_id_raw)
+        ).first()
     if not stock and (codigo_raw or "").strip():
-        stock = LapidaStock.query.filter_by(org_id=org_id(), codigo=(codigo_raw or "").strip()).first()
+        stock = LapidaStock.query.filter_by(
+            org_id=org_id(), codigo=(codigo_raw or "").strip()
+        ).first()
     if not stock:
         raise ValueError("Stock de lapida no encontrado")
     return stock
@@ -1449,7 +1736,9 @@ def lapida_stock_entry(payload: dict[str, str], user_id: int | None) -> LapidaSt
     stock = None
     stock_id_raw = (payload.get("stock_id") or "").strip()
     if stock_id_raw.isdigit():
-        stock = LapidaStock.query.filter_by(org_id=org_id(), id=int(stock_id_raw)).first()
+        stock = LapidaStock.query.filter_by(
+            org_id=org_id(), id=int(stock_id_raw)
+        ).first()
 
     if not stock:
         code = (payload.get("codigo") or "").strip().upper()
@@ -1532,9 +1821,8 @@ def lapida_stock_exit(payload: dict[str, str], user_id: int | None) -> LapidaSto
 
 
 def list_inscripciones(filters: dict[str, str]) -> list[InscripcionLateral]:
-    query = (
-        InscripcionLateral.query.filter_by(org_id=org_id())
-        .order_by(InscripcionLateral.created_at.desc(), InscripcionLateral.id.desc())
+    query = InscripcionLateral.query.filter_by(org_id=org_id()).order_by(
+        InscripcionLateral.created_at.desc(), InscripcionLateral.id.desc()
     )
     estado = (filters.get("estado") or "").strip().upper()
     if estado:
@@ -1550,7 +1838,9 @@ def list_inscripciones(filters: dict[str, str]) -> list[InscripcionLateral]:
     return query.all()
 
 
-def create_inscripcion_lateral(payload: dict[str, str], user_id: int | None) -> InscripcionLateral:
+def create_inscripcion_lateral(
+    payload: dict[str, str], user_id: int | None
+) -> InscripcionLateral:
     sepultura_id_raw = (payload.get("sepultura_id") or "").strip()
     if not sepultura_id_raw.isdigit():
         raise ValueError("Sepultura obligatoria")
@@ -1586,8 +1876,12 @@ def create_inscripcion_lateral(payload: dict[str, str], user_id: int | None) -> 
     return item
 
 
-def transition_inscripcion_estado(inscripcion_id: int, payload: dict[str, str], user_id: int | None) -> InscripcionLateral:
-    item = InscripcionLateral.query.filter_by(org_id=org_id(), id=inscripcion_id).first()
+def transition_inscripcion_estado(
+    inscripcion_id: int, payload: dict[str, str], user_id: int | None
+) -> InscripcionLateral:
+    item = InscripcionLateral.query.filter_by(
+        org_id=org_id(), id=inscripcion_id
+    ).first()
     if not item:
         raise ValueError("Inscripcion no encontrada")
 
@@ -1672,7 +1966,12 @@ def reporting_contratos_rows(filters: dict[str, str]) -> list[dict[str, object]]
     for contract in query.all():
         titular = (
             OwnershipRecord.query.filter_by(org_id=org_id(), contract_id=contract.id)
-            .filter(or_(OwnershipRecord.end_date.is_(None), OwnershipRecord.end_date >= today))
+            .filter(
+                or_(
+                    OwnershipRecord.end_date.is_(None),
+                    OwnershipRecord.end_date >= today,
+                )
+            )
             .order_by(OwnershipRecord.start_date.desc())
             .first()
         )
@@ -1685,7 +1984,9 @@ def reporting_contratos_rows(filters: dict[str, str]) -> list[dict[str, object]]
                 "tipo": contract.tipo.value,
                 "vigencia": "VIGENTE" if contract.fecha_fin >= today else "VENCIDO",
                 "titular": titular_name,
-                "sepultura": contract.sepultura.location_label if contract.sepultura else "-",
+                "sepultura": (
+                    contract.sepultura.location_label if contract.sepultura else "-"
+                ),
             }
         )
     return rows
@@ -1706,7 +2007,9 @@ def reporting_deuda_rows(filters: dict[str, str]) -> list[dict[str, object]]:
     rows = []
     for contract in query.all():
         pending_tickets = (
-            TasaMantenimientoTicket.query.filter_by(org_id=org_id(), contrato_id=contract.id)
+            TasaMantenimientoTicket.query.filter_by(
+                org_id=org_id(), contrato_id=contract.id
+            )
             .filter(TasaMantenimientoTicket.estado != TicketEstado.COBRADO)
             .all()
         )
@@ -1717,12 +2020,18 @@ def reporting_deuda_rows(filters: dict[str, str]) -> list[dict[str, object]]:
         ).all()
         if not pending_tickets and not unpaid_invoices:
             continue
-        ticket_amount = sum((Decimal(t.importe) for t in pending_tickets), Decimal("0.00"))
-        invoice_amount = sum((Decimal(i.total_amount) for i in unpaid_invoices), Decimal("0.00"))
+        ticket_amount = sum(
+            (Decimal(t.importe) for t in pending_tickets), Decimal("0.00")
+        )
+        invoice_amount = sum(
+            (Decimal(i.total_amount) for i in unpaid_invoices), Decimal("0.00")
+        )
         rows.append(
             {
                 "contrato_id": contract.id,
-                "sepultura": contract.sepultura.location_label if contract.sepultura else "-",
+                "sepultura": (
+                    contract.sepultura.location_label if contract.sepultura else "-"
+                ),
                 "tickets_pendientes": len(pending_tickets),
                 "importe_tickets": ticket_amount,
                 "facturas_impagadas": len(unpaid_invoices),
@@ -1744,7 +2053,9 @@ def reporting_rows(report_key: str, filters: dict[str, str]) -> list[dict[str, o
     raise ValueError("Informe invalido")
 
 
-def paginate_rows(rows: list[dict[str, object]], page: int, page_size: int) -> dict[str, object]:
+def paginate_rows(
+    rows: list[dict[str, object]], page: int, page_size: int
+) -> dict[str, object]:
     safe_page = page if page > 0 else 1
     safe_size = max(1, min(page_size, 100))
     total = len(rows)
@@ -1841,25 +2152,57 @@ def _purge_org_operational_data() -> None:
     if storage_root.exists():
         shutil.rmtree(storage_root, ignore_errors=True)
 
-    db.session.query(ContractEvent).filter_by(org_id=oid).delete(synchronize_session=False)
-    db.session.query(Publication).filter_by(org_id=oid).delete(synchronize_session=False)
-    db.session.query(CaseDocument).filter_by(org_id=oid).delete(synchronize_session=False)
-    db.session.query(OwnershipTransferParty).filter_by(org_id=oid).delete(synchronize_session=False)
-    db.session.query(OwnershipTransferCase).filter_by(org_id=oid).delete(synchronize_session=False)
-    db.session.query(LapidaStockMovimiento).filter_by(org_id=oid).delete(synchronize_session=False)
-    db.session.query(InscripcionLateral).filter_by(org_id=oid).delete(synchronize_session=False)
-    db.session.query(OrdenTrabajo).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(ContractEvent).filter_by(org_id=oid).delete(
+        synchronize_session=False
+    )
+    db.session.query(Publication).filter_by(org_id=oid).delete(
+        synchronize_session=False
+    )
+    db.session.query(CaseDocument).filter_by(org_id=oid).delete(
+        synchronize_session=False
+    )
+    db.session.query(OwnershipTransferParty).filter_by(org_id=oid).delete(
+        synchronize_session=False
+    )
+    db.session.query(OwnershipTransferCase).filter_by(org_id=oid).delete(
+        synchronize_session=False
+    )
+    db.session.query(LapidaStockMovimiento).filter_by(org_id=oid).delete(
+        synchronize_session=False
+    )
+    db.session.query(InscripcionLateral).filter_by(org_id=oid).delete(
+        synchronize_session=False
+    )
+    db.session.query(OrdenTrabajo).filter_by(org_id=oid).delete(
+        synchronize_session=False
+    )
     db.session.query(Expediente).filter_by(org_id=oid).delete(synchronize_session=False)
     db.session.query(Payment).filter_by(org_id=oid).delete(synchronize_session=False)
-    db.session.query(TasaMantenimientoTicket).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(TasaMantenimientoTicket).filter_by(org_id=oid).delete(
+        synchronize_session=False
+    )
     db.session.query(Invoice).filter_by(org_id=oid).delete(synchronize_session=False)
-    db.session.query(Beneficiario).filter_by(org_id=oid).delete(synchronize_session=False)
-    db.session.query(OwnershipRecord).filter_by(org_id=oid).delete(synchronize_session=False)
-    db.session.query(DerechoFunerarioContrato).filter_by(org_id=oid).delete(synchronize_session=False)
-    db.session.query(SepulturaUbicacion).filter_by(org_id=oid).delete(synchronize_session=False)
-    db.session.query(SepulturaDifunto).filter_by(org_id=oid).delete(synchronize_session=False)
-    db.session.query(MovimientoSepultura).filter_by(org_id=oid).delete(synchronize_session=False)
-    db.session.query(LapidaStock).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(Beneficiario).filter_by(org_id=oid).delete(
+        synchronize_session=False
+    )
+    db.session.query(OwnershipRecord).filter_by(org_id=oid).delete(
+        synchronize_session=False
+    )
+    db.session.query(DerechoFunerarioContrato).filter_by(org_id=oid).delete(
+        synchronize_session=False
+    )
+    db.session.query(SepulturaUbicacion).filter_by(org_id=oid).delete(
+        synchronize_session=False
+    )
+    db.session.query(SepulturaDifunto).filter_by(org_id=oid).delete(
+        synchronize_session=False
+    )
+    db.session.query(MovimientoSepultura).filter_by(org_id=oid).delete(
+        synchronize_session=False
+    )
+    db.session.query(LapidaStock).filter_by(org_id=oid).delete(
+        synchronize_session=False
+    )
     db.session.query(Sepultura).filter_by(org_id=oid).delete(synchronize_session=False)
     db.session.query(Person).filter_by(org_id=oid).delete(synchronize_session=False)
     db.session.commit()
@@ -1890,10 +2233,17 @@ def _demo_case_document_status(
     doc_type: str,
     case_index: int,
 ) -> CaseDocumentStatus:
-    if case_status in {OwnershipTransferStatus.APPROVED, OwnershipTransferStatus.CLOSED}:
+    if case_status in {
+        OwnershipTransferStatus.APPROVED,
+        OwnershipTransferStatus.CLOSED,
+    }:
         if required:
             return CaseDocumentStatus.VERIFIED
-        return CaseDocumentStatus.PROVIDED if case_index % 2 == 0 else CaseDocumentStatus.MISSING
+        return (
+            CaseDocumentStatus.PROVIDED
+            if case_index % 2 == 0
+            else CaseDocumentStatus.MISSING
+        )
     if case_status == OwnershipTransferStatus.DRAFT:
         return CaseDocumentStatus.MISSING
     if case_status == OwnershipTransferStatus.DOCS_PENDING:
@@ -1904,13 +2254,32 @@ def _demo_case_document_status(
         return CaseDocumentStatus.MISSING
     if case_status == OwnershipTransferStatus.UNDER_REVIEW:
         if not required:
-            return CaseDocumentStatus.PROVIDED if case_index % 3 == 0 else CaseDocumentStatus.MISSING
-        if case_type == OwnershipTransferType.INTER_VIVOS and doc_type == "ACREDITACION_PARENTESCO_2_GRADO":
-            return CaseDocumentStatus.VERIFIED if case_index % 2 == 0 else CaseDocumentStatus.PROVIDED
-        return CaseDocumentStatus.VERIFIED if (case_index + len(doc_type)) % 3 == 0 else CaseDocumentStatus.PROVIDED
+            return (
+                CaseDocumentStatus.PROVIDED
+                if case_index % 3 == 0
+                else CaseDocumentStatus.MISSING
+            )
+        if (
+            case_type == OwnershipTransferType.INTER_VIVOS
+            and doc_type == "ACREDITACION_PARENTESCO_2_GRADO"
+        ):
+            return (
+                CaseDocumentStatus.VERIFIED
+                if case_index % 2 == 0
+                else CaseDocumentStatus.PROVIDED
+            )
+        return (
+            CaseDocumentStatus.VERIFIED
+            if (case_index + len(doc_type)) % 3 == 0
+            else CaseDocumentStatus.PROVIDED
+        )
     if case_status == OwnershipTransferStatus.REJECTED:
         if required:
-            return CaseDocumentStatus.REJECTED if (case_index + len(doc_type)) % 2 == 0 else CaseDocumentStatus.PROVIDED
+            return (
+                CaseDocumentStatus.REJECTED
+                if (case_index + len(doc_type)) % 2 == 0
+                else CaseDocumentStatus.PROVIDED
+            )
         return CaseDocumentStatus.MISSING
     return CaseDocumentStatus.MISSING
 
@@ -2001,10 +2370,16 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
 
     contracts: list[DerechoFunerarioContrato] = []
     for idx, sep in enumerate(sepulturas[:300], start=1):
-        contract_type = DerechoTipo.CONCESION if idx <= 240 else DerechoTipo.USO_INMEDIATO
+        contract_type = (
+            DerechoTipo.CONCESION if idx <= 240 else DerechoTipo.USO_INMEDIATO
+        )
         start_year = 1998 + (idx % 22)
         fecha_inicio = date(start_year, ((idx - 1) % 12) + 1, ((idx - 1) % 28) + 1)
-        duration_years = 30 + (idx % 20) if contract_type == DerechoTipo.CONCESION else 10 + (idx % 15)
+        duration_years = (
+            30 + (idx % 20)
+            if contract_type == DerechoTipo.CONCESION
+            else 10 + (idx % 15)
+        )
         contracts.append(
             DerechoFunerarioContrato(
                 org_id=oid,
@@ -2164,7 +2539,11 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
             type=transfer_type,
             status=status,
             opened_at=opened_at,
-            closed_at=opened_at + timedelta(days=21) if status == OwnershipTransferStatus.CLOSED else None,
+            closed_at=(
+                opened_at + timedelta(days=21)
+                if status == OwnershipTransferStatus.CLOSED
+                else None
+            ),
             created_by_user_id=user_id,
             assigned_to_user_id=user_id if user_id and idx % 4 == 0 else None,
             resolution_number=resolution_number,
@@ -2197,7 +2576,9 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 )
             )
         if case.type == OwnershipTransferType.MORTIS_CAUSA_CON_BENEFICIARIO:
-            new_holder_person_id = active_beneficiary_person_by_contract_id[case.contract_id]
+            new_holder_person_id = active_beneficiary_person_by_contract_id[
+                case.contract_id
+            ]
         else:
             new_holder_person_id = extras[(idx + 41) % len(extras)].id
         case_parties.append(
@@ -2222,11 +2603,17 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
     case_documents: list[CaseDocument] = []
     for idx, case in enumerate(ownership_cases, start=1):
         for doc_type, required in CASE_CHECKLIST[case.type]:
-            doc_status = _demo_case_document_status(case.status, required, case.type, doc_type, idx)
+            doc_status = _demo_case_document_status(
+                case.status, required, case.type, doc_type, idx
+            )
             uploaded_at = None
             verified_at = None
             verified_by_user_id = None
-            if doc_status in {CaseDocumentStatus.PROVIDED, CaseDocumentStatus.VERIFIED, CaseDocumentStatus.REJECTED}:
+            if doc_status in {
+                CaseDocumentStatus.PROVIDED,
+                CaseDocumentStatus.VERIFIED,
+                CaseDocumentStatus.REJECTED,
+            }:
                 uploaded_at = case.opened_at + timedelta(days=1)
             if doc_status == CaseDocumentStatus.VERIFIED:
                 verified_at = case.opened_at + timedelta(days=2)
@@ -2247,7 +2634,11 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
     db.session.add_all(case_documents)
 
     publications: list[Publication] = []
-    provisional_cases = [case for case in ownership_cases if case.type == OwnershipTransferType.PROVISIONAL]
+    provisional_cases = [
+        case
+        for case in ownership_cases
+        if case.type == OwnershipTransferType.PROVISIONAL
+    ]
     for idx, case in enumerate(provisional_cases, start=1):
         published_date = date(2026, ((idx - 1) % 12) + 1, ((idx - 1) % 27) + 1)
         mode = idx % 3
@@ -2290,7 +2681,10 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 user_id=user_id,
             )
         )
-        if case.status in {OwnershipTransferStatus.APPROVED, OwnershipTransferStatus.CLOSED}:
+        if case.status in {
+            OwnershipTransferStatus.APPROVED,
+            OwnershipTransferStatus.CLOSED,
+        }:
             contract_events.append(
                 ContractEvent(
                     org_id=oid,
@@ -2348,7 +2742,11 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 user_id=user_id,
             )
         )
-    closed_cases = [case for case in ownership_cases if case.status == OwnershipTransferStatus.CLOSED]
+    closed_cases = [
+        case
+        for case in ownership_cases
+        if case.status == OwnershipTransferStatus.CLOSED
+    ]
     for idx, case in enumerate(closed_cases[:20], start=1):
         contract = contract_by_id.get(case.contract_id)
         if not contract:
@@ -2373,9 +2771,15 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
     for contract_index, contract in enumerate(contracts[:120], start=1):
         holder = ownership_records[contract_index - 1]
         for year in ticket_years:
-            amount = Decimal(contract.annual_fee_amount or Decimal("0.00")).quantize(Decimal("0.01"))
+            amount = Decimal(contract.annual_fee_amount or Decimal("0.00")).quantize(
+                Decimal("0.01")
+            )
             discount_type = TicketDescuentoTipo.NONE
-            if holder.is_pensioner and holder.pensioner_since_date and year >= holder.pensioner_since_date.year:
+            if (
+                holder.is_pensioner
+                and holder.pensioner_since_date
+                and year >= holder.pensioner_since_date.year
+            ):
                 amount = _apply_discount(amount, discount_pct)
                 discount_type = TicketDescuentoTipo.PENSIONISTA
 
@@ -2394,9 +2798,15 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                     contrato_id=contract.id,
                     sepultura_id=contract.sepultura_id,
                     numero=f"F-DEMO-2026-{invoice_counter:06d}",
-                    estado=InvoiceEstado.IMPAGADA if ticket_state == TicketEstado.FACTURADO else InvoiceEstado.PAGADA,
+                    estado=(
+                        InvoiceEstado.IMPAGADA
+                        if ticket_state == TicketEstado.FACTURADO
+                        else InvoiceEstado.PAGADA
+                    ),
                     total_amount=amount,
-                    issued_at=datetime(year, ((contract_index - 1) % 12) + 1, 15, tzinfo=timezone.utc),
+                    issued_at=datetime(
+                        year, ((contract_index - 1) % 12) + 1, 15, tzinfo=timezone.utc
+                    ),
                 )
                 db.session.add(invoice)
                 db.session.flush()
@@ -2467,7 +2877,11 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 movimiento="SALIDA",
                 quantity=quantity,
                 sepultura_id=sepulturas[(idx * 3) % 300].id,
-                expediente_id=expedientes[(idx * 2) % len(expedientes)].id if idx % 2 == 0 else None,
+                expediente_id=(
+                    expedientes[(idx * 2) % len(expedientes)].id
+                    if idx % 2 == 0
+                    else None
+                ),
                 notes=f"Salida demo {idx:03d}",
             )
         )
@@ -2485,7 +2899,11 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
             InscripcionLateral(
                 org_id=oid,
                 sepultura_id=sepulturas[(idx - 1) % 300].id,
-                expediente_id=expedientes[(idx - 1) % len(expedientes)].id if idx % 2 == 0 else None,
+                expediente_id=(
+                    expedientes[(idx - 1) % len(expedientes)].id
+                    if idx % 2 == 0
+                    else None
+                ),
                 texto=f"Inscripcion demo {idx:03d}",
                 estado=inscripcion_states[idx - 1],
             )
@@ -2495,11 +2913,16 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
     db.session.commit()
     return _demo_operational_counts(oid)
 
+
 def _get_case_or_404(case_id: int) -> OwnershipTransferCase:
     case = (
         OwnershipTransferCase.query.options(
-            joinedload(OwnershipTransferCase.contract).joinedload(DerechoFunerarioContrato.sepultura),
-            joinedload(OwnershipTransferCase.parties).joinedload(OwnershipTransferParty.person),
+            joinedload(OwnershipTransferCase.contract).joinedload(
+                DerechoFunerarioContrato.sepultura
+            ),
+            joinedload(OwnershipTransferCase.parties).joinedload(
+                OwnershipTransferParty.person
+            ),
             joinedload(OwnershipTransferCase.documents),
             joinedload(OwnershipTransferCase.publications),
             joinedload(OwnershipTransferCase.assigned_to),
@@ -2512,7 +2935,9 @@ def _get_case_or_404(case_id: int) -> OwnershipTransferCase:
     return case
 
 
-def _case_party(case: OwnershipTransferCase, role: OwnershipPartyRole) -> OwnershipTransferParty | None:
+def _case_party(
+    case: OwnershipTransferCase, role: OwnershipPartyRole
+) -> OwnershipTransferParty | None:
     return next((p for p in case.parties if p.role == role), None)
 
 
@@ -2590,10 +3015,14 @@ def _parse_transfer_status(value: str) -> OwnershipTransferStatus:
         raise ValueError("Estado de caso invalido") from exc
 
 
-def _transition_case_status(case: OwnershipTransferCase, new_status: OwnershipTransferStatus) -> None:
+def _transition_case_status(
+    case: OwnershipTransferCase, new_status: OwnershipTransferStatus
+) -> None:
     allowed = CASE_STATUS_TRANSITIONS.get(case.status, set())
     if new_status not in allowed:
-        raise ValueError(f"Transicion invalida: {case.status.value} -> {new_status.value}")
+        raise ValueError(
+            f"Transicion invalida: {case.status.value} -> {new_status.value}"
+        )
     case.status = new_status
     db.session.add(case)
 
@@ -2625,7 +3054,9 @@ def _case_storage_root(case: OwnershipTransferCase) -> Path:
 
 def _ensure_resolution_pdf(case: OwnershipTransferCase) -> None:
     if not case.resolution_number:
-        case.resolution_number = _next_resolution_number(datetime.now(timezone.utc).year)
+        case.resolution_number = _next_resolution_number(
+            datetime.now(timezone.utc).year
+        )
     previous_holder = _case_party(case, OwnershipPartyRole.ANTERIOR_TITULAR)
     new_holder = _case_party(case, OwnershipPartyRole.NUEVO_TITULAR)
     contract = case.contract
@@ -2648,30 +3079,42 @@ def _ensure_resolution_pdf(case: OwnershipTransferCase) -> None:
     filename = f"resolucion-{case.resolution_number}.pdf"
     absolute = root / filename
     absolute.write_bytes(pdf)
-    case.resolution_pdf_path = absolute.relative_to(Path(current_app.instance_path)).as_posix()
+    case.resolution_pdf_path = absolute.relative_to(
+        Path(current_app.instance_path)
+    ).as_posix()
     db.session.add(case)
 
 
 def list_ownership_cases(filters: dict[str, str]) -> list[OwnershipTransferCase]:
     query = (
         OwnershipTransferCase.query.options(
-            joinedload(OwnershipTransferCase.contract).joinedload(DerechoFunerarioContrato.sepultura),
-            joinedload(OwnershipTransferCase.parties).joinedload(OwnershipTransferParty.person),
+            joinedload(OwnershipTransferCase.contract).joinedload(
+                DerechoFunerarioContrato.sepultura
+            ),
+            joinedload(OwnershipTransferCase.parties).joinedload(
+                OwnershipTransferParty.person
+            ),
             joinedload(OwnershipTransferCase.assigned_to),
         )
         .filter(OwnershipTransferCase.org_id == org_id())
-        .order_by(OwnershipTransferCase.opened_at.desc(), OwnershipTransferCase.id.desc())
+        .order_by(
+            OwnershipTransferCase.opened_at.desc(), OwnershipTransferCase.id.desc()
+        )
     )
     type_raw = (filters.get("type") or "").strip().upper()
     if type_raw:
         try:
-            query = query.filter(OwnershipTransferCase.type == OwnershipTransferType[type_raw])
+            query = query.filter(
+                OwnershipTransferCase.type == OwnershipTransferType[type_raw]
+            )
         except KeyError:
             return []
     status_raw = (filters.get("status") or "").strip().upper()
     if status_raw:
         try:
-            query = query.filter(OwnershipTransferCase.status == OwnershipTransferStatus[status_raw])
+            query = query.filter(
+                OwnershipTransferCase.status == OwnershipTransferStatus[status_raw]
+            )
         except KeyError:
             return []
     contract_id = (filters.get("contract_id") or "").strip()
@@ -2679,13 +3122,17 @@ def list_ownership_cases(filters: dict[str, str]) -> list[OwnershipTransferCase]
         query = query.filter(OwnershipTransferCase.contract_id == int(contract_id))
     sepultura_id = (filters.get("sepultura_id") or "").strip()
     if sepultura_id.isdigit():
-        query = query.join(DerechoFunerarioContrato, DerechoFunerarioContrato.id == OwnershipTransferCase.contract_id)
+        query = query.join(
+            DerechoFunerarioContrato,
+            DerechoFunerarioContrato.id == OwnershipTransferCase.contract_id,
+        )
         query = query.filter(DerechoFunerarioContrato.sepultura_id == int(sepultura_id))
     opened_from = (filters.get("opened_from") or "").strip()
     if opened_from:
         try:
             query = query.filter(
-                OwnershipTransferCase.opened_at >= datetime.fromisoformat(f"{opened_from}T00:00:00")
+                OwnershipTransferCase.opened_at
+                >= datetime.fromisoformat(f"{opened_from}T00:00:00")
             )
         except ValueError:
             return []
@@ -2693,7 +3140,8 @@ def list_ownership_cases(filters: dict[str, str]) -> list[OwnershipTransferCase]
     if opened_to:
         try:
             query = query.filter(
-                OwnershipTransferCase.opened_at <= datetime.fromisoformat(f"{opened_to}T23:59:59")
+                OwnershipTransferCase.opened_at
+                <= datetime.fromisoformat(f"{opened_to}T23:59:59")
             )
         except ValueError:
             return []
@@ -2710,7 +3158,9 @@ def list_ownership_cases(filters: dict[str, str]) -> list[OwnershipTransferCase]
     return rows
 
 
-def create_ownership_case(payload: dict[str, str], user_id: int | None) -> OwnershipTransferCase:
+def create_ownership_case(
+    payload: dict[str, str], user_id: int | None
+) -> OwnershipTransferCase:
     raw_contract = str(payload.get("contract_id") or "").strip()
     if not raw_contract.isdigit():
         raise ValueError("Contrato invalido")
@@ -2722,7 +3172,11 @@ def create_ownership_case(payload: dict[str, str], user_id: int | None) -> Owner
     if transfer_type == OwnershipTransferType.MORTIS_CAUSA_CON_BENEFICIARIO:
         beneficiary_for_new_holder = active_beneficiario_for_contract(contract.id)
         if not beneficiary_for_new_holder:
-            raise ValueError(translate("validation.transfer.beneficiary_required_for_mortis_with_beneficiary"))
+            raise ValueError(
+                translate(
+                    "validation.transfer.beneficiary_required_for_mortis_with_beneficiary"
+                )
+            )
     case = OwnershipTransferCase(
         org_id=org_id(),
         case_number=_next_transfer_number("TR", datetime.now(timezone.utc).year),
@@ -2740,7 +3194,10 @@ def create_ownership_case(payload: dict[str, str], user_id: int | None) -> Owner
         case.assigned_to_user_id = None
 
     if transfer_type == OwnershipTransferType.PROVISIONAL:
-        provisional_start = _parse_optional_iso_date(payload.get("provisional_start_date")) or date.today()
+        provisional_start = (
+            _parse_optional_iso_date(payload.get("provisional_start_date"))
+            or date.today()
+        )
         case.provisional_start_date = provisional_start
         case.provisional_until = _add_years(provisional_start, 10)
 
@@ -2767,8 +3224,19 @@ def create_ownership_case(payload: dict[str, str], user_id: int | None) -> Owner
                 person_id=beneficiary_for_new_holder.person_id,
             )
         )
-    _log_case_movement(contract, MovimientoTipo.INICIO_TRANSMISION, f"Inicio de transmision {case.case_number}", user_id)
-    _log_contract_event(contract.id, case.id, "INICIO_TRANSMISION", f"Caso {case.case_number} creado", user_id)
+    _log_case_movement(
+        contract,
+        MovimientoTipo.INICIO_TRANSMISION,
+        f"Inicio de transmision {case.case_number}",
+        user_id,
+    )
+    _log_contract_event(
+        contract.id,
+        case.id,
+        "INICIO_TRANSMISION",
+        f"Caso {case.case_number} creado",
+        user_id,
+    )
     db.session.commit()
     return case
 
@@ -2777,7 +3245,11 @@ def ownership_case_detail(case_id: int) -> dict[str, object]:
     case = _get_case_or_404(case_id)
     current_owner = active_titular_for_contract(case.contract_id)
     active_beneficiary = active_beneficiario_for_contract(case.contract_id)
-    required_pending = [d for d in case.documents if d.required and d.status != CaseDocumentStatus.VERIFIED]
+    required_pending = [
+        d
+        for d in case.documents
+        if d.required and d.status != CaseDocumentStatus.VERIFIED
+    ]
     return {
         "case": case,
         "contract": case.contract,
@@ -2811,7 +3283,9 @@ def add_case_party(case_id: int, payload: dict[str, str]) -> OwnershipTransferPa
         )
 
     if role != OwnershipPartyRole.OTRO:
-        OwnershipTransferParty.query.filter_by(org_id=org_id(), case_id=case.id, role=role).delete()
+        OwnershipTransferParty.query.filter_by(
+            org_id=org_id(), case_id=case.id, role=role
+        ).delete()
 
     percentage_raw = (payload.get("percentage") or "").strip().replace(",", ".")
     percentage = Decimal(percentage_raw) if percentage_raw else None
@@ -2850,9 +3324,13 @@ def add_case_publication(case_id: int, payload: dict[str, str]) -> Publication:
     return publication
 
 
-def upload_case_document(case_id: int, doc_id: int, file_obj: FileStorage, user_id: int | None) -> CaseDocument:
+def upload_case_document(
+    case_id: int, doc_id: int, file_obj: FileStorage, user_id: int | None
+) -> CaseDocument:
     case = _get_case_or_404(case_id)
-    document = CaseDocument.query.filter_by(org_id=org_id(), case_id=case.id, id=doc_id).first()
+    document = CaseDocument.query.filter_by(
+        org_id=org_id(), case_id=case.id, id=doc_id
+    ).first()
     if not document:
         raise ValueError("Documento no encontrado")
     if not file_obj or not file_obj.filename:
@@ -2863,11 +3341,18 @@ def upload_case_document(case_id: int, doc_id: int, file_obj: FileStorage, user_
     root.mkdir(parents=True, exist_ok=True)
     absolute = root / filename
     file_obj.save(absolute)
-    document.file_path = absolute.relative_to(Path(current_app.instance_path)).as_posix()
+    document.file_path = absolute.relative_to(
+        Path(current_app.instance_path)
+    ).as_posix()
     document.uploaded_at = datetime.now(timezone.utc)
     document.status = CaseDocumentStatus.PROVIDED
     db.session.add(document)
-    _log_case_movement(case.contract, MovimientoTipo.DOCUMENTO_SUBIDO, f"Documento {document.doc_type} subido", user_id)
+    _log_case_movement(
+        case.contract,
+        MovimientoTipo.DOCUMENTO_SUBIDO,
+        f"Documento {document.doc_type} subido",
+        user_id,
+    )
     _log_contract_event(
         case.contract_id,
         case.id,
@@ -2879,9 +3364,13 @@ def upload_case_document(case_id: int, doc_id: int, file_obj: FileStorage, user_
     return document
 
 
-def verify_case_document(case_id: int, doc_id: int, action: str, notes: str, user_id: int | None) -> CaseDocument:
+def verify_case_document(
+    case_id: int, doc_id: int, action: str, notes: str, user_id: int | None
+) -> CaseDocument:
     case = _get_case_or_404(case_id)
-    document = CaseDocument.query.filter_by(org_id=org_id(), case_id=case.id, id=doc_id).first()
+    document = CaseDocument.query.filter_by(
+        org_id=org_id(), case_id=case.id, id=doc_id
+    ).first()
     if not document:
         raise ValueError("Documento no encontrado")
     normalized = (action or "").strip().lower()
@@ -2904,7 +3393,9 @@ def verify_case_document(case_id: int, doc_id: int, action: str, notes: str, use
 
 def ownership_case_document_download(case_id: int, doc_id: int) -> tuple[bytes, str]:
     case = _get_case_or_404(case_id)
-    document = CaseDocument.query.filter_by(org_id=org_id(), case_id=case.id, id=doc_id).first()
+    document = CaseDocument.query.filter_by(
+        org_id=org_id(), case_id=case.id, id=doc_id
+    ).first()
     if not document:
         raise ValueError("Documento no encontrado")
     if not document.file_path:
@@ -2916,7 +3407,9 @@ def ownership_case_document_download(case_id: int, doc_id: int) -> tuple[bytes, 
     return absolute.read_bytes(), absolute.name
 
 
-def change_ownership_case_status(case_id: int, new_status_raw: str, user_id: int | None) -> OwnershipTransferCase:
+def change_ownership_case_status(
+    case_id: int, new_status_raw: str, user_id: int | None
+) -> OwnershipTransferCase:
     case = _get_case_or_404(case_id)
     new_status = _parse_transfer_status(new_status_raw)
     _transition_case_status(case, new_status)
@@ -2928,19 +3421,37 @@ def approve_ownership_case(case_id: int, user_id: int | None) -> OwnershipTransf
     case = _get_case_or_404(case_id)
     _transition_case_status(case, OwnershipTransferStatus.APPROVED)
     _ensure_resolution_pdf(case)
-    _log_case_movement(case.contract, MovimientoTipo.APROBACION, f"Caso {case.case_number} aprobado", user_id)
-    _log_contract_event(case.contract_id, case.id, "APROBACION", f"Caso {case.case_number} aprobado", user_id)
+    _log_case_movement(
+        case.contract,
+        MovimientoTipo.APROBACION,
+        f"Caso {case.case_number} aprobado",
+        user_id,
+    )
+    _log_contract_event(
+        case.contract_id,
+        case.id,
+        "APROBACION",
+        f"Caso {case.case_number} aprobado",
+        user_id,
+    )
     db.session.commit()
     return case
 
 
-def reject_ownership_case(case_id: int, reason: str, user_id: int | None) -> OwnershipTransferCase:
+def reject_ownership_case(
+    case_id: int, reason: str, user_id: int | None
+) -> OwnershipTransferCase:
     case = _get_case_or_404(case_id)
     _transition_case_status(case, OwnershipTransferStatus.REJECTED)
     case.rejection_reason = (reason or "").strip()
     if not case.rejection_reason:
         raise ValueError("Motivo de rechazo obligatorio")
-    _log_case_movement(case.contract, MovimientoTipo.RECHAZO, f"Caso {case.case_number} rechazado", user_id)
+    _log_case_movement(
+        case.contract,
+        MovimientoTipo.RECHAZO,
+        f"Caso {case.case_number} rechazado",
+        user_id,
+    )
     _log_contract_event(
         case.contract_id,
         case.id,
@@ -2952,10 +3463,16 @@ def reject_ownership_case(case_id: int, reason: str, user_id: int | None) -> Own
     return case
 
 
-def _validate_case_ready_to_close(case: OwnershipTransferCase, payload: dict[str, str]) -> None:
+def _validate_case_ready_to_close(
+    case: OwnershipTransferCase, payload: dict[str, str]
+) -> None:
     if case.status != OwnershipTransferStatus.APPROVED:
         raise ValueError("Solo se pueden cerrar casos en estado APPROVED")
-    pending_required = [d for d in case.documents if d.required and d.status != CaseDocumentStatus.VERIFIED]
+    pending_required = [
+        d
+        for d in case.documents
+        if d.required and d.status != CaseDocumentStatus.VERIFIED
+    ]
     if pending_required:
         raise ValueError("Faltan documentos obligatorios verificados")
     new_owner = _case_party(case, OwnershipPartyRole.NUEVO_TITULAR)
@@ -2963,22 +3480,41 @@ def _validate_case_ready_to_close(case: OwnershipTransferCase, payload: dict[str
         raise ValueError("Debes informar la parte NUEVO_TITULAR")
     if case.type == OwnershipTransferType.PROVISIONAL:
         has_bop = any((pub.channel or "").upper() == "BOP" for pub in case.publications)
-        has_other = any((pub.channel or "").upper() != "BOP" for pub in case.publications)
+        has_other = any(
+            (pub.channel or "").upper() != "BOP" for pub in case.publications
+        )
         if not (has_bop and has_other):
-            raise ValueError("El caso provisional requiere publicacion en BOP y en otro canal")
+            raise ValueError(
+                "El caso provisional requiere publicacion en BOP y en otro canal"
+            )
     decision_raw = (payload.get("beneficiary_close_decision") or "").strip().upper()
     if decision_raw == BeneficiaryCloseDecision.REPLACE.value:
         for doc_type in BENEFICIARY_REPLACE_REQUIRED_DOC_TYPES:
-            document = next((doc for doc in case.documents if doc.doc_type == doc_type), None)
+            document = next(
+                (doc for doc in case.documents if doc.doc_type == doc_type), None
+            )
             if not document or document.status != CaseDocumentStatus.VERIFIED:
-                raise ValueError(translate("validation.transfer.beneficiary_replace_docs_missing"))
+                raise ValueError(
+                    translate("validation.transfer.beneficiary_replace_docs_missing")
+                )
     if case.type == OwnershipTransferType.INTER_VIVOS:
-        relation_doc = next((doc for doc in case.documents if doc.doc_type == "ACREDITACION_PARENTESCO_2_GRADO"), None)
+        relation_doc = next(
+            (
+                doc
+                for doc in case.documents
+                if doc.doc_type == "ACREDITACION_PARENTESCO_2_GRADO"
+            ),
+            None,
+        )
         if not relation_doc or relation_doc.status != CaseDocumentStatus.VERIFIED:
-            raise ValueError(translate("validation.transfer.intervivos_requires_second_degree_doc"))
+            raise ValueError(
+                translate("validation.transfer.intervivos_requires_second_degree_doc")
+            )
 
 
-def close_ownership_case(case_id: int, payload: dict[str, str], user_id: int | None) -> OwnershipTransferCase:
+def close_ownership_case(
+    case_id: int, payload: dict[str, str], user_id: int | None
+) -> OwnershipTransferCase:
     # Spec Cementiri: ver cementerio_extract.md (9.1.5)
     case = _get_case_or_404(case_id)
     if case.type == OwnershipTransferType.MORTIS_CAUSA_CON_BENEFICIARIO:
@@ -2986,7 +3522,11 @@ def close_ownership_case(case_id: int, payload: dict[str, str], user_id: int | N
         if not new_holder:
             active_beneficiary = active_beneficiario_for_contract(case.contract_id)
             if not active_beneficiary:
-                raise ValueError(translate("validation.transfer.beneficiary_required_for_mortis_with_beneficiary"))
+                raise ValueError(
+                    translate(
+                        "validation.transfer.beneficiary_required_for_mortis_with_beneficiary"
+                    )
+                )
             db.session.add(
                 OwnershipTransferParty(
                     org_id=org_id(),
@@ -3007,7 +3547,12 @@ def close_ownership_case(case_id: int, payload: dict[str, str], user_id: int | N
         db.session.add(previous_owner)
 
     new_owner_party = _case_party(case, OwnershipPartyRole.NUEVO_TITULAR)
-    is_pensioner = (payload.get("is_pensioner") or "").lower() in {"1", "on", "true", "yes"}
+    is_pensioner = (payload.get("is_pensioner") or "").lower() in {
+        "1",
+        "on",
+        "true",
+        "yes",
+    }
     pensioner_since_date = _parse_optional_iso_date(payload.get("pensioner_since_date"))
     new_record = OwnershipRecord(
         org_id=org_id(),
@@ -3017,7 +3562,11 @@ def close_ownership_case(case_id: int, payload: dict[str, str], user_id: int | N
         is_pensioner=is_pensioner,
         pensioner_since_date=pensioner_since_date,
         is_provisional=case.type == OwnershipTransferType.PROVISIONAL,
-        provisional_until=case.provisional_until if case.type == OwnershipTransferType.PROVISIONAL else None,
+        provisional_until=(
+            case.provisional_until
+            if case.type == OwnershipTransferType.PROVISIONAL
+            else None
+        ),
     )
     db.session.add(new_record)
 
@@ -3032,14 +3581,19 @@ def close_ownership_case(case_id: int, payload: dict[str, str], user_id: int | N
             raise ValueError("Decision de beneficiario invalida") from exc
         case.beneficiary_close_decision = decision
         if decision == BeneficiaryCloseDecision.REPLACE:
-            beneficiary_person_id_raw = (payload.get("beneficiary_person_id") or "").strip()
+            beneficiary_person_id_raw = (
+                payload.get("beneficiary_person_id") or ""
+            ).strip()
             if beneficiary_person_id_raw.isdigit():
-                new_beneficiary_person = _person_by_org(int(beneficiary_person_id_raw), "beneficiario")
+                new_beneficiary_person = _person_by_org(
+                    int(beneficiary_person_id_raw), "beneficiario"
+                )
             else:
                 new_beneficiary_person = _create_or_reuse_person(
                     payload.get("beneficiary_first_name", ""),
                     payload.get("beneficiary_last_name", ""),
-                    payload.get("beneficiary_dni_nif") or payload.get("beneficiary_document_id"),
+                    payload.get("beneficiary_dni_nif")
+                    or payload.get("beneficiary_document_id"),
                 )
             if not new_beneficiary_person:
                 raise ValueError("Debes indicar el nuevo beneficiario")
@@ -3060,8 +3614,12 @@ def close_ownership_case(case_id: int, payload: dict[str, str], user_id: int | N
     previous_name = previous_owner.person.full_name if previous_owner else "-"
     new_name = new_owner_party.person.full_name
     detail = f"Cambio titularidad {previous_name} -> {new_name} ({case.case_number})"
-    _log_case_movement(case.contract, MovimientoTipo.CAMBIO_TITULARIDAD, detail, user_id)
-    _log_contract_event(case.contract_id, case.id, "CAMBIO_TITULARIDAD", detail, user_id)
+    _log_case_movement(
+        case.contract, MovimientoTipo.CAMBIO_TITULARIDAD, detail, user_id
+    )
+    _log_contract_event(
+        case.contract_id, case.id, "CAMBIO_TITULARIDAD", detail, user_id
+    )
     db.session.commit()
     return case
 
@@ -3076,4 +3634,3 @@ def ownership_case_resolution_pdf(case_id: int) -> tuple[bytes, str]:
         db.session.commit()
         absolute = Path(current_app.instance_path) / case.resolution_pdf_path
     return absolute.read_bytes(), absolute.name
-
