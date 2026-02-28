@@ -30,6 +30,24 @@
         <input type="number" name="numero" value="{{ filters.numero }}">
       </div>
       <div>
+        <label>Modalitat</label>
+        <select name="modalidad">
+          <option value="">{{ t('search.all') }}</option>
+          {% for modalidad in modalidades %}
+          <option value="{{ modalidad }}" {% if filters.modalidad == modalidad %}selected{% endif %}>{{ modalidad }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Estado</label>
+        <select name="estado">
+          <option value="">{{ t('search.all') }}</option>
+          {% for state in sepultura_states %}
+          <option value="{{ state }}" {% if filters.estado == state %}selected{% endif %}>{{ state }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
         <label>{{ t('field.row') }}</label>
         <input type="number" name="fila" value="{{ filters.fila }}">
       </div>
@@ -44,6 +62,12 @@
       <div>
         <label>{{ t('field.deceased') }}</label>
         <input type="text" name="difunto" value="{{ filters.difunto }}">
+      </div>
+      <div class="search-debt-check">
+        <label>
+          <input type="checkbox" name="con_deuda" value="1" {% if filters.con_deuda %}checked{% endif %}>
+          Deuda
+        </label>
       </div>
     </div>
     <div class="actions-row search-actions">

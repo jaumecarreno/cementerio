@@ -940,58 +940,7 @@ def search_sepulturas_paged(
     sort_by: str = "ubicacion",
     sort_dir: str = "asc",
 ) -> dict[str, object]:
-    oid = org_id()
-    query = Sepultura.query.filter_by(org_id=oid)
-
-    if filters.get("bloque"):
-        query = query.filter(Sepultura.bloque.ilike(f"%{filters['bloque']}%"))
-    if filters.get("fila"):
-        try:
-            query = query.filter(Sepultura.fila == int(filters["fila"]))
-        except ValueError:
-            return {
-                "rows": [],
-                "total": 0,
-                "shown": 0,
-                "page": 1,
-                "page_size": page_size,
-                "total_pages": 1,
-                "has_prev": False,
-                "has_next": False,
-            }
-    if filters.get("columna"):
-        try:
-            query = query.filter(Sepultura.columna == int(filters["columna"]))
-        except ValueError:
-            return {
-                "rows": [],
-                "total": 0,
-                "shown": 0,
-                "page": 1,
-                "page_size": page_size,
-                "total_pages": 1,
-                "has_prev": False,
-                "has_next": False,
-            }
-    if filters.get("numero"):
-        try:
-            query = query.filter(Sepultura.numero == int(filters["numero"]))
-        except ValueError:
-            return {
-                "rows": [],
-                "total": 0,
-                "shown": 0,
-                "page": 1,
-                "page_size": page_size,
-                "total_pages": 1,
-                "has_prev": False,
-                "has_next": False,
-            }
-
-    sepulturas = query.order_by(
-        Sepultura.bloque, Sepultura.fila, Sepultura.columna, Sepultura.numero
-    ).all()
-    if not sepulturas:
+    def _empty_result() -> dict[str, object]:
         return {
             "rows": [],
             "total": 0,
@@ -1002,6 +951,48 @@ def search_sepulturas_paged(
             "has_prev": False,
             "has_next": False,
         }
+
+    oid = org_id()
+    query = Sepultura.query.filter_by(org_id=oid)
+
+    if filters.get("bloque"):
+        query = query.filter(Sepultura.bloque.ilike(f"%{filters['bloque']}%"))
+    if filters.get("fila"):
+        try:
+            query = query.filter(Sepultura.fila == int(filters["fila"]))
+        except ValueError:
+            return _empty_result()
+    if filters.get("columna"):
+        try:
+            query = query.filter(Sepultura.columna == int(filters["columna"]))
+        except ValueError:
+            return _empty_result()
+    if filters.get("numero"):
+        try:
+            query = query.filter(Sepultura.numero == int(filters["numero"]))
+        except ValueError:
+            return _empty_result()
+    if filters.get("modalidad"):
+        query = query.filter(Sepultura.modalidad == filters["modalidad"])
+    if filters.get("estado"):
+        status_raw = (filters.get("estado") or "").strip().upper()
+        try:
+            query = query.filter(Sepultura.estado == SepulturaEstado[status_raw])
+        except KeyError:
+            return _empty_result()
+
+    only_with_debt = (filters.get("con_deuda") or "").strip().lower() in {
+        "1",
+        "on",
+        "true",
+        "yes",
+    }
+
+    sepulturas = query.order_by(
+        Sepultura.bloque, Sepultura.fila, Sepultura.columna, Sepultura.numero
+    ).all()
+    if not sepulturas:
+        return _empty_result()
 
     titular_filter = filters.get("titular", "").strip().lower()
     difunto_filter = filters.get("difunto", "").strip().lower()
@@ -1031,6 +1022,8 @@ def search_sepulturas_paged(
         if titular_filter and titular_filter not in titular_name.lower():
             continue
         if difunto_filter and not any(difunto_filter in d.lower() for d in difuntos):
+            continue
+        if only_with_debt and debt <= Decimal("0.00"):
             continue
 
         rows.append(
@@ -1091,6 +1084,17 @@ def list_sepultura_blocks() -> list[str]:
         .all()
     )
     return [str(bloque) for (bloque,) in rows if bloque]
+
+
+def list_sepultura_modalidades() -> list[str]:
+    rows = (
+        db.session.query(Sepultura.modalidad)
+        .filter(Sepultura.org_id == org_id())
+        .distinct()
+        .order_by(Sepultura.modalidad.asc())
+        .all()
+    )
+    return [str(modalidad) for (modalidad,) in rows if modalidad]
 
 
 def sepultura_by_id(sepultura_id: int) -> Sepultura:

@@ -7,6 +7,7 @@ from io import BytesIO
 from app.core.extensions import db
 from app.core.models import (
     Beneficiario,
+    Cemetery,
     CaseDocument,
     CaseDocumentStatus,
     ContractEvent,
@@ -85,6 +86,55 @@ def test_vertical_flow_search_to_collect(app, client, login_admin):
             TasaMantenimientoTicket.id.in_([int(t) for t in ticket_ids])
         ).all()
         assert all(t.estado == TicketEstado.COBRADO for t in updated)
+
+
+def test_search_graves_filters_by_modalidad_estado_deuda_and_shows_sepultura_id(
+    app, client, login_admin
+):
+    login_admin()
+    with app.app_context():
+        cemetery = Cemetery.query.order_by(Cemetery.id.asc()).first()
+        sep = Sepultura(
+            org_id=cemetery.org_id,
+            cemetery_id=cemetery.id,
+            bloque="ZZ-TST",
+            fila=1,
+            columna=1,
+            via="V-TEST",
+            numero=9901,
+            modalidad="Modalitat Test",
+            estado=SepulturaEstado.DISPONIBLE,
+            tipo_bloque="Ninxols",
+            tipo_lapida="Resina",
+            orientacion="Nord",
+        )
+        db.session.add(sep)
+        db.session.commit()
+        expected_location = f"ZZ-TST / F1 C1 / N9901 - {sep.id}".encode()
+
+    base = client.post("/cementerio/sepulturas/buscar", data={"bloque": "ZZ-TST"})
+    assert base.status_code == 200
+    assert expected_location in base.data
+
+    by_modalidad = client.post(
+        "/cementerio/sepulturas/buscar", data={"modalidad": "Modalitat Test"}
+    )
+    assert by_modalidad.status_code == 200
+    assert expected_location in by_modalidad.data
+
+    wrong_state = client.post(
+        "/cementerio/sepulturas/buscar",
+        data={"bloque": "ZZ-TST", "estado": SepulturaEstado.LLIURE.value},
+    )
+    assert wrong_state.status_code == 200
+    assert expected_location not in wrong_state.data
+
+    only_deuda = client.post(
+        "/cementerio/sepulturas/buscar",
+        data={"bloque": "ZZ-TST", "con_deuda": "1"},
+    )
+    assert only_deuda.status_code == 200
+    assert expected_location not in only_deuda.data
 
 
 def test_contract_creation_and_pdf_title(app, client, login_admin):

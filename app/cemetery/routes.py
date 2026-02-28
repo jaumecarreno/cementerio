@@ -48,6 +48,7 @@ from app.cemetery.services import (
     list_people,
     list_people_paged,
     list_sepultura_blocks,
+    list_sepultura_modalidades,
     nominate_contract_beneficiary,
     ownership_case_document_download,
     ownership_case_detail,
@@ -466,6 +467,9 @@ def search_graves():
         "fila": request.values.get("fila", "").strip(),
         "columna": request.values.get("columna", "").strip(),
         "numero": request.values.get("numero", "").strip(),
+        "modalidad": request.values.get("modalidad", "").strip(),
+        "estado": request.values.get("estado", "").strip(),
+        "con_deuda": request.values.get("con_deuda", "").strip(),
         "titular": request.values.get("titular", "").strip(),
         "difunto": request.values.get("difunto", "").strip(),
     }
@@ -506,6 +510,8 @@ def search_graves():
         sort_dir=sort_dir,
         money=money,
         blocks=list_sepultura_blocks(),
+        modalidades=list_sepultura_modalidades(),
+        sepultura_states=[state.value for state in SepulturaEstado],
     )
 
 

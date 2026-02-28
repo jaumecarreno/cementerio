@@ -830,6 +830,11 @@ tr:last-child td {
   padding-top: 12px;
 }
 
+.search-debt-check {
+  display: flex;
+  align-items: flex-end;
+}
+
 .search-results-wrap .box,
 .search-results-box {
   border-radius: 14px;
