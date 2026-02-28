@@ -23,6 +23,7 @@ Source of truth:
 
 - Un unico titular actual por contrato (`ownership_record.end_date IS NULL`) mediante indice unico parcial.
 - Un unico beneficiario activo por contrato (`beneficiario.activo_hasta IS NULL`) mediante indice unico parcial.
+- Una sepultura puede tener 0..n difuntos asociados mediante `sepultura_difunto`.
 - Cierre de caso aprobado aplica titularidad en transaccion:
   - cierre de titular anterior
   - alta de nuevo titular
@@ -30,6 +31,31 @@ Source of truth:
   - `ContractEvent` espejo
 - Cierre bloqueado si faltan documentos obligatorios en `VERIFIED`.
 - En caso provisional, cierre bloqueado sin publicaciones en `BOP` y otro canal.
+
+## Modelo funcional reorganizado (titular, beneficiario y difuntos)
+
+### 1) Titular (quien contrata la concesion)
+- El **titular** es la persona que figura como responsable del derecho funerario.
+- Se modela por contrato en `OwnershipRecord` (activo + historico).
+- Regla operativa: por contrato solo puede existir **un titular activo**.
+
+### 2) Beneficiario (cambio rapido por fallecimiento del titular)
+- El **beneficiario** es una designacion vinculada al contrato para simplificar el cambio de titularidad cuando fallece el titular.
+- Se modela en `Beneficiario` y puede mantenerse o sustituirse durante el cierre de un caso de transmision.
+- Regla operativa: por contrato solo puede existir **un beneficiario activo**.
+
+### 3) Difuntos asociados a la sepultura
+- Los **difuntos no forman parte de la titularidad**: se gestionan aparte, ligados a la sepultura fisica.
+- Se modelan en `SepulturaDifunto`.
+- Regla operativa: una sepultura (nicho, columbario, panteon, etc.) puede tener **varios difuntos**.
+
+### 4) Resumen de relaciones
+- `Sepultura` -> `DerechoFunerarioContrato` (contrato activo/historico).
+- `DerechoFunerarioContrato` -> `OwnershipRecord` (titular activo/historico).
+- `DerechoFunerarioContrato` -> `Beneficiario` (beneficiario activo/historico).
+- `Sepultura` -> `SepulturaDifunto` (uno o varios difuntos).
+
+Esta separacion evita mezclar conceptos administrativos (titular/beneficiario) con conceptos de ocupacion fisica (difuntos inhumados).
 
 ## Endpoints de titularidad (MVP)
 
