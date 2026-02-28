@@ -14,6 +14,7 @@ from sqlalchemy.orm import joinedload
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 
+from app.core.demo_people import generate_demo_names, is_generic_demo_name
 from app.core.extensions import db
 from app.core.i18n import translate
 from app.core.models import (
@@ -2376,116 +2377,15 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
     oid = org_id()
     cemetery = _ensure_demo_cemetery(oid)
 
-    holder_first_names = (
-        "Jose",
-        "Antonio",
-        "Manuel",
-        "Francisco",
-        "David",
-        "Javier",
-        "Juan",
-        "Carlos",
-        "Daniel",
-        "Miguel",
-        "Maria",
-        "Carmen",
-        "Ana",
-        "Laura",
-        "Isabel",
-        "Marta",
-        "Elena",
-        "Rosa",
-        "Silvia",
-        "Lucia",
-        "Jordi",
-        "Pere",
-        "Joan",
-        "Montserrat",
-        "Nuria",
-        "Merce",
-    )
-    extra_first_names = (
-        "Adria",
-        "Aina",
-        "Albert",
-        "Aleix",
-        "Alba",
-        "Alex",
-        "Amparo",
-        "Andrea",
-        "Arnau",
-        "Berta",
-        "Carla",
-        "Celia",
-        "Claudia",
-        "Cristina",
-        "Dolors",
-        "Eloi",
-        "Emma",
-        "Eric",
-        "Eva",
-        "Felix",
-        "Gemma",
-        "Hector",
-        "Irene",
-        "Ivan",
-        "Laia",
-        "Lluis",
-        "Lola",
-        "Marc",
-        "Mireia",
-        "Noelia",
-        "Oriol",
-        "Paula",
-        "Raul",
-        "Ruben",
-        "Sergi",
-        "Sonia",
-        "Teresa",
-        "Victor",
-    )
-    last_names = (
-        "Garcia",
-        "Martinez",
-        "Lopez",
-        "Sanchez",
-        "Perez",
-        "Gonzalez",
-        "Rodriguez",
-        "Fernandez",
-        "Alvarez",
-        "Ruiz",
-        "Moreno",
-        "Romero",
-        "Navarro",
-        "Torres",
-        "Dominguez",
-        "Vidal",
-        "Riera",
-        "Pons",
-        "Puig",
-        "Soler",
-        "Mora",
-        "Serra",
-        "Casals",
-        "Costa",
-        "Ferrer",
-        "Prat",
-        "Ribas",
-        "Campos",
-        "Ibanez",
-        "Serrano",
-        "Ortega",
-        "Mendez",
-    )
+    holder_names = generate_demo_names(300, offset=0)
+    extra_names = generate_demo_names(180, offset=97)
 
     holders: list[Person] = []
     extras: list[Person] = []
     for idx in range(1, 301):
-        first_name = holder_first_names[(idx - 1) % len(holder_first_names)]
-        last_name = (
-            f"{last_names[(idx - 1) % len(last_names)]} {last_names[(idx + 7) % len(last_names)]}"
-        )
+        first_name, last_name = holder_names[idx - 1]
+        if is_generic_demo_name(first_name, last_name):
+            raise ValueError(f"Invalid generic holder name generated: {first_name} {last_name}")
         holders.append(
             Person(
                 org_id=oid,
@@ -2503,10 +2403,9 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
             )
         )
     for idx in range(1, 181):
-        first_name = extra_first_names[(idx - 1) % len(extra_first_names)]
-        last_name = (
-            f"{last_names[(idx + 3) % len(last_names)]} {last_names[(idx + 15) % len(last_names)]}"
-        )
+        first_name, last_name = extra_names[idx - 1]
+        if is_generic_demo_name(first_name, last_name):
+            raise ValueError(f"Invalid generic related-person name generated: {first_name} {last_name}")
         extras.append(
             Person(
                 org_id=oid,

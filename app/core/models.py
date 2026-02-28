@@ -9,6 +9,7 @@ from sqlalchemy import CheckConstraint, Enum as SAEnum, ForeignKey, Index, Uniqu
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym, validates
 from werkzeug.security import generate_password_hash
 
+from app.core.demo_people import is_generic_demo_name
 from app.core.extensions import db
 
 
@@ -815,6 +816,11 @@ def ticket_after_update(_mapper, connection, target: TasaMantenimientoTicket) ->
 
 
 def seed_demo_data(session) -> None:
+    def _assert_non_generic_person(*persons: Person) -> None:
+        for person in persons:
+            if is_generic_demo_name(person.first_name, person.last_name):
+                raise ValueError(f"seed_demo_data generated invalid generic person name: {person.full_name}")
+
     org = Organization(name="SMSFT Demo", code="SMSFT", pensionista_discount_pct=Decimal("10.00"))
     session.add(org)
     session.flush()
@@ -976,6 +982,7 @@ def seed_demo_data(session) -> None:
         dni_nif="33333333C",
         notas="Registro historico de difunto para demo",
     )
+    _assert_non_generic_person(titular_1, titular_2, titular_3, difunto_1)
     session.add_all([titular_1, titular_2, titular_3, difunto_1])
     session.flush()
 
@@ -1252,6 +1259,14 @@ def seed_demo_data(session) -> None:
         last_name="Puig",
         dni_nif="14141414M",
         notas="Contacto habitual para tramites",
+    )
+    _assert_non_generic_person(
+        successor_1,
+        successor_2,
+        successor_3,
+        extra_person_1,
+        extra_person_2,
+        extra_person_3,
     )
     session.add_all(
         [

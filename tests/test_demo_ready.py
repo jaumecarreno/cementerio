@@ -3,9 +3,11 @@ from __future__ import annotations
 from datetime import date, timedelta
 from io import BytesIO
 from pathlib import Path
+import re
 import subprocess
 import sys
 
+from app.core.demo_people import is_generic_demo_name
 from app.core.extensions import db
 from app.core.models import (
     Beneficiario,
@@ -30,6 +32,11 @@ from app.core.models import (
     SepulturaDifunto,
     TasaMantenimientoTicket,
     TicketEstado,
+)
+
+GENERIC_DEMO_NAME_PATTERNS = (
+    re.compile(r"\bTitular\s+DEMO\d+\b", re.IGNORECASE),
+    re.compile(r"\bPersona\s+Extra\s+\d+\b", re.IGNORECASE),
 )
 
 
@@ -457,6 +464,16 @@ def test_demo_admin_can_load_initial_dataset_and_reset_to_zero(app, client, logi
         assert (
             Expediente.query.filter(Expediente.declarante_id.is_not(None)).count() > 0
         )
+        names = Person.query.with_entities(Person.first_name, Person.last_name).all()
+        generic_names = [
+            f"{first_name} {last_name}".strip()
+            for first_name, last_name in names
+            if is_generic_demo_name(first_name, last_name)
+        ]
+        assert generic_names == []
+        full_names = [f"{first_name} {last_name}".strip() for first_name, last_name in names]
+        for pattern in GENERIC_DEMO_NAME_PATTERNS:
+            assert not any(pattern.search(name) for name in full_names)
         case_types = {row.type for row in OwnershipTransferCase.query.all()}
         assert OwnershipTransferType.MORTIS_CAUSA_CON_BENEFICIARIO in case_types
         blocked_scenarios = (
@@ -500,3 +517,14 @@ def test_demo_actions_can_be_disabled_by_config(app, client, login_admin):
     finally:
         app.config["DEMO_ACTIONS_ENABLED"] = prev_demo_flag
     assert response.status_code == 403
+
+
+def test_seed_demo_data_person_names_are_not_generic(app):
+    with app.app_context():
+        names = Person.query.with_entities(Person.first_name, Person.last_name).all()
+        generic_names = [
+            f"{first_name} {last_name}".strip()
+            for first_name, last_name in names
+            if is_generic_demo_name(first_name, last_name)
+        ]
+        assert generic_names == []
