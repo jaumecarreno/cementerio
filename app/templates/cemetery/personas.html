@@ -46,6 +46,7 @@
         {% set primary_href = url_for('cemetery.person_edit', person_id=person.id) %}
         {% set primary_label = t('common.edit') %}
         {% set primary = false %}
+        {% set primary_icon = 'edit' %}
         {% set secondary_href = '' %}
         {% set secondary_label = '' %}
         {% include "cemetery/_action_cell.html" %}

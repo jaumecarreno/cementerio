@@ -1,6 +1,25 @@
+{% from "partials/icons.html" import action_icon %}
+{% set primary_icon = primary_icon|default('open') %}
+{% set secondary_icon = secondary_icon|default('next') %}
 <td class="actions-cell">
-  <a class="btn {% if primary %}primary{% endif %}" href="{{ primary_href }}">{{ primary_label }}</a>
+  <a
+    class="icon-btn {% if primary %}primary{% endif %}"
+    href="{{ primary_href }}"
+    aria-label="{{ primary_label }}"
+    title="{{ primary_label }}"
+  >
+    {{ action_icon(primary_icon) }}
+    <span class="sr-only">{{ primary_label }}</span>
+  </a>
   {% if secondary_href and secondary_label %}
-  <a class="btn secondary" href="{{ secondary_href }}">{{ secondary_label }}</a>
+  <a
+    class="icon-btn"
+    href="{{ secondary_href }}"
+    aria-label="{{ secondary_label }}"
+    title="{{ secondary_label }}"
+  >
+    {{ action_icon(secondary_icon) }}
+    <span class="sr-only">{{ secondary_label }}</span>
+  </a>
   {% endif %}
 </td>

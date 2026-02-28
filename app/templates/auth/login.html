@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <div class="layout" style="max-width: 560px;">
+  <div class="layout auth-layout">
     <div class="topbar">
       <div class="brand-small">GSF - Cementerio</div>
     </div>
@@ -22,21 +22,23 @@
           </div>
         {% endif %}
       {% endwith %}
-      <form method="post" action="{{ url_for('auth.login_post') }}">
-        <div class="form-grid" style="grid-template-columns: 1fr;">
-          <div>
-            <label>Email</label>
-            <input type="email" name="email" required placeholder="admin@smsft.local">
+      <div class="box">
+        <form method="post" action="{{ url_for('auth.login_post') }}">
+          <div class="form-grid auth-form-grid">
+            <div>
+              <label>Email</label>
+              <input type="email" name="email" required placeholder="admin@smsft.local">
+            </div>
+            <div>
+              <label>Password</label>
+              <input type="password" name="password" required placeholder="admin123">
+            </div>
           </div>
-          <div>
-            <label>Password</label>
-            <input type="password" name="password" required placeholder="admin123">
+          <div class="actions-row">
+            <button type="submit" class="primary">Entrar</button>
           </div>
-        </div>
-        <div class="actions-row">
-          <button type="submit" class="primary">Entrar</button>
-        </div>
-      </form>
+        </form>
+      </div>
       <p class="small muted">Demo: admin@smsft.local / admin123</p>
     </main>
   </div>

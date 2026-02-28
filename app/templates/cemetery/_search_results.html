@@ -1,6 +1,6 @@
 <!-- Spec 5.3.4 - Resultados de búsqueda y acceso a ficha -->
-<div class="box">
-  <p class="small muted">Mostrando {{ paged.shown }} de {{ paged.total }} resultados.</p>
+<div class="box search-results-box">
+  <p class="small muted search-results-caption">Mostrando {{ paged.shown }} de {{ paged.total }} resultados.</p>
   <table class="table-zebra table-sticky-head">
     <thead>
       <tr>
@@ -21,12 +21,14 @@
       <tr>
         <td>{{ row.sepultura.bloque }} / F{{ row.sepultura.fila }} C{{ row.sepultura.columna }} / N{{ row.sepultura.numero }}</td>
         <td>{{ row.sepultura.modalidad }}</td>
-        <td>{{ row.sepultura.estado.value }}</td>
+        {% set status_key = row.sepultura.estado.value|lower %}
+        <td><span class="status-pill status-{{ status_key }}">{{ row.sepultura.estado.value }}</span></td>
         <td>{{ row.titular_name }}</td>
         <td>{{ money(row.deuda) }}</td>
         {% set primary_href = url_for('cemetery.grave_detail', sepultura_id=row.sepultura.id) %}
         {% set primary_label = t('search.open_record') %}
         {% set primary = false %}
+        {% set primary_icon = 'open' %}
         {% set secondary_href = '' %}
         {% set secondary_label = '' %}
         {% include "cemetery/_action_cell.html" %}

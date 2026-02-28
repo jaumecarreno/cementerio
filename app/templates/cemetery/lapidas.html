@@ -6,6 +6,7 @@
 ] %}
 {% block title %}{{ t('cem.engraving') }}{% endblock %}
 {% block content %}
+{% from "partials/icons.html" import action_icon %}
 <h1 class="page-title">{{ t('cem.engraving') }}</h1>
 
 <div class="split">
@@ -200,7 +201,10 @@
         <td>
           {% if row.estado != 'NOTIFICADA' %}
           <form class="inline-form" method="post" action="{{ url_for('cemetery.lapidas_change_inscripcion_state', inscripcion_id=row.id) }}">
-            <button class="btn" type="submit">Avanzar estado</button>
+            <button class="icon-btn" type="submit" aria-label="Avanzar estado" title="Avanzar estado">
+              {{ action_icon('next') }}
+              <span class="sr-only">Avanzar estado</span>
+            </button>
           </form>
           {% else %}
           -

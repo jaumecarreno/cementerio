@@ -7,19 +7,27 @@
   <script>
     (function () {
       const savedTheme = localStorage.getItem("gsf-theme");
-      const initialTheme = savedTheme === "light" || savedTheme === "dark" ? savedTheme : "dark";
+      const initialTheme = savedTheme === "light" || savedTheme === "dark" ? savedTheme : "light";
       document.documentElement.setAttribute("data-theme", initialTheme);
     })();
   </script>
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
+<body data-nav-open="0">
+  {% from "partials/icons.html" import sidebar_icon %}
   {% set active_global = active_global|default('cemetery') %}
   {% set active_cem = active_cem|default('panel') %}
   <div class="layout">
     <div class="topbar">
-      <div class="brand-small">GSF - Gesti&oacute;n de Servicios Funerarios</div>
+      <div class="topbar-left">
+        <button type="button" id="nav-toggle" class="nav-toggle" aria-label="Abrir menu" aria-expanded="false">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+        <div class="brand-small">GSF - Gesti&oacute;n de Servicios Funerarios</div>
+      </div>
       <div class="lang-switch">
         <button
           type="button"
@@ -43,28 +51,53 @@
       </div>
     </div>
     <div class="content">
+      <div id="nav-overlay" class="nav-overlay" hidden></div>
       <aside class="sidebar">
-        <a class="menu-link {% if active_global == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard_page') }}">
-          <span class="menu-label">{{ t('menu.home') }}</span>
-        </a>
-        <a class="menu-link {% if active_cem == 'sepulturas' %}active{% endif %}" href="{{ url_for('cemetery.search_graves') }}">
-          <span class="menu-label">{{ t('cem.graves') }}</span>
-        </a>
-        <a class="menu-link {% if active_cem == 'expedientes' %}active{% endif %}" href="{{ url_for('cemetery.expedientes') }}">
-          <span class="menu-label">{{ t('cem.cases') }}</span>
-        </a>
-        <a class="menu-link {% if active_cem == 'tasas' %}active{% endif %}" href="{{ url_for('cemetery.fees_search') }}">
-          <span class="menu-label">{{ t('cem.fees') }}</span>
-        </a>
-        <a class="menu-link {% if active_cem == 'titularidad' %}active{% endif %}" href="{{ url_for('cemetery.ownership_cases_alias') }}">
-          <span class="menu-label">{{ t('cem.ownership') }}</span>
-        </a>
-        <a class="menu-link {% if active_cem == 'reporting' or active_global == 'reports' %}active{% endif %}" href="{{ url_for('cemetery.reporting') }}">
-          <span class="menu-label">{{ t('menu.reports') }}</span>
-        </a>
-        <a class="menu-link {% if active_global == 'demo' %}active{% endif %}" href="{{ url_for('demo_page') }}">
-          <span class="menu-label">{{ t('menu.demo') }}</span>
-        </a>
+        <div class="sidebar-head">
+          <a class="sidebar-brand" href="{{ url_for('dashboard_page') }}">
+            <span class="sidebar-brand-main">SMSF</span>
+            <span class="sidebar-brand-accent">Terrassa</span>
+          </a>
+        </div>
+        <nav class="sidebar-nav" aria-label="Navegacion principal">
+          <a class="menu-link {% if active_global == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard_page') }}">
+            <span class="menu-icon">{{ sidebar_icon('dashboard') }}</span>
+            <span class="menu-label">{{ t('menu.home') }}</span>
+          </a>
+          <a class="menu-link {% if active_cem == 'sepulturas' %}active{% endif %}" href="{{ url_for('cemetery.search_graves') }}">
+            <span class="menu-icon">{{ sidebar_icon('inventory') }}</span>
+            <span class="menu-label">{{ t('cem.graves') }}</span>
+          </a>
+          <a class="menu-link {% if active_cem == 'expedientes' %}active{% endif %}" href="{{ url_for('cemetery.expedientes') }}">
+            <span class="menu-icon">{{ sidebar_icon('funeral_services') }}</span>
+            <span class="menu-label">{{ t('cem.cases') }}</span>
+          </a>
+          <a class="menu-link {% if active_cem == 'tasas' %}active{% endif %}" href="{{ url_for('cemetery.fees_search') }}">
+            <span class="menu-icon">{{ sidebar_icon('billing') }}</span>
+            <span class="menu-label">{{ t('cem.fees') }}</span>
+          </a>
+          <a class="menu-link {% if active_cem == 'titularidad' %}active{% endif %}" href="{{ url_for('cemetery.ownership_cases_alias') }}">
+            <span class="menu-icon">{{ sidebar_icon('crematorium') }}</span>
+            <span class="menu-label">{{ t('cem.ownership') }}</span>
+          </a>
+          <a class="menu-link {% if active_cem == 'reporting' or active_global == 'reports' %}active{% endif %}" href="{{ url_for('cemetery.reporting') }}">
+            <span class="menu-icon">{{ sidebar_icon('reports') }}</span>
+            <span class="menu-label">{{ t('menu.reports') }}</span>
+          </a>
+          <a class="menu-link {% if active_global == 'demo' %}active{% endif %}" href="{{ url_for('demo_page') }}">
+            <span class="menu-icon">{{ sidebar_icon('settings') }}</span>
+            <span class="menu-label">{{ t('menu.demo') }}</span>
+          </a>
+        </nav>
+        {% if current_user.is_authenticated %}
+        <div class="sidebar-foot">
+          <div class="sidebar-user-avatar">{{ (current_user.full_name or current_user.email or "U")[:1]|upper }}</div>
+          <div class="sidebar-user-meta">
+            <strong>{{ current_user.full_name }}</strong>
+            <span>{{ current_user.email }}</span>
+          </div>
+        </div>
+        {% endif %}
       </aside>
       <main class="main">
         {% if breadcrumbs %}
@@ -166,6 +199,63 @@
       updateToggleLabel();
     })();
   </script>
+  <script>
+    (function () {
+      const body = document.body;
+      const toggle = document.getElementById("nav-toggle");
+      const overlay = document.getElementById("nav-overlay");
+      const sidebar = document.querySelector(".sidebar");
+
+      if (!body || !toggle || !overlay || !sidebar) return;
+
+      function isMobile() {
+        return window.matchMedia("(max-width: 1024px)").matches;
+      }
+
+      function isOpen() {
+        return body.getAttribute("data-nav-open") === "1";
+      }
+
+      function setOpen(nextOpen) {
+        body.setAttribute("data-nav-open", nextOpen ? "1" : "0");
+        toggle.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+        overlay.hidden = !nextOpen;
+      }
+
+      toggle.addEventListener("click", function () {
+        setOpen(!isOpen());
+      });
+
+      overlay.addEventListener("click", function () {
+        setOpen(false);
+      });
+
+      sidebar.querySelectorAll("a").forEach(function (link) {
+        link.addEventListener("click", function () {
+          if (isMobile()) {
+            setOpen(false);
+          }
+        });
+      });
+
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape") {
+          setOpen(false);
+        }
+      });
+
+      const mqDesktop = window.matchMedia("(min-width: 1025px)");
+      const handleDesktopMode = function (event) {
+        if (event.matches) {
+          setOpen(false);
+        }
+      };
+      if (mqDesktop.addEventListener) {
+        mqDesktop.addEventListener("change", handleDesktopMode);
+      } else {
+        mqDesktop.addListener(handleDesktopMode);
+      }
+    })();
+  </script>
 </body>
 </html>
-

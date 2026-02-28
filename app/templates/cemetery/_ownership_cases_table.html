@@ -36,9 +36,13 @@
         <td>{{ ns.prev }} -> {{ ns.new }}</td>
         <td>{{ case.opened_at.date() }}</td>
         <td>{{ case.assigned_to.full_name if case.assigned_to else '-' }}</td>
-        <td>
-          <a class="btn" href="{{ url_for('cemetery.ownership_case_detail_page', case_id=case.id) }}">{{ t('common.open') }}</a>
-        </td>
+        {% set primary_href = url_for('cemetery.ownership_case_detail_page', case_id=case.id) %}
+        {% set primary_label = t('common.open') %}
+        {% set primary = false %}
+        {% set primary_icon = 'open' %}
+        {% set secondary_href = '' %}
+        {% set secondary_label = '' %}
+        {% include "cemetery/_action_cell.html" %}
       </tr>
       {% else %}
       <tr><td colspan="8">{{ t('ownership.no_cases') }}</td></tr>

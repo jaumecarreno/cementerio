@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 {% set active_cem = 'titularidad' %}
-{% block title %}{{ t('ownership.title') }} · {{ data.case.case_number }}{% endblock %}
+{% block title %}{{ t('ownership.title') }} &middot; {{ data.case.case_number }}{% endblock %}
 {% block content %}
-<h1 class="page-title">{{ t('ownership.title') }} · {{ data.case.case_number }}</h1>
+{% from "partials/icons.html" import action_icon %}
+<h1 class="page-title">{{ t('ownership.title') }} &middot; {{ data.case.case_number }}</h1>
 
 <div class="box">
   <h3>{{ t('common.summary') }}</h3>
@@ -105,7 +106,15 @@
         <td>{{ doc.status.value }}</td>
         <td>
           {% if doc.file_path %}
-            <a class="btn" href="{{ url_for('cemetery.ownership_case_download_document', case_id=data.case.id, doc_id=doc.id) }}">{{ t('common.download') }}</a>
+            <a
+              class="icon-btn"
+              href="{{ url_for('cemetery.ownership_case_download_document', case_id=data.case.id, doc_id=doc.id) }}"
+              aria-label="{{ t('common.download') }}"
+              title="{{ t('common.download') }}"
+            >
+              {{ action_icon('download') }}
+              <span class="sr-only">{{ t('common.download') }}</span>
+            </a>
           {% else %}
             -
           {% endif %}
@@ -113,17 +122,26 @@
         <td>
           <form method="post" action="{{ url_for('cemetery.ownership_case_upload_document', case_id=data.case.id, doc_id=doc.id) }}" enctype="multipart/form-data">
             <input type="file" name="file" required>
-            <button class="btn" type="submit">{{ t('common.upload') }}</button>
+            <button class="icon-btn" type="submit" aria-label="{{ t('common.upload') }}" title="{{ t('common.upload') }}">
+              {{ action_icon('upload') }}
+              <span class="sr-only">{{ t('common.upload') }}</span>
+            </button>
           </form>
         </td>
         <td>
           <form class="inline-form" method="post" action="{{ url_for('cemetery.ownership_case_verify_document', case_id=data.case.id, doc_id=doc.id) }}">
             <input type="hidden" name="action" value="verify">
-            <button class="btn" type="submit">OK</button>
+            <button class="icon-btn" type="submit" aria-label="OK" title="OK">
+              {{ action_icon('check') }}
+              <span class="sr-only">OK</span>
+            </button>
           </form>
           <form class="inline-form" method="post" action="{{ url_for('cemetery.ownership_case_verify_document', case_id=data.case.id, doc_id=doc.id) }}">
             <input type="hidden" name="action" value="reject">
-            <button class="btn" type="submit">{{ t('common.reject') }}</button>
+            <button class="icon-btn" type="submit" aria-label="{{ t('common.reject') }}" title="{{ t('common.reject') }}">
+              {{ action_icon('delete') }}
+              <span class="sr-only">{{ t('common.reject') }}</span>
+            </button>
           </form>
         </td>
       </tr>
@@ -215,7 +233,7 @@
         <input type="text" value="{{ data.active_beneficiary.person.full_name if data.active_beneficiary else '-' }}" disabled>
       </div>
       <div>
-        <label>Decisión de beneficiario</label>
+        <label>Decisi&oacute;n de beneficiario</label>
         <select name="beneficiary_close_decision">
           <option value="">(si aplica)</option>
           <option value="KEEP">Mantener</option>
@@ -226,7 +244,7 @@
     {% with
       picker_id='case-beneficiary-' ~ data.case.id,
       field_name='beneficiary_person_id',
-      label='Nuevo beneficiario (si decisión = REPLACE)',
+      label='Nuevo beneficiario (si decisi&oacute;n = REPLACE)',
       selected_person=None,
       required=False
     %}

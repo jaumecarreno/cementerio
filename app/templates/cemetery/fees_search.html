@@ -5,16 +5,17 @@
 {% block content %}
 <h1 class="page-title">{{ t('fees.search_title') }}</h1>
 
-<div class="box">
+<div class="box search-shell">
   <h3>{{ t('search.criteria') }}</h3>
   <form
+    class="search-form"
     method="post"
     action="{{ url_for('cemetery.fees_search') }}"
     hx-post="{{ url_for('cemetery.fees_search') }}"
     hx-target="#fees-search-results"
     hx-swap="innerHTML"
   >
-    <div class="form-grid">
+    <div class="form-grid search-fields">
       <div>
         <label>{{ t('field.block') }}</label>
         <select name="bloque">
@@ -45,14 +46,14 @@
         <input type="text" name="difunto" value="{{ filters.difunto }}">
       </div>
     </div>
-    <div class="actions-row">
+    <div class="actions-row search-actions">
       <a class="btn" href="{{ url_for('cemetery.fees_search') }}">{{ t('common.clear') }}</a>
       <button type="submit" class="primary">{{ t('common.search') }}</button>
     </div>
   </form>
 </div>
 
-<div id="fees-search-results">
+<div id="fees-search-results" class="search-results-wrap">
   {% include "cemetery/_fees_search_results.html" %}
 </div>
 {% endblock %}

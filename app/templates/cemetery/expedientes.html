@@ -125,7 +125,13 @@
         <td>{{ row.difunto.full_name if row.difunto else '-' }}</td>
         <td>{{ row.declarante.full_name if row.declarante else '-' }}</td>
         <td>{{ row.fecha_prevista or '-' }}</td>
-        <td><a class="btn" href="{{ url_for('cemetery.expediente_detail', expediente_id=row.id) }}">{{ t('common.open') }}</a></td>
+        {% set primary_href = url_for('cemetery.expediente_detail', expediente_id=row.id) %}
+        {% set primary_label = t('common.open') %}
+        {% set primary = false %}
+        {% set primary_icon = 'open' %}
+        {% set secondary_href = '' %}
+        {% set secondary_label = '' %}
+        {% include "cemetery/_action_cell.html" %}
       </tr>
       {% else %}
       <tr><td colspan="8">{{ t('cases.none') }}</td></tr>
