@@ -42,6 +42,7 @@
   <a class="tab-link {% if data.tab == 'titularidad' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='titularidad') }}">Titularidad</a>
   <a class="tab-link {% if data.tab == 'titulares' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='titulares') }}">Titulares</a>
   <a class="tab-link {% if data.tab == 'beneficiarios' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='beneficiarios') }}">Beneficiarios</a>
+  <a class="tab-link {% if data.tab == 'difuntos' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='difuntos') }}">Difuntos</a>
   <a class="tab-link {% if data.tab == 'movimientos' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='movimientos') }}">Movimientos</a>
   <a class="tab-link {% if data.tab == 'tasas' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='tasas') }}">Tasas</a>
   <a class="tab-link {% if data.tab == 'derecho' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='derecho') }}">{{ t('cem.rights') }}</a>
@@ -56,6 +57,9 @@
   <p>Tipo bloque: {{ data.sepultura.tipo_bloque }}</p>
   <p>Tipo lapida: {{ data.sepultura.tipo_lapida }}</p>
   <p>Orientacion: {{ data.sepultura.orientacion }}</p>
+  <p>Titular actual: {{ data.active_titular.person.full_name if data.active_titular else '-' }}</p>
+  <p>Beneficiario activo: {{ data.active_beneficiario.person.full_name if data.active_beneficiario else '-' }}</p>
+  <p>Difuntos registrados: {{ data.difuntos|length }}</p>
 </div>
 {% elif data.tab == 'titularidad' %}
 <div class="box">
@@ -234,6 +238,54 @@
   </div>
   {% endif %}
 </div>
+
+{% elif data.tab == 'difuntos' %}
+<div class="box">
+  <h3>Difuntos</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Persona</th>
+        <th>Notas</th>
+        <th>Fecha alta</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d_item in data.difuntos %}
+      <tr>
+        <td><a href="{{ url_for('cemetery.person_edit', person_id=d_item.person.id) }}">{{ d_item.person.full_name }}</a></td>
+        <td>{{ d_item.notes or '-' }}</td>
+        <td>{{ d_item.created_at.date() }}</td>
+        <td>
+          <form method="post" action="{{ url_for('cemetery.remove_deceased', sepultura_id=data.sepultura.id, sepultura_difunto_id=d_item.id) }}">
+            <button class="btn" type="submit">Eliminar</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4">Sin difuntos</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <form method="post" action="{{ url_for('cemetery.add_deceased', sepultura_id=data.sepultura.id) }}">
+    {% with
+      picker_id='difuntos-tab-' ~ data.sepultura.id,
+      field_name='person_id',
+      label='Difunto',
+      selected_person=None,
+      required=True
+    %}
+      {% include "components/person_picker.html" %}
+    {% endwith %}
+    <label>Notas</label>
+    <input type="text" name="notes" placeholder="Observaciones de inhumación">
+    <div class="actions-row">
+      <button class="btn primary" type="submit">Registrar difunto</button>
+    </div>
+  </form>
+</div>
+
 {% elif data.tab == 'tasas' %}
 <div class="box">
   <h3>{{ t('cem.fees') }}</h3>

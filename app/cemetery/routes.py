@@ -18,6 +18,7 @@ from app.cemetery import cemetery_bp
 from app.cemetery.services import (
     add_case_party,
     add_case_publication,
+    add_deceased_to_sepultura,
     approve_ownership_case,
     change_ownership_case_status,
     change_sepultura_state,
@@ -57,6 +58,7 @@ from app.cemetery.services import (
     panel_data,
     preview_mass_create,
     remove_contract_beneficiary,
+    remove_deceased_from_sepultura,
     reject_ownership_case,
     reporting_csv_bytes,
     reporting_rows,
@@ -779,6 +781,37 @@ def ownership_case_resolution_pdf_route(case_id: int):
     response.headers["Content-Disposition"] = f'inline; filename="{filename}"'
     return response
 
+
+
+
+@cemetery_bp.post("/sepulturas/<int:sepultura_id>/difuntos")
+@login_required
+@require_membership
+def add_deceased(sepultura_id: int):
+    payload = {k: v for k, v in request.form.items()}
+    try:
+        add_deceased_to_sepultura(sepultura_id, payload, current_user.id)
+        flash("Difunto registrado en la sepultura", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(
+        url_for("cemetery.grave_detail", sepultura_id=sepultura_id, tab="difuntos")
+    )
+
+
+@cemetery_bp.post("/sepulturas/<int:sepultura_id>/difuntos/<int:sepultura_difunto_id>/eliminar")
+@login_required
+@require_membership
+@require_role("admin")
+def remove_deceased(sepultura_id: int, sepultura_difunto_id: int):
+    try:
+        remove_deceased_from_sepultura(sepultura_id, sepultura_difunto_id, current_user.id)
+        flash("Difunto eliminado de la sepultura", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(
+        url_for("cemetery.grave_detail", sepultura_id=sepultura_id, tab="difuntos")
+    )
 
 @cemetery_bp.post("/sepulturas/<int:sepultura_id>/derecho/contratar")
 @login_required
