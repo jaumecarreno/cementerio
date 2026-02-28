@@ -1,19 +1,19 @@
 {% extends "base.html" %}
 {% set active_cem = 'titularidad' %}
-{% block title %}Cementerio - Titularidad - Casos{% endblock %}
+{% block title %}{{ t('ownership.title') }}{% endblock %}
 {% block content %}
-<h1 class="page-title">Cementerio &gt; Titularidad &gt; Casos</h1>
+<h1 class="page-title">{{ t('ownership.title') }}</h1>
 
 <div class="box">
-  <h3>Iniciar transmision</h3>
+  <h3>{{ t('ownership.start_transfer') }}</h3>
   <form method="post" action="{{ url_for('cemetery.ownership_cases') }}">
     <div class="form-grid">
       <div>
-        <label>Contrato</label>
+        <label>{{ t('field.contract') }}</label>
         <input type="number" name="contract_id" min="1" required>
       </div>
       <div>
-        <label>Tipo</label>
+        <label>{{ t('field.type') }}</label>
         <select name="type" required>
           {% for type in OwnershipTransferType %}
           <option value="{{ type.value }}">{{ type.value }}</option>
@@ -21,22 +21,22 @@
         </select>
       </div>
       <div>
-        <label>Inicio provisional (si aplica)</label>
+        <label>{{ t('field.date') }} provisional</label>
         <input type="date" name="provisional_start_date">
       </div>
       <div>
-        <label>Notas</label>
+        <label>{{ t('field.notes') }}</label>
         <input type="text" name="notes">
       </div>
     </div>
     <div class="actions-row">
-      <button class="btn primary" type="submit">Crear caso</button>
+      <button class="btn primary" type="submit">{{ t('common.create') }} {{ t('cases.title')|lower }}</button>
     </div>
   </form>
 </div>
 
 <div class="box">
-  <h3>Filtros</h3>
+  <h3>{{ t('common.filter') }}s</h3>
   <form
     method="get"
     action="{{ url_for('cemetery.ownership_cases') }}"
@@ -46,47 +46,47 @@
   >
     <div class="form-grid">
       <div>
-        <label>Tipo</label>
+        <label>{{ t('field.type') }}</label>
         <select name="type">
-          <option value="">Todos</option>
+          <option value="">{{ t('search.all') }}</option>
           {% for type in OwnershipTransferType %}
           <option value="{{ type.value }}" {% if filters.type == type.value %}selected{% endif %}>{{ type.value }}</option>
           {% endfor %}
         </select>
       </div>
       <div>
-        <label>Estado</label>
+        <label>{{ t('field.status') }}</label>
         <select name="status">
-          <option value="">Todos</option>
+          <option value="">{{ t('search.all') }}</option>
           {% for status in OwnershipTransferStatus %}
           <option value="{{ status.value }}" {% if filters.status == status.value %}selected{% endif %}>{{ status.value }}</option>
           {% endfor %}
         </select>
       </div>
       <div>
-        <label>Desde</label>
+        <label>{{ t('field.from') }}</label>
         <input type="date" name="opened_from" value="{{ filters.opened_from }}">
       </div>
       <div>
-        <label>Hasta</label>
+        <label>{{ t('field.to') }}</label>
         <input type="date" name="opened_to" value="{{ filters.opened_to }}">
       </div>
       <div>
-        <label>Contrato</label>
+        <label>{{ t('field.contract') }}</label>
         <input type="text" name="contract_id" value="{{ filters.contract_id }}">
       </div>
       <div>
-        <label>Sepultura ID</label>
+        <label>{{ t('field.grave') }} ID</label>
         <input type="text" name="sepultura_id" value="{{ filters.sepultura_id }}">
       </div>
       <div>
-        <label>Titular/nuevo titular</label>
+        <label>{{ t('field.holder') }} (actual/nuevo)</label>
         <input type="text" name="party_name" value="{{ filters.party_name }}">
       </div>
     </div>
     <div class="actions-row">
-      <a class="btn" href="{{ url_for('cemetery.ownership_cases') }}">Limpiar</a>
-      <button class="btn primary" type="submit">Filtrar</button>
+      <a class="btn" href="{{ url_for('cemetery.ownership_cases') }}">{{ t('common.clear') }}</a>
+      <button class="btn primary" type="submit">{{ t('common.filter') }}</button>
     </div>
   </form>
 </div>

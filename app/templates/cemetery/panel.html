@@ -6,7 +6,7 @@
 {% block content %}
 <h1 class="page-title">{{ t('menu.cemetery') }}</h1>
 <div class="box">
-  <h3>Activitat recent</h3>
+  <h3>{{ t('panel.recent_activity') }}</h3>
   {% if data.recent_activity_by_titular %}
   <div class="activity-groups">
     {% for group in data.recent_activity_by_titular %}
@@ -42,22 +42,22 @@
 
 <div class="panel-grid">
   <div class="box">
-    <h3>Resumen</h3>
+    <h3>{{ t('common.summary') }}</h3>
     <div class="kpi-metrics">
       <div class="kpi-row">
-        <span>Expedientes abiertos</span>
+        <span>{{ t('dashboard.open_cases') }}</span>
         <span class="value">{{ data.kpis.expedientes_abiertos }}</span>
       </div>
       <div class="kpi-row">
-        <span>OT pendientes</span>
+        <span>{{ t('dashboard.pending_work_orders') }}</span>
         <span class="value">{{ data.kpis.ot_pendientes }}</span>
       </div>
       <div class="kpi-row">
-        <span>Tiquets impagados</span>
+        <span>{{ t('dashboard.unpaid_tickets') }}</span>
         <span class="value">{{ data.kpis.tiquets_impagados }}</span>
       </div>
       <div class="kpi-row">
-        <span>Pend. notificar</span>
+        <span>{{ t('dashboard.pending_notify') }}</span>
         <span class="value">{{ data.kpis.pendientes_notificar }}</span>
       </div>
     </div>

@@ -1,34 +1,51 @@
 <!-- Spec 5.3.4 - Resultados de búsqueda y acceso a ficha -->
 <div class="box">
-  <table>
+  <p class="small muted">Mostrando {{ paged.shown }} de {{ paged.total }} resultados.</p>
+  <table class="table-zebra table-sticky-head">
     <thead>
       <tr>
-        <th>Ubicación</th>
-        <th>Modalidad</th>
-        <th>Estado</th>
-        <th>Titular actual</th>
-        <th>Deuda</th>
-        <th>Acción</th>
+        {% set next_ubicacion = 'desc' if sort_by == 'ubicacion' and sort_dir == 'asc' else 'asc' %}
+        {% set next_estado = 'desc' if sort_by == 'estado' and sort_dir == 'asc' else 'asc' %}
+        {% set next_titular = 'desc' if sort_by == 'titular' and sort_dir == 'asc' else 'asc' %}
+        {% set next_deuda = 'desc' if sort_by == 'deuda' and sort_dir == 'asc' else 'asc' %}
+        <th><a href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, titular=filters.titular, difunto=filters.difunto, sort_by='ubicacion', sort_dir=next_ubicacion, page=1, page_size=paged.page_size) }}">{{ t('reporting.graves') }}</a></th>
+        <th>{{ t('reporting.modality') }}</th>
+        <th><a href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, titular=filters.titular, difunto=filters.difunto, sort_by='estado', sort_dir=next_estado, page=1, page_size=paged.page_size) }}">{{ t('field.status') }}</a></th>
+        <th><a href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, titular=filters.titular, difunto=filters.difunto, sort_by='titular', sort_dir=next_titular, page=1, page_size=paged.page_size) }}">{{ t('field.holder') }}</a></th>
+        <th><a href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, titular=filters.titular, difunto=filters.difunto, sort_by='deuda', sort_dir=next_deuda, page=1, page_size=paged.page_size) }}">{{ t('reporting.debt') }}</a></th>
+        <th>{{ t('common.actions') }}</th>
       </tr>
     </thead>
     <tbody>
-      {% for row in rows %}
+      {% for row in paged.rows %}
       <tr>
         <td>{{ row.sepultura.bloque }} / F{{ row.sepultura.fila }} C{{ row.sepultura.columna }} / N{{ row.sepultura.numero }}</td>
         <td>{{ row.sepultura.modalidad }}</td>
         <td>{{ row.sepultura.estado.value }}</td>
         <td>{{ row.titular_name }}</td>
         <td>{{ money(row.deuda) }}</td>
-        <td>
-          <a class="btn" href="{{ url_for('cemetery.grave_detail', sepultura_id=row.sepultura.id) }}">Abrir ficha</a>
-        </td>
+        {% set primary_href = url_for('cemetery.grave_detail', sepultura_id=row.sepultura.id) %}
+        {% set primary_label = t('search.open_record') %}
+        {% set primary = false %}
+        {% set secondary_href = '' %}
+        {% set secondary_label = '' %}
+        {% include "cemetery/_action_cell.html" %}
       </tr>
       {% else %}
       <tr>
-        <td colspan="6" class="muted">Sin resultados.</td>
+        <td colspan="6" class="muted">{{ t('common.no_results') }}.</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
-  <p class="small muted">Tip: abre la ficha para cobrar tasas o revisar titulares/beneficiarios/movimientos.</p>
+  <div class="table-pagination small">
+    {% if paged.has_prev %}
+      <a class="btn" href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, titular=filters.titular, difunto=filters.difunto, sort_by=sort_by, sort_dir=sort_dir, page=paged.page-1, page_size=paged.page_size) }}">Anterior</a>
+    {% endif %}
+    <span>Pagina {{ paged.page }} de {{ paged.total_pages }}</span>
+    {% if paged.has_next %}
+      <a class="btn" href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, titular=filters.titular, difunto=filters.difunto, sort_by=sort_by, sort_dir=sort_dir, page=paged.page+1, page_size=paged.page_size) }}">Siguiente</a>
+    {% endif %}
+  </div>
+  <p class="small muted">{{ t('search.tip_open_record') }}</p>
 </div>

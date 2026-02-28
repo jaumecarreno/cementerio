@@ -1,50 +1,50 @@
 <!-- Spec 9.4.1 - Alta masiva de sepultures -->
 {% extends "base.html" %}
 {% set active_cem = 'sepulturas' %}
-{% block title %}Cementerio - Sepulturas - Alta masiva{% endblock %}
+{% block title %}{{ t('mass_create.title') }}{% endblock %}
 {% block content %}
-<h1 class="page-title">Cementerio &gt; Sepulturas &gt; Alta masiva (por bloque)</h1>
+<h1 class="page-title">{{ t('mass_create.title') }}</h1>
 
 <div class="box">
-  <h3>Datos iniciales</h3>
+  <h3>{{ t('mass_create.initial_data') }}</h3>
   <form method="post" action="{{ url_for('cemetery.mass_create') }}">
     <div class="form-grid">
       <div>
-        <label>Bloque</label>
+        <label>{{ t('field.block') }}</label>
         <input type="text" name="bloque" value="{{ data.bloque }}" required>
       </div>
       <div>
-        <label>Tipo de bloque</label>
+        <label>{{ t('mass_create.block_type') }}</label>
         <input type="text" name="tipo_bloque" value="{{ data.tipo_bloque }}" required>
       </div>
       <div>
-        <label>Vía</label>
+        <label>{{ t('field.address') }}</label>
         <input type="text" name="via" value="{{ data.via }}" required>
       </div>
       <div>
-        <label>Modalidad sepultura</label>
+        <label>{{ t('mass_create.grave_modality') }}</label>
         <input type="text" name="modalidad" value="{{ data.modalidad }}" required>
       </div>
       <div>
-        <label>Tipo de lápida</label>
+        <label>{{ t('mass_create.grave_type') }}</label>
         <input type="text" name="tipo_lapida" value="{{ data.tipo_lapida }}" required>
       </div>
       <div>
-        <label>Orientación</label>
+        <label>{{ t('mass_create.orientation') }}</label>
         <input type="text" name="orientacion" value="{{ data.orientacion }}" required>
       </div>
       <div>
-        <label>Filas (desde-hasta)</label>
+        <label>{{ t('mass_create.rows') }}</label>
         <input type="text" name="filas" value="{{ data.filas }}" required>
       </div>
       <div>
-        <label>Columnas (desde-hasta)</label>
+        <label>{{ t('mass_create.columns') }}</label>
         <input type="text" name="columnas" value="{{ data.columnas }}" required>
       </div>
     </div>
     <div class="actions-row">
-      <button class="btn" type="submit" name="action" value="preview">Validar</button>
-      <button class="btn primary" type="submit" name="action" value="create">Crear sepulturas</button>
+      <button class="btn" type="submit" name="action" value="preview">{{ t('mass_create.validate') }}</button>
+      <button class="btn primary" type="submit" name="action" value="create">{{ t('mass_create.create_graves') }}</button>
     </div>
   </form>
 </div>

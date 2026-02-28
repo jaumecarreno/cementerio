@@ -1,54 +1,54 @@
 {% extends "base.html" %}
 {% set active_cem = 'expedientes' %}
 {% set breadcrumbs = [
-  {'label': 'Cementerio', 'href': url_for('cemetery.panel')},
-  {'label': 'Expedientes', 'href': url_for('cemetery.expedientes')},
+  {'label': t('menu.cemetery'), 'href': url_for('cemetery.panel')},
+  {'label': t('cases.title'), 'href': url_for('cemetery.expedientes')},
   {'label': expediente.numero, 'href': None}
 ] %}
-{% block title %}Expediente {{ expediente.numero }}{% endblock %}
+{% block title %}{{ t('cases.title') }} · {{ expediente.numero }}{% endblock %}
 {% block content %}
-<h1 class="page-title">Expediente {{ expediente.numero }}</h1>
+<h1 class="page-title">{{ t('cases.title') }} · {{ expediente.numero }}</h1>
 
 <div class="box">
-  <h3>Resumen</h3>
+  <h3>{{ t('common.summary') }}</h3>
   <div class="meta-row">
-    <div><strong>Tipo:</strong> {{ expediente.tipo }}</div>
-    <div><strong>Estado:</strong> {{ expediente.estado }}</div>
-    <div><strong>Sepultura:</strong> {{ expediente.sepultura_id or '-' }}</div>
-    <div><strong>Difunto:</strong> {{ expediente.difunto.full_name if expediente.difunto else '-' }}</div>
-    <div><strong>Declarante:</strong> {{ expediente.declarante.full_name if expediente.declarante else '-' }}</div>
-    <div><strong>Fecha prevista:</strong> {{ expediente.fecha_prevista or '-' }}</div>
+    <div><strong>{{ t('field.type') }}:</strong> {{ expediente.tipo }}</div>
+    <div><strong>{{ t('field.status') }}:</strong> {{ expediente.estado }}</div>
+    <div><strong>{{ t('cem.graves') }}:</strong> {{ expediente.sepultura_id or '-' }}</div>
+    <div><strong>{{ t('field.deceased') }}:</strong> {{ expediente.difunto.full_name if expediente.difunto else '-' }}</div>
+    <div><strong>{{ t('field.declarant') }}:</strong> {{ expediente.declarante.full_name if expediente.declarante else '-' }}</div>
+    <div><strong>{{ t('field.expected_date') }}:</strong> {{ expediente.fecha_prevista or '-' }}</div>
   </div>
-  <div><strong>Notas:</strong> {{ expediente.notas or '-' }}</div>
+  <div><strong>{{ t('field.notes') }}:</strong> {{ expediente.notas or '-' }}</div>
 </div>
 
 <div class="box">
-  <h3>Estado</h3>
+  <h3>{{ t('field.status') }}</h3>
   <form class="inline-form" method="post" action="{{ url_for('cemetery.expediente_change_state', expediente_id=expediente.id) }}">
     <select name="estado" required>
       {% for st in states %}
       <option value="{{ st }}" {% if expediente.estado == st %}selected{% endif %}>{{ st }}</option>
       {% endfor %}
     </select>
-    <button class="btn" type="submit">Actualizar estado</button>
+    <button class="btn" type="submit">{{ t('common.update_status') }}</button>
   </form>
 </div>
 
 <div class="box">
-  <h3>Ordenes de trabajo</h3>
+  <h3>{{ t('common.work_orders') }}</h3>
   <form method="post" action="{{ url_for('cemetery.expediente_create_ot', expediente_id=expediente.id) }}">
     <div class="form-grid">
       <div>
-        <label>Titulo</label>
-        <input type="text" name="titulo" placeholder="Preparacion inhumacion">
+        <label>{{ t('common.title') }}</label>
+        <input type="text" name="titulo" placeholder="{{ t('cases.inhumation') }}">
       </div>
       <div>
-        <label>Notas</label>
+        <label>{{ t('field.notes') }}</label>
         <input type="text" name="notes" placeholder="Indicaciones de trabajo">
       </div>
     </div>
     <div class="actions-row">
-      <button class="btn primary" type="submit">Crear OT</button>
+      <button class="btn primary" type="submit">{{ t('common.create') }} OT</button>
     </div>
   </form>
 
@@ -56,10 +56,10 @@
     <thead>
       <tr>
         <th>OT</th>
-        <th>Titulo</th>
+        <th>{{ t('common.title') }}</th>
         <th>Estado</th>
         <th>Completada</th>
-        <th>Acciones</th>
+        <th>{{ t('common.actions') }}</th>
       </tr>
     </thead>
     <tbody>
@@ -74,13 +74,13 @@
           {% if ot.estado != 'COMPLETADA' %}
           <form class="inline-form" method="post" action="{{ url_for('cemetery.expediente_complete_ot', expediente_id=expediente.id, ot_id=ot.id) }}">
             <input type="text" name="notes" placeholder="Notas cierre">
-            <button class="btn" type="submit">Completar</button>
+            <button class="btn" type="submit">{{ t('common.complete') }}</button>
           </form>
           {% endif %}
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="5">Sin ordenes de trabajo</td></tr>
+      <tr><td colspan="5">{{ t('common.no_results') }}</td></tr>
       {% endfor %}
     </tbody>
   </table>

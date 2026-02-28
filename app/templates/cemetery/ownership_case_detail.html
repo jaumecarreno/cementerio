@@ -1,23 +1,23 @@
 {% extends "base.html" %}
 {% set active_cem = 'titularidad' %}
-{% block title %}Caso {{ data.case.case_number }}{% endblock %}
+{% block title %}{{ t('ownership.title') }} · {{ data.case.case_number }}{% endblock %}
 {% block content %}
-<h1 class="page-title">Caso {{ data.case.case_number }}</h1>
+<h1 class="page-title">{{ t('ownership.title') }} · {{ data.case.case_number }}</h1>
 
 <div class="box">
-  <h3>Resumen</h3>
+  <h3>{{ t('common.summary') }}</h3>
   <div class="meta-row">
-    <div><strong>Tipo:</strong> {{ data.case.type.value }}</div>
-    <div><strong>Estado:</strong> {{ data.case.status.value }}</div>
-    <div><strong>Contrato:</strong> {{ data.contract.id }}</div>
-    <div><strong>Sepultura:</strong> {{ data.sepultura.location_label }}</div>
-    <div><strong>Abierto:</strong> {{ data.case.opened_at.date() }}</div>
-    <div><strong>Asignado:</strong> {{ data.case.assigned_to.full_name if data.case.assigned_to else '-' }}</div>
+    <div><strong>{{ t('field.type') }}:</strong> {{ data.case.type.value }}</div>
+    <div><strong>{{ t('field.status') }}:</strong> {{ data.case.status.value }}</div>
+    <div><strong>{{ t('field.contract') }}:</strong> {{ data.contract.id }}</div>
+    <div><strong>{{ t('field.grave') }}:</strong> {{ data.sepultura.location_label }}</div>
+    <div><strong>{{ t('field.opened') }}:</strong> {{ data.case.opened_at.date() }}</div>
+    <div><strong>{{ t('field.assigned') }}:</strong> {{ data.case.assigned_to.full_name if data.case.assigned_to else '-' }}</div>
   </div>
   <div class="meta-row">
     {% if data.case.resolution_number %}
-    <div><strong>Resolucion:</strong> {{ data.case.resolution_number }}</div>
-    <div><a class="btn" href="{{ url_for('cemetery.ownership_case_resolution_pdf_route', case_id=data.case.id) }}" target="_blank">Ver PDF</a></div>
+    <div><strong>{{ t('field.resolution') }}:</strong> {{ data.case.resolution_number }}</div>
+    <div><a class="btn" href="{{ url_for('cemetery.ownership_case_resolution_pdf_route', case_id=data.case.id) }}" target="_blank">{{ t('common.view_pdf') }}</a></div>
     {% endif %}
     {% if data.case.type.value == 'PROVISIONAL' %}
     <div><strong>Inicio provisional:</strong> {{ data.case.provisional_start_date or '-' }}</div>
@@ -27,13 +27,13 @@
 </div>
 
 <div class="box">
-  <h3>Partes</h3>
+  <h3>{{ t('ownership.parts') }}</h3>
   <table>
     <thead>
       <tr>
-        <th>Rol</th>
-        <th>Persona</th>
-        <th>Documento</th>
+        <th>{{ t('field.type') }}</th>
+        <th>{{ t('field.person') }}</th>
+        <th>{{ t('common.document') }}</th>
         <th>%</th>
       </tr>
     </thead>
@@ -46,14 +46,14 @@
         <td>{{ party.percentage or '-' }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="4">Sin partes</td></tr>
+      <tr><td colspan="4">{{ t('ownership.no_parts') }}</td></tr>
       {% endfor %}
     </tbody>
   </table>
   <form method="post" action="{{ url_for('cemetery.ownership_case_add_party', case_id=data.case.id) }}">
     <div class="form-grid">
       <div>
-        <label>Rol</label>
+        <label>{{ t('field.type') }}</label>
         <select name="role" required>
           <option value="ANTERIOR_TITULAR">ANTERIOR_TITULAR</option>
           <option value="NUEVO_TITULAR">NUEVO_TITULAR</option>
@@ -66,7 +66,7 @@
         {% with
           picker_id='case-party-' ~ data.case.id,
           field_name='person_id',
-          label='Persona',
+          label=t('field.person'),
           selected_person=None,
           required=True
         %}
@@ -74,27 +74,27 @@
         {% endwith %}
       </div>
       <div>
-        <label>% (opcional)</label>
+        <label>{{ t('common.percentage_optional') }}</label>
         <input type="text" name="percentage">
       </div>
     </div>
     <div class="actions-row">
-      <button class="btn" type="submit">Guardar parte</button>
+      <button class="btn" type="submit">{{ t('ownership.save_party') }}</button>
     </div>
   </form>
 </div>
 
 <div class="box">
-  <h3>Documentacion</h3>
+  <h3>{{ t('ownership.documentation') }}</h3>
   <table>
     <thead>
       <tr>
-        <th>Tipo</th>
-        <th>Oblig.</th>
-        <th>Estado</th>
-        <th>Fichero</th>
-        <th>Subir</th>
-        <th>Verificar</th>
+        <th>{{ t('field.type') }}</th>
+        <th>{{ t('common.required') }}</th>
+        <th>{{ t('field.status') }}</th>
+        <th>{{ t('ownership.file') }}</th>
+        <th>{{ t('ownership.upload') }}</th>
+        <th>{{ t('ownership.verify') }}</th>
       </tr>
     </thead>
     <tbody>
@@ -105,7 +105,7 @@
         <td>{{ doc.status.value }}</td>
         <td>
           {% if doc.file_path %}
-            <a class="btn" href="{{ url_for('cemetery.ownership_case_download_document', case_id=data.case.id, doc_id=doc.id) }}">Descargar</a>
+            <a class="btn" href="{{ url_for('cemetery.ownership_case_download_document', case_id=data.case.id, doc_id=doc.id) }}">{{ t('common.download') }}</a>
           {% else %}
             -
           {% endif %}
@@ -113,7 +113,7 @@
         <td>
           <form method="post" action="{{ url_for('cemetery.ownership_case_upload_document', case_id=data.case.id, doc_id=doc.id) }}" enctype="multipart/form-data">
             <input type="file" name="file" required>
-            <button class="btn" type="submit">Subir</button>
+            <button class="btn" type="submit">{{ t('common.upload') }}</button>
           </form>
         </td>
         <td>
@@ -123,7 +123,7 @@
           </form>
           <form class="inline-form" method="post" action="{{ url_for('cemetery.ownership_case_verify_document', case_id=data.case.id, doc_id=doc.id) }}">
             <input type="hidden" name="action" value="reject">
-            <button class="btn" type="submit">Rechazar</button>
+            <button class="btn" type="submit">{{ t('common.reject') }}</button>
           </form>
         </td>
       </tr>
@@ -188,14 +188,14 @@
         <option value="{{ status.value }}">{{ status.value }}</option>
         {% endfor %}
       </select>
-      <button class="btn" type="submit">Cambiar estado</button>
+      <button class="btn" type="submit">Cambiar {{ t('field.status')|lower }}</button>
     </form>
     <form class="inline-form" method="post" action="{{ url_for('cemetery.ownership_case_approve', case_id=data.case.id) }}">
       <button class="btn" type="submit">Aprobar</button>
     </form>
     <form class="inline-form" method="post" action="{{ url_for('cemetery.ownership_case_reject', case_id=data.case.id) }}">
-      <input type="text" name="reason" placeholder="Motivo rechazo" required>
-      <button class="btn" type="submit">Rechazar</button>
+      <input type="text" name="reason" placeholder="Motivo de rechazo" required>
+      <button class="btn" type="submit">{{ t('common.reject') }}</button>
     </form>
   </div>
   <h4>Cerrar caso</h4>
@@ -215,7 +215,7 @@
         <input type="text" value="{{ data.active_beneficiary.person.full_name if data.active_beneficiary else '-' }}" disabled>
       </div>
       <div>
-        <label>Decision beneficiario</label>
+        <label>Decisión de beneficiario</label>
         <select name="beneficiary_close_decision">
           <option value="">(si aplica)</option>
           <option value="KEEP">Mantener</option>
@@ -226,14 +226,14 @@
     {% with
       picker_id='case-beneficiary-' ~ data.case.id,
       field_name='beneficiary_person_id',
-      label='Nuevo beneficiario (si decision = REPLACE)',
+      label='Nuevo beneficiario (si decisión = REPLACE)',
       selected_person=None,
       required=False
     %}
       {% include "components/person_picker.html" %}
     {% endwith %}
     <div class="actions-row">
-      <button class="btn primary" type="submit">Cerrar caso</button>
+      <button class="btn primary" type="submit">Cerrar {{ t('ownership.title')|lower }}</button>
     </div>
   </form>
 </div>

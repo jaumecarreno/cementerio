@@ -9,37 +9,37 @@
   <form method="post" action="{{ form_action }}">
     <div class="form-grid">
       <div>
-        <label>Nombre</label>
+        <label>{{ t('field.name') }}</label>
         <input type="text" name="nombre" value="{{ d.get('nombre', person.first_name if person else '') }}" required>
       </div>
       <div>
-        <label>Apellidos</label>
+        <label>{{ t('field.last_name') }}</label>
         <input type="text" name="apellidos" value="{{ d.get('apellidos', person.last_name if person else '') }}">
       </div>
       <div>
-        <label>DNI/NIF</label>
+        <label>{{ t('field.dni_nif') }}</label>
         <input type="text" name="dni_nif" value="{{ d.get('dni_nif', person.dni_nif if person else '') }}">
       </div>
       <div>
-        <label>Telefono</label>
+        <label>{{ t('field.phone') }}</label>
         <input type="text" name="telefono" value="{{ d.get('telefono', person.telefono if person else '') }}">
       </div>
       <div>
-        <label>Email</label>
+        <label>{{ t('field.email') }}</label>
         <input type="text" name="email" value="{{ d.get('email', person.email if person else '') }}">
       </div>
       <div>
-        <label>Direccion</label>
+        <label>{{ t('field.address') }}</label>
         <input type="text" name="direccion" value="{{ d.get('direccion', person.direccion if person else '') }}">
       </div>
       <div>
-        <label>Notas</label>
+        <label>{{ t('field.notes') }}</label>
         <input type="text" name="notas" value="{{ d.get('notas', person.notas if person else '') }}">
       </div>
     </div>
     <div class="actions-row">
-      <a class="btn" href="{{ url_for('cemetery.people_list') }}">Volver al listado</a>
-      <button class="btn primary" type="submit">Guardar</button>
+      <a class="btn" href="{{ url_for('cemetery.people_list') }}">{{ t('people.back_to_list') }}</a>
+      <button class="btn primary" type="submit">{{ t('common.save') }}</button>
     </div>
   </form>
 </div>

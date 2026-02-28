@@ -2,13 +2,23 @@ from __future__ import annotations
 
 from datetime import date
 
-from flask import abort, flash, g, make_response, redirect, render_template, request, url_for
+from flask import (
+    abort,
+    flash,
+    g,
+    make_response,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from flask_login import current_user, login_required
 
 from app.cemetery import cemetery_bp
 from app.cemetery.services import (
     add_case_party,
     add_case_publication,
+    add_deceased_to_sepultura,
     approve_ownership_case,
     change_ownership_case_status,
     change_sepultura_state,
@@ -36,6 +46,7 @@ from app.cemetery.services import (
     list_lapida_stock_movements,
     list_ownership_cases,
     list_people,
+    list_people_paged,
     list_sepultura_blocks,
     nominate_contract_beneficiary,
     ownership_case_document_download,
@@ -47,10 +58,11 @@ from app.cemetery.services import (
     panel_data,
     preview_mass_create,
     remove_contract_beneficiary,
+    remove_deceased_from_sepultura,
     reject_ownership_case,
     reporting_csv_bytes,
     reporting_rows,
-    search_sepulturas,
+    search_sepulturas_paged,
     set_contract_holder_pensioner,
     sepultura_by_id,
     sepultura_tabs_data,
@@ -61,7 +73,11 @@ from app.cemetery.services import (
     upload_case_document,
     verify_case_document,
 )
-from app.core.models import OwnershipTransferStatus, OwnershipTransferType, SepulturaEstado
+from app.core.models import (
+    OwnershipTransferStatus,
+    OwnershipTransferType,
+    SepulturaEstado,
+)
 from app.core.permissions import require_membership, require_role
 from app.core.utils import money
 
@@ -76,7 +92,9 @@ def _is_htmx() -> bool:
 def panel():
     # Spec 9.0 + mockups_v2/page-2 - Panel de trabajo Cementerio
     data = panel_data()
-    return render_template("cemetery/panel.html", data=data, current_year=date.today().year)
+    return render_template(
+        "cemetery/panel.html", data=data, current_year=date.today().year
+    )
 
 
 @cemetery_bp.post("/admin/tickets/generar")
@@ -103,8 +121,10 @@ def admin_generate_tickets():
 def people_list():
     # Spec Cementiri: ver cementerio_extract.md (9.4.3 / 9.4.4)
     filters = {"q": request.args.get("q", "").strip()}
-    rows = list_people(filters["q"])
-    return render_template("cemetery/personas.html", rows=rows, filters=filters)
+    page = request.args.get("page", type=int, default=1) or 1
+    page_size = request.args.get("page_size", type=int, default=25) or 25
+    paged = list_people_paged(filters["q"], page=page, page_size=page_size)
+    return render_template("cemetery/personas.html", paged=paged, filters=filters)
 
 
 @cemetery_bp.route("/personas/nueva", methods=["GET", "POST"])
@@ -209,7 +229,9 @@ def expedientes():
         try:
             expediente = create_expediente(payload, current_user.id)
             flash(f"Expediente {expediente.numero} creado", "success")
-            return redirect(url_for("cemetery.expediente_detail", expediente_id=expediente.id))
+            return redirect(
+                url_for("cemetery.expediente_detail", expediente_id=expediente.id)
+            )
         except ValueError as exc:
             flash(str(exc), "error")
 
@@ -295,7 +317,9 @@ def expediente_ot_order_pdf(expediente_id: int, ot_id: int):
         abort(404)
     response = make_response(content)
     response.headers["Content-Type"] = "application/pdf"
-    response.headers["Content-Disposition"] = f'inline; filename="orden-trabajo-{ot_id}.pdf"'
+    response.headers["Content-Disposition"] = (
+        f'inline; filename="orden-trabajo-{ot_id}.pdf"'
+    )
     return response
 
 
@@ -314,7 +338,12 @@ def lapidas():
         stock_movements=list_lapida_stock_movements(),
         inscripciones=list_inscripciones(filters),
         filters=filters,
-        states=["PENDIENTE_GRABAR", "PENDIENTE_COLOCAR", "PENDIENTE_NOTIFICAR", "NOTIFICADA"],
+        states=[
+            "PENDIENTE_GRABAR",
+            "PENDIENTE_COLOCAR",
+            "PENDIENTE_NOTIFICAR",
+            "NOTIFICADA",
+        ],
     )
 
 
@@ -386,7 +415,9 @@ def _report_filters() -> dict[str, str]:
 @login_required
 @require_membership
 def reporting():
-    report_key = request.args.get("report", "sepulturas").strip().lower() or "sepulturas"
+    report_key = (
+        request.args.get("report", "sepulturas").strip().lower() or "sepulturas"
+    )
     filters = _report_filters()
     try:
         rows = reporting_rows(report_key, filters)
@@ -410,7 +441,9 @@ def reporting():
 @login_required
 @require_membership
 def reporting_export_csv():
-    report_key = request.args.get("report", "sepulturas").strip().lower() or "sepulturas"
+    report_key = (
+        request.args.get("report", "sepulturas").strip().lower() or "sepulturas"
+    )
     filters = _report_filters()
     try:
         content = reporting_csv_bytes(report_key, filters, export_limit=1000)
@@ -436,13 +469,41 @@ def search_graves():
         "titular": request.values.get("titular", "").strip(),
         "difunto": request.values.get("difunto", "").strip(),
     }
-    rows = search_sepulturas(filters) if any(filters.values()) else []
+    page = request.values.get("page", type=int, default=1) or 1
+    page_size = request.values.get("page_size", type=int, default=25) or 25
+    sort_by = request.values.get("sort_by", "ubicacion").strip() or "ubicacion"
+    sort_dir = request.values.get("sort_dir", "asc").strip() or "asc"
+    paged = (
+        search_sepulturas_paged(
+            filters, page=page, page_size=page_size, sort_by=sort_by, sort_dir=sort_dir
+        )
+        if any(filters.values())
+        else {
+            "rows": [],
+            "total": 0,
+            "shown": 0,
+            "page": 1,
+            "page_size": page_size,
+            "total_pages": 1,
+            "has_prev": False,
+            "has_next": False,
+        }
+    )
     if _is_htmx():
-        return render_template("cemetery/_search_results.html", rows=rows, money=money)
+        return render_template(
+            "cemetery/_search_results.html",
+            paged=paged,
+            filters=filters,
+            sort_by=sort_by,
+            sort_dir=sort_dir,
+            money=money,
+        )
     return render_template(
         "cemetery/search.html",
         filters=filters,
-        rows=rows,
+        paged=paged,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
         money=money,
         blocks=list_sepultura_blocks(),
     )
@@ -461,13 +522,41 @@ def fees_search():
         "titular": request.values.get("titular", "").strip(),
         "difunto": request.values.get("difunto", "").strip(),
     }
-    rows = search_sepulturas(filters) if any(filters.values()) else []
+    page = request.values.get("page", type=int, default=1) or 1
+    page_size = request.values.get("page_size", type=int, default=25) or 25
+    sort_by = request.values.get("sort_by", "ubicacion").strip() or "ubicacion"
+    sort_dir = request.values.get("sort_dir", "asc").strip() or "asc"
+    paged = (
+        search_sepulturas_paged(
+            filters, page=page, page_size=page_size, sort_by=sort_by, sort_dir=sort_dir
+        )
+        if any(filters.values())
+        else {
+            "rows": [],
+            "total": 0,
+            "shown": 0,
+            "page": 1,
+            "page_size": page_size,
+            "total_pages": 1,
+            "has_prev": False,
+            "has_next": False,
+        }
+    )
     if _is_htmx():
-        return render_template("cemetery/_fees_search_results.html", rows=rows, money=money)
+        return render_template(
+            "cemetery/_fees_search_results.html",
+            paged=paged,
+            filters=filters,
+            sort_by=sort_by,
+            sort_dir=sort_dir,
+            money=money,
+        )
     return render_template(
         "cemetery/fees_search.html",
         filters=filters,
-        rows=rows,
+        paged=paged,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
         money=money,
         blocks=list_sepultura_blocks(),
     )
@@ -488,7 +577,9 @@ def grave_detail(sepultura_id: int):
         data = sepultura_tabs_data(sepultura_id, tab, mov_filters)
     except ValueError:
         abort(404)
-    return render_template("cemetery/detail.html", data=data, SepulturaEstado=SepulturaEstado, money=money)
+    return render_template(
+        "cemetery/detail.html", data=data, SepulturaEstado=SepulturaEstado, money=money
+    )
 
 
 @cemetery_bp.get("/titularidad")
@@ -509,7 +600,9 @@ def ownership_cases():
         try:
             created = create_ownership_case(payload, current_user.id)
             flash(f"Caso {created.case_number} creado", "success")
-            return redirect(url_for("cemetery.ownership_case_detail_page", case_id=created.id))
+            return redirect(
+                url_for("cemetery.ownership_case_detail_page", case_id=created.id)
+            )
         except ValueError as exc:
             flash(str(exc), "error")
     filters = {
@@ -689,6 +782,37 @@ def ownership_case_resolution_pdf_route(case_id: int):
     return response
 
 
+
+
+@cemetery_bp.post("/sepulturas/<int:sepultura_id>/difuntos")
+@login_required
+@require_membership
+def add_deceased(sepultura_id: int):
+    payload = {k: v for k, v in request.form.items()}
+    try:
+        add_deceased_to_sepultura(sepultura_id, payload, current_user.id)
+        flash("Difunto registrado en la sepultura", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(
+        url_for("cemetery.grave_detail", sepultura_id=sepultura_id, tab="difuntos")
+    )
+
+
+@cemetery_bp.post("/sepulturas/<int:sepultura_id>/difuntos/<int:sepultura_difunto_id>/eliminar")
+@login_required
+@require_membership
+@require_role("admin")
+def remove_deceased(sepultura_id: int, sepultura_difunto_id: int):
+    try:
+        remove_deceased_from_sepultura(sepultura_id, sepultura_difunto_id, current_user.id)
+        flash("Difunto eliminado de la sepultura", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(
+        url_for("cemetery.grave_detail", sepultura_id=sepultura_id, tab="difuntos")
+    )
+
 @cemetery_bp.post("/sepulturas/<int:sepultura_id>/derecho/contratar")
 @login_required
 @require_membership
@@ -700,7 +824,9 @@ def contract_create(sepultura_id: int):
         flash("Contrato creado correctamente", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("cemetery.grave_detail", sepultura_id=sepultura_id, tab="derecho"))
+    return redirect(
+        url_for("cemetery.grave_detail", sepultura_id=sepultura_id, tab="derecho")
+    )
 
 
 @cemetery_bp.get("/contratos/<int:contract_id>/titulo.pdf")
@@ -714,7 +840,9 @@ def contract_title_pdf(contract_id: int):
         abort(404)
     response = make_response(pdf)
     response.headers["Content-Type"] = "application/pdf"
-    response.headers["Content-Disposition"] = f'inline; filename="titulo-contrato-{contract_id}.pdf"'
+    response.headers["Content-Disposition"] = (
+        f'inline; filename="titulo-contrato-{contract_id}.pdf"'
+    )
     return response
 
 
@@ -736,7 +864,9 @@ def change_state(sepultura_id: int):
         flash("Estado inválido", "error")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("cemetery.grave_detail", sepultura_id=sepultura_id, tab="resumen"))
+    return redirect(
+        url_for("cemetery.grave_detail", sepultura_id=sepultura_id, tab="resumen")
+    )
 
 
 @cemetery_bp.get("/tasas/cobro")
@@ -752,7 +882,9 @@ def fee_collection():
         data = sepultura_tickets_and_invoices(sepultura_id)
     except ValueError:
         abort(404)
-    return render_template("cemetery/fees.html", data=data, money=money, today=date.today())
+    return render_template(
+        "cemetery/fees.html", data=data, money=money, today=date.today()
+    )
 
 
 def _selected_ticket_ids() -> list[int]:
@@ -792,7 +924,10 @@ def fee_collect_and_receipt():
             user_id=current_user.id,
             discount_ticket_ids=discount_ticket_ids,
         )
-        flash(f"Cobro registrado. Factura {invoice.numero} / Recibo {payment.receipt_number}", "success")
+        flash(
+            f"Cobro registrado. Factura {invoice.numero} / Recibo {payment.receipt_number}",
+            "success",
+        )
         return redirect(url_for("cemetery.receipt", payment_id=payment.id))
     except ValueError as exc:
         flash(str(exc), "error")
@@ -835,7 +970,11 @@ def mark_holder_pensioner(contract_id: int):
         except ValueError:
             target_sepultura = None
     if target_sepultura:
-        return redirect(url_for("cemetery.grave_detail", sepultura_id=target_sepultura, tab="titulares"))
+        return redirect(
+            url_for(
+                "cemetery.grave_detail", sepultura_id=target_sepultura, tab="titulares"
+            )
+        )
     return redirect(url_for("cemetery.search_graves"))
 
 
@@ -859,7 +998,13 @@ def remove_beneficiary(contract_id: int):
         except ValueError:
             target_sepultura = None
     if target_sepultura:
-        return redirect(url_for("cemetery.grave_detail", sepultura_id=target_sepultura, tab="beneficiarios"))
+        return redirect(
+            url_for(
+                "cemetery.grave_detail",
+                sepultura_id=target_sepultura,
+                tab="beneficiarios",
+            )
+        )
     return redirect(url_for("cemetery.search_graves"))
 
 

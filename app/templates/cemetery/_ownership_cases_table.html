@@ -2,14 +2,14 @@
   <table>
     <thead>
       <tr>
-        <th>No caso</th>
-        <th>Tipo</th>
-        <th>Estado</th>
-        <th>Contrato/Sepultura</th>
-        <th>Titular ant. -> nuevo</th>
-        <th>Abierto</th>
-        <th>Asignado</th>
-        <th>Acciones</th>
+        <th>{{ t('ownership.case_number') }}</th>
+        <th>{{ t('field.type') }}</th>
+        <th>{{ t('field.status') }}</th>
+        <th>{{ t('ownership.contract_grave') }}</th>
+        <th>{{ t('ownership.previous_new_holder') }}</th>
+        <th>{{ t('field.opened') }}</th>
+        <th>{{ t('field.assigned') }}</th>
+        <th>{{ t('common.actions') }}</th>
       </tr>
     </thead>
     <tbody>
@@ -37,11 +37,11 @@
         <td>{{ case.opened_at.date() }}</td>
         <td>{{ case.assigned_to.full_name if case.assigned_to else '-' }}</td>
         <td>
-          <a class="btn" href="{{ url_for('cemetery.ownership_case_detail_page', case_id=case.id) }}">Abrir</a>
+          <a class="btn" href="{{ url_for('cemetery.ownership_case_detail_page', case_id=case.id) }}">{{ t('common.open') }}</a>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="8">Sin casos</td></tr>
+      <tr><td colspan="8">{{ t('ownership.no_cases') }}</td></tr>
       {% endfor %}
     </tbody>
   </table>

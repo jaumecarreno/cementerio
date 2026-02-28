@@ -148,6 +148,42 @@ def test_fees_warning_without_beneficiary_and_quick_nomination(app, client, logi
     assert b"Beneficiario guardado" in nominate_response.data
 
 
+
+
+def test_sepultura_supports_holders_beneficiaries_and_multiple_deceased(app, client, login_admin):
+    login_admin()
+    with app.app_context():
+        sep = Sepultura.query.filter_by(bloque="B-12", numero=127).first()
+        contract = DerechoFunerarioContrato.query.filter_by(sepultura_id=sep.id, estado="ACTIVO").first()
+        assert contract is not None
+        assert OwnershipRecord.query.filter_by(contract_id=contract.id).count() >= 1
+
+    first = client.post(
+        f"/cementerio/sepulturas/{sep.id}/difuntos",
+        data={"first_name": "Difunto", "last_name": "Uno", "document_id": "DIF001", "notes": "Nicho superior"},
+        follow_redirects=True,
+    )
+    assert first.status_code == 200
+    assert b"Difunto registrado en la sepultura" in first.data
+
+    second = client.post(
+        f"/cementerio/sepulturas/{sep.id}/difuntos",
+        data={"first_name": "Difunto", "last_name": "Dos", "document_id": "DIF002", "notes": "Nicho inferior"},
+        follow_redirects=True,
+    )
+    assert second.status_code == 200
+
+    detail = client.get(f"/cementerio/sepulturas/{sep.id}?tab=difuntos")
+    assert detail.status_code == 200
+    assert b"Difunto Uno" in detail.data
+    assert b"Difunto Dos" in detail.data
+
+    with app.app_context():
+        sep = Sepultura.query.filter_by(id=sep.id).first()
+        assert sep.estado == SepulturaEstado.OCUPADA
+        remains = SepulturaDifunto.query.filter_by(sepultura_id=sep.id).all()
+        assert len(remains) >= 2
+
 def test_admin_ticket_generation_endpoint(app, client, login_admin):
     login_admin()
     response = client.post(
