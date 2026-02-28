@@ -45,53 +45,28 @@
     <div class="content">
       <aside class="sidebar">
         <a class="menu-link {% if active_global == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard_page') }}">
-          <span class="menu-label">{{ t('menu.dashboard') }}</span>
+          <span class="menu-label">{{ t('menu.home') }}</span>
         </a>
-        <details class="menu-accordion {% if active_global == 'cemetery' %}active{% endif %}" open>
-          <summary class="menu-link {% if active_global == 'cemetery' %}active{% endif %}">
-            <span class="accordion-arrow" aria-hidden="true">&#9662;</span>
-            <span class="menu-label">{{ t('menu.cemetery') }}</span>
-          </summary>
-          <div class="menu-subsection">
-            <a class="menu-sublink {% if active_cem == 'panel' %}active{% endif %}" href="{{ url_for('cemetery.panel') }}">{{ t('cem.panel') }}</a>
-            <a class="menu-sublink {% if active_cem == 'tasas' %}active{% endif %}" href="{{ url_for('cemetery.fees_search') }}">{{ t('cem.fees') }}</a>
-          </div>
-        </details>
-        <a class="menu-link {% if active_global == 'funeral_services' %}active{% endif %}" href="{{ url_for('module_pending', slug='servicios-funerarios') }}">
-          <span class="menu-label">{{ t('menu.funeral_services') }}</span>
+        <a class="menu-link {% if active_cem == 'sepulturas' %}active{% endif %}" href="{{ url_for('cemetery.search_graves') }}">
+          <span class="menu-label">{{ t('cem.graves') }}</span>
         </a>
-        <a class="menu-link {% if active_global == 'crematorium' %}active{% endif %}" href="{{ url_for('module_pending', slug='crematorio') }}">
-          <span class="menu-label">{{ t('menu.crematorium') }}</span>
+        <a class="menu-link {% if active_cem == 'expedientes' %}active{% endif %}" href="{{ url_for('cemetery.expedientes') }}">
+          <span class="menu-label">{{ t('cem.cases') }}</span>
         </a>
-        <a class="menu-link {% if active_global == 'billing' %}active{% endif %}" href="{{ url_for('module_pending', slug='facturacion') }}">
-          <span class="menu-label">{{ t('menu.billing') }}</span>
+        <a class="menu-link {% if active_cem == 'tasas' %}active{% endif %}" href="{{ url_for('cemetery.fees_search') }}">
+          <span class="menu-label">{{ t('cem.fees') }}</span>
         </a>
-        <a class="menu-link {% if active_global == 'inventory' %}active{% endif %}" href="{{ url_for('module_pending', slug='inventario') }}">
-          <span class="menu-label">{{ t('menu.inventory') }}</span>
+        <a class="menu-link {% if active_cem == 'titularidad' %}active{% endif %}" href="{{ url_for('cemetery.ownership_cases_alias') }}">
+          <span class="menu-label">{{ t('cem.ownership') }}</span>
         </a>
-        <a class="menu-link {% if active_global == 'reports' %}active{% endif %}" href="{{ url_for('cemetery.reporting') }}">
+        <a class="menu-link {% if active_cem == 'reporting' or active_global == 'reports' %}active{% endif %}" href="{{ url_for('cemetery.reporting') }}">
           <span class="menu-label">{{ t('menu.reports') }}</span>
-        </a>
-        <a class="menu-link {% if active_global == 'settings' %}active{% endif %}" href="{{ url_for('config_page') }}">
-          <span class="menu-label">{{ t('menu.settings') }}</span>
         </a>
         <a class="menu-link {% if active_global == 'demo' %}active{% endif %}" href="{{ url_for('demo_page') }}">
           <span class="menu-label">{{ t('menu.demo') }}</span>
         </a>
       </aside>
       <main class="main">
-        {% if active_global in ['cemetery', 'reports'] %}
-        <div class="cem-submenu">
-          <a class="tab-link {% if active_cem == 'panel' %}active{% endif %}" href="{{ url_for('cemetery.panel') }}">{{ t('cem.panel') }}</a>
-          <a class="tab-link {% if active_cem == 'sepulturas' %}active{% endif %}" href="{{ url_for('cemetery.search_graves') }}">{{ t('cem.graves') }}</a>
-          <a class="tab-link {% if active_cem == 'expedientes' %}active{% endif %}" href="{{ url_for('cemetery.expedientes') }}">{{ t('cem.cases') }}</a>
-          <a class="tab-link {% if active_cem == 'titularidad' %}active{% endif %}" href="{{ url_for('cemetery.ownership_cases_alias') }}">{{ t('cem.ownership') }}</a>
-          <a class="tab-link {% if active_cem == 'personas' %}active{% endif %}" href="{{ url_for('cemetery.people_list') }}">{{ t('cem.people') }}</a>
-          <a class="tab-link {% if active_cem == 'lapidas' %}active{% endif %}" href="{{ url_for('cemetery.lapidas') }}">{{ t('cem.engraving') }}</a>
-          <a class="tab-link {% if active_cem == 'derechos' %}active{% endif %}" href="{{ url_for('cemetery.search_graves') }}">{{ t('cem.rights') }}</a>
-          <a class="tab-link {% if active_cem == 'reporting' %}active{% endif %}" href="{{ url_for('cemetery.reporting') }}">{{ t('cem.reports') }}</a>
-        </div>
-        {% endif %}
         {% if breadcrumbs %}
           <div class="breadcrumbs">
             {% for crumb in breadcrumbs %}

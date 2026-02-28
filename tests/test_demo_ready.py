@@ -373,12 +373,34 @@ def test_operator_rbac_readonly_titularidad_and_config_but_expedientes_allowed(a
     assert expediente_flow.status_code == 200
 
 
-def test_demo_sidebar_link_present_and_last(app, client, login_admin):
+def test_sidebar_menu_contains_only_expected_links_and_no_top_tabs(app, client, login_admin):
     login_admin()
     response = client.get("/dashboard")
     assert response.status_code == 200
-    assert b'href="/demo"' in response.data
-    assert response.data.rfind(b'href="/demo"') > response.data.rfind(b'href="/config"')
+
+    html = response.data
+    start = html.find(b'<aside class="sidebar">')
+    end = html.find(b"</aside>", start)
+    assert start != -1
+    assert end != -1
+    sidebar = html[start:end]
+
+    expected_hrefs = [
+        b'href="/dashboard"',
+        b'href="/cementerio/sepulturas/buscar"',
+        b'href="/cementerio/expedientes"',
+        b'href="/cementerio/tasas"',
+        b'href="/cementerio/titularidad"',
+        b'href="/cementerio/reporting"',
+        b'href="/demo"',
+    ]
+    positions = [sidebar.find(href) for href in expected_hrefs]
+    assert all(pos != -1 for pos in positions)
+    assert positions == sorted(positions)
+
+    assert b'href="/config"' not in sidebar
+    assert b'href="/modulo/servicios-funerarios"' not in sidebar
+    assert b"cem-submenu" not in html
 
 
 def test_demo_page_access_for_admin_and_operator(app, client, login_admin, login_operator):
