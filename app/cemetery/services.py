@@ -1440,6 +1440,7 @@ def sepultura_tabs_data(
         "sepultura": sep,
         "contrato": contrato,
         "tab": tab,
+        "difuntos": sorted(sep.difuntos, key=lambda item: item.created_at, reverse=True),
         "active_titular": active_titular,
         "active_beneficiario": active_beneficiario,
         "titulares": titulares,
@@ -1447,6 +1448,92 @@ def sepultura_tabs_data(
         "movimientos": movimientos,
         "tasas": tasas,
     }
+
+
+def add_deceased_to_sepultura(
+    sepultura_id: int,
+    payload: dict[str, str],
+    user_id: int | None,
+) -> SepulturaDifunto:
+    sepultura = sepultura_by_id(sepultura_id)
+
+    person_id_raw = (payload.get("person_id") or "").strip()
+    person_id = int(person_id_raw) if person_id_raw.isdigit() else None
+
+    if not person_id:
+        person_data = {
+            "first_name": payload.get("first_name", ""),
+            "last_name": payload.get("last_name", ""),
+            "document_id": payload.get("document_id", ""),
+            "telefono": payload.get("telefono", ""),
+            "email": payload.get("email", ""),
+            "direccion": payload.get("direccion", ""),
+            "notas": payload.get("notas", ""),
+        }
+        person = create_person(person_data)
+    else:
+        person = Person.query.filter_by(org_id=org_id(), id=person_id).first()
+        if not person:
+            raise ValueError("Difunto no encontrado")
+
+    exists = SepulturaDifunto.query.filter_by(
+        org_id=org_id(),
+        sepultura_id=sepultura.id,
+        person_id=person.id,
+    ).first()
+    if exists:
+        raise ValueError("El difunto ya consta en esta sepultura")
+
+    deceased = SepulturaDifunto(
+        org_id=org_id(),
+        sepultura_id=sepultura.id,
+        person_id=person.id,
+        notes=(payload.get("notes") or "").strip(),
+    )
+    db.session.add(deceased)
+    sepultura.estado = SepulturaEstado.OCUPADA
+    _log_sepultura_movement(
+        sepultura.id,
+        MovimientoTipo.INHUMACION,
+        f"Inhumacion de {person.full_name}",
+        user_id,
+    )
+    db.session.commit()
+    return deceased
+
+
+def remove_deceased_from_sepultura(
+    sepultura_id: int,
+    sepultura_difunto_id: int,
+    user_id: int | None,
+) -> None:
+    sepultura = sepultura_by_id(sepultura_id)
+    deceased = SepulturaDifunto.query.filter_by(
+        org_id=org_id(),
+        id=sepultura_difunto_id,
+        sepultura_id=sepultura.id,
+    ).first()
+    if not deceased:
+        raise ValueError("Registro de difunto no encontrado")
+
+    full_name = deceased.person.full_name
+    db.session.delete(deceased)
+    db.session.flush()
+
+    remaining = SepulturaDifunto.query.filter_by(
+        org_id=org_id(),
+        sepultura_id=sepultura.id,
+    ).count()
+    if remaining == 0 and sepultura.estado == SepulturaEstado.OCUPADA:
+        sepultura.estado = SepulturaEstado.DISPONIBLE
+
+    _log_sepultura_movement(
+        sepultura.id,
+        MovimientoTipo.EXHUMACION,
+        f"Exhumacion de {full_name}",
+        user_id,
+    )
+    db.session.commit()
 
 
 def _log_sepultura_movement(
