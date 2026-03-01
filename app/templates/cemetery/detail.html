@@ -60,6 +60,14 @@
 {% set tasas_limit = 5 %}
 {% set visible_tasas = data.tasas[:tasas_limit] %}
 {% set hidden_tasas = data.tasas[tasas_limit:] %}
+{% set titular_phone_value = [titular_person.telefono, titular_person.telefono2]|select|join(', ') if titular_person else '' %}
+{% set titular_email_value = [titular_person.email, titular_person.email2]|select|join(', ') if titular_person else '' %}
+{% set titular_locality_value = [titular_person.codigo_postal, titular_person.poblacion]|select|join(' ') if titular_person else '' %}
+{% set titular_address_value = [titular_person.direccion_linea, titular_locality_value, titular_person.provincia]|select|join(', ') if titular_person else '' %}
+{% set beneficiario_phone_value = [beneficiario_person.telefono, beneficiario_person.telefono2]|select|join(', ') if beneficiario_person else '' %}
+{% set beneficiario_email_value = [beneficiario_person.email, beneficiario_person.email2]|select|join(', ') if beneficiario_person else '' %}
+{% set beneficiario_locality_value = [beneficiario_person.codigo_postal, beneficiario_person.poblacion]|select|join(' ') if beneficiario_person else '' %}
+{% set beneficiario_address_value = [beneficiario_person.direccion_linea, beneficiario_locality_value, beneficiario_person.provincia]|select|join(', ') if beneficiario_person else '' %}
 <section class="detail-cards">
   <div class="box detail-card">
     <div class="detail-card-head">
@@ -82,16 +90,16 @@
     </div>
     <div class="detail-meta">
       <div class="detail-meta-item"><span class="detail-meta-label">Nombre</span><span class="detail-meta-value">{{ titular_person.full_name if titular_person else '-' }}</span></div>
-      <div class="detail-meta-item"><span class="detail-meta-label">Telefono</span><span class="detail-meta-value">{{ titular_person.telefono if titular_person else '-' }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">Telefono</span><span class="detail-meta-value">{{ titular_phone_value or '-' }}</span></div>
       <div class="detail-meta-item">
         <span class="detail-meta-label">Email</span>
         <span class="detail-meta-value wrap">
-          <span>{{ titular_person.email if titular_person and titular_person.email else '-' }}</span>
-          {% if titular_person and titular_person.email %}
+          <span>{{ titular_email_value or '-' }}</span>
+          {% if titular_email_value %}
           <button
             type="button"
             class="copy-email-btn"
-            data-copy-text="{{ titular_person.email }}"
+            data-copy-text="{{ titular_email_value }}"
             title="Copiar email"
             aria-label="Copiar email titular"
           >&#x2398;</button>
@@ -99,7 +107,7 @@
         </span>
       </div>
       <div class="detail-meta-item"><span class="detail-meta-label">DNI/NIF</span><span class="detail-meta-value">{{ titular_person.dni_nif if titular_person else '-' }}</span></div>
-      <div class="detail-meta-item"><span class="detail-meta-label">Direccion</span><span class="detail-meta-value">{{ titular_person.direccion if titular_person else '-' }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">Direccion</span><span class="detail-meta-value">{{ titular_address_value or (titular_person.direccion_linea if titular_person else '-') or '-' }}</span></div>
       <div class="detail-meta-item">
         <span class="detail-meta-label">Pensionista</span>
         <span class="detail-meta-value wrap">
@@ -134,16 +142,16 @@
     </div>
     <div class="detail-meta">
       <div class="detail-meta-item"><span class="detail-meta-label">Nombre</span><span class="detail-meta-value">{{ beneficiario_person.full_name if beneficiario_person else '-' }}</span></div>
-      <div class="detail-meta-item"><span class="detail-meta-label">Telefono</span><span class="detail-meta-value">{{ beneficiario_person.telefono if beneficiario_person else '-' }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">Telefono</span><span class="detail-meta-value">{{ beneficiario_phone_value or '-' }}</span></div>
       <div class="detail-meta-item">
         <span class="detail-meta-label">Email</span>
         <span class="detail-meta-value wrap">
-          <span>{{ beneficiario_person.email if beneficiario_person and beneficiario_person.email else '-' }}</span>
-          {% if beneficiario_person and beneficiario_person.email %}
+          <span>{{ beneficiario_email_value or '-' }}</span>
+          {% if beneficiario_email_value %}
           <button
             type="button"
             class="copy-email-btn"
-            data-copy-text="{{ beneficiario_person.email }}"
+            data-copy-text="{{ beneficiario_email_value }}"
             title="Copiar email"
             aria-label="Copiar email beneficiario"
           >&#x2398;</button>
@@ -151,7 +159,7 @@
         </span>
       </div>
       <div class="detail-meta-item"><span class="detail-meta-label">DNI/NIF</span><span class="detail-meta-value">{{ beneficiario_person.dni_nif if beneficiario_person else '-' }}</span></div>
-      <div class="detail-meta-item"><span class="detail-meta-label">Direccion</span><span class="detail-meta-value">{{ beneficiario_person.direccion if beneficiario_person else '-' }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">Direccion</span><span class="detail-meta-value">{{ beneficiario_address_value or (beneficiario_person.direccion_linea if beneficiario_person else '-') or '-' }}</span></div>
     </div>
   </div>
 
