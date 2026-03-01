@@ -1,15 +1,8 @@
-<!-- Spec 9.4.3 / 9.4.4 / 9.4.5 / 9.1.7 - Ficha de sepultura -->
+﻿<!-- Spec 9.4.3 / 9.4.4 / 9.4.5 / 9.1.7 - Ficha de sepultura -->
 {% extends "base.html" %}
 {% set active_cem = 'sepulturas' %}
 {% block title %}{{ t('field.grave') }} {{ data.sepultura.location_label }}{% endblock %}
 {% block content %}
-{% macro detail_field(label, value) -%}
-<div class="detail-field">
-  <span class="detail-field-label">{{ label }}</span>
-  <span class="detail-field-value">{{ value if value else '-' }}</span>
-</div>
-{%- endmacro %}
-
 <h1 class="page-title">{{ t('field.grave') }} {{ data.sepultura.location_label }}</h1>
 
 <div class="box">
@@ -41,7 +34,7 @@
     {% endif %}
     <a class="btn" href="{{ url_for('cemetery.expedientes', sepultura_id=data.sepultura.id) }}">Nuevo exp.</a>
     <a class="btn" href="{{ url_for('cemetery.ownership_cases') }}">{{ t('cem.ownership') }}</a>
-    <a class="btn" href="{{ url_for('cemetery.lapidas', sepultura_id=data.sepultura.id) }}">Lápidas</a>
+    <a class="btn" href="{{ url_for('cemetery.lapidas', sepultura_id=data.sepultura.id) }}">LÃ¡pidas</a>
   </div>
   {% endif %}
 </div>
@@ -71,18 +64,18 @@
         <button class="btn primary" type="submit">Cambiar titular</button>
       </form>
     </div>
-    <div class="detail-card-grid">
-      {{ detail_field('Nombre', titular_person.full_name if titular_person else '-') }}
-      {{ detail_field('Telefono', titular_person.telefono if titular_person else '-') }}
-      {{ detail_field('Email', titular_person.email if titular_person else '-') }}
-      {{ detail_field('DNI/NIF', titular_person.dni_nif if titular_person else '-') }}
-      {{ detail_field('Direccion', titular_person.direccion if titular_person else '-') }}
-      <div class="detail-field">
-        <span class="detail-field-label">Estado pensionista</span>
-        <span class="detail-field-value">
+    <div class="detail-meta">
+      <div class="detail-meta-item"><span class="detail-meta-label">Nombre</span><span class="detail-meta-value">{{ titular_person.full_name if titular_person else '-' }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">Telefono</span><span class="detail-meta-value">{{ titular_person.telefono if titular_person else '-' }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">Email</span><span class="detail-meta-value">{{ titular_person.email if titular_person else '-' }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">DNI/NIF</span><span class="detail-meta-value">{{ titular_person.dni_nif if titular_person else '-' }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">Direccion</span><span class="detail-meta-value">{{ titular_person.direccion if titular_person else '-' }}</span></div>
+      <div class="detail-meta-item">
+        <span class="detail-meta-label">Pensionista</span>
+        <span class="detail-meta-value wrap">
           <label class="detail-checkbox">
             <input type="checkbox" disabled {% if data.active_titular and data.active_titular.is_pensioner %}checked{% endif %}>
-            <span>Pensionista</span>
+            <span>{% if data.active_titular and data.active_titular.is_pensioner %}Si{% else %}No{% endif %}</span>
           </label>
           {% if data.active_titular and data.active_titular.is_pensioner %}
           <span class="pensionista-badge">Pensionista</span>
@@ -94,29 +87,37 @@
 
   <div class="box detail-card">
     <h3>Beneficiario</h3>
-    <div class="detail-card-grid">
-      {{ detail_field('Nombre', beneficiario_person.full_name if beneficiario_person else '-') }}
-      {{ detail_field('Telefono', beneficiario_person.telefono if beneficiario_person else '-') }}
-      {{ detail_field('Email', beneficiario_person.email if beneficiario_person else '-') }}
-      {{ detail_field('DNI/NIF', beneficiario_person.dni_nif if beneficiario_person else '-') }}
-      {{ detail_field('Direccion', beneficiario_person.direccion if beneficiario_person else '-') }}
+    <div class="detail-meta">
+      <div class="detail-meta-item"><span class="detail-meta-label">Nombre</span><span class="detail-meta-value">{{ beneficiario_person.full_name if beneficiario_person else '-' }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">Telefono</span><span class="detail-meta-value">{{ beneficiario_person.telefono if beneficiario_person else '-' }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">Email</span><span class="detail-meta-value">{{ beneficiario_person.email if beneficiario_person else '-' }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">DNI/NIF</span><span class="detail-meta-value">{{ beneficiario_person.dni_nif if beneficiario_person else '-' }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">Direccion</span><span class="detail-meta-value">{{ beneficiario_person.direccion if beneficiario_person else '-' }}</span></div>
     </div>
   </div>
 
   <div class="box detail-card">
-    <h3>Representante</h3>
-    <div class="detail-card-grid">
-      {{ detail_field('Nombre', representante_person.full_name if representante_person else '-') }}
-      {{ detail_field('Telefono', representante_person.telefono if representante_person else '-') }}
-      {{ detail_field('Email', representante_person.email if representante_person else '-') }}
-      {{ detail_field('DNI/NIF', representante_person.dni_nif if representante_person else '-') }}
-      {{ detail_field('Direccion', representante_person.direccion if representante_person else '-') }}
+    <div class="detail-card-head">
+      <h3>Representante</h3>
     </div>
+    {% if representante_person %}
+    <div class="detail-meta">
+      <div class="detail-meta-item"><span class="detail-meta-label">Nombre</span><span class="detail-meta-value">{{ representante_person.full_name }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">Telefono</span><span class="detail-meta-value">{{ representante_person.telefono or '-' }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">Email</span><span class="detail-meta-value">{{ representante_person.email or '-' }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">DNI/NIF</span><span class="detail-meta-value">{{ representante_person.dni_nif or '-' }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">Direccion</span><span class="detail-meta-value">{{ representante_person.direccion or '-' }}</span></div>
+    </div>
+    {% else %}
+    <div class="detail-empty-action">
+      <a class="btn primary" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='titularidad') }}">Anadir representante</a>
+    </div>
+    {% endif %}
   </div>
 
-  <div class="box detail-card">
+  <div class="box detail-card detail-card-wide">
     <h3>Difuntos</h3>
-    <table class="table-zebra">
+    <table class="table-zebra detail-table-compact">
       <thead>
         <tr>
           <th>Persona</th>
@@ -140,10 +141,10 @@
 
   <div class="box detail-card">
     <h3>Tasas</h3>
-    <table class="table-zebra">
+    <table class="table-zebra detail-table-compact">
       <thead>
         <tr>
-          <th>Año</th>
+          <th>Ano</th>
           <th>Estado</th>
           <th>Importe</th>
         </tr>
@@ -165,16 +166,16 @@
   <div class="box detail-card">
     <h3>{{ t('cem.rights') }}</h3>
     {% if data.contrato %}
-    <div class="detail-card-grid">
-      {{ detail_field('Tipo de concesión', 'LLOGUER' if data.contrato.tipo.value == 'USO_INMEDIATO' else data.contrato.tipo.value) }}
-      {{ detail_field('Inicio', data.contrato.fecha_inicio) }}
-      {{ detail_field('Fin', data.contrato.fecha_fin) }}
-      {{ detail_field('Importe anual base', money(data.contrato.annual_fee_amount)) }}
+    <div class="detail-meta">
+      <div class="detail-meta-item"><span class="detail-meta-label">Tipo</span><span class="detail-meta-value">{{ 'LLOGUER' if data.contrato.tipo.value == 'USO_INMEDIATO' else data.contrato.tipo.value }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">Inicio</span><span class="detail-meta-value">{{ data.contrato.fecha_inicio }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">Fin</span><span class="detail-meta-value">{{ data.contrato.fecha_fin }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">Importe anual</span><span class="detail-meta-value">{{ money(data.contrato.annual_fee_amount) }}</span></div>
     </div>
     <div class="actions-row">
-      <a class="btn primary" href="{{ url_for('cemetery.contract_title_pdf', contract_id=data.contrato.id) }}" target="_blank">Descargar título (PDF)</a>
-      <a class="btn" href="{{ url_for('module_pending', slug='ampliacion-derecho') }}">Ampliación</a>
-      <a class="btn" href="{{ url_for('module_pending', slug='prorroga-derecho') }}">Prórroga</a>
+      <a class="btn primary" href="{{ url_for('cemetery.contract_title_pdf', contract_id=data.contrato.id) }}" target="_blank">Descargar titulo (PDF)</a>
+      <a class="btn" href="{{ url_for('module_pending', slug='ampliacion-derecho') }}">Ampliacion</a>
+      <a class="btn" href="{{ url_for('module_pending', slug='prorroga-derecho') }}">Prorroga</a>
     </div>
     {% else %}
     <p>No hay contrato activo asociado a esta sepultura.</p>
@@ -182,20 +183,20 @@
   </div>
 
   <div class="box detail-card">
-    <h3>Características de la sepultura</h3>
-    <div class="detail-card-grid">
-      {{ detail_field('Ubicación', data.sepultura.location_label) }}
-      {{ detail_field('Via', data.sepultura.via) }}
-      {{ detail_field('Tipo bloque', data.sepultura.tipo_bloque) }}
-      {{ detail_field('Tipo lapida', data.sepultura.tipo_lapida) }}
-      {{ detail_field('Orientacion', data.sepultura.orientacion) }}
-      {{ detail_field('Difuntos registrados', data.difuntos_count) }}
+    <h3>Caracteristicas de la sepultura</h3>
+    <div class="detail-meta detail-meta--3">
+      <div class="detail-meta-item"><span class="detail-meta-label">Ubicacion</span><span class="detail-meta-value">{{ data.sepultura.location_label }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">Via</span><span class="detail-meta-value">{{ data.sepultura.via }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">Tipo bloque</span><span class="detail-meta-value">{{ data.sepultura.tipo_bloque }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">Tipo lapida</span><span class="detail-meta-value">{{ data.sepultura.tipo_lapida }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">Orientacion</span><span class="detail-meta-value">{{ data.sepultura.orientacion }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">Difuntos</span><span class="detail-meta-value">{{ data.difuntos_count }}</span></div>
     </div>
   </div>
 
-  <div class="box detail-card">
-    <h3>Lápidas / inscripciones</h3>
-    <table class="table-zebra">
+  <div class="box detail-card detail-card-wide">
+    <h3>Lapidas / inscripciones</h3>
+    <table class="table-zebra detail-table-compact">
       <thead>
         <tr>
           <th>Texto</th>
@@ -217,9 +218,9 @@
     </table>
   </div>
 
-  <div class="box detail-card">
+  <div class="box detail-card detail-card-wide">
     <h3>Movimientos</h3>
-    <table class="table-zebra">
+    <table class="table-zebra detail-table-compact">
       <thead>
         <tr>
           <th>Fecha</th>
@@ -280,7 +281,7 @@
     <div><span class="flash warning">PROVISIONAL hasta {{ data.active_titular.provisional_until or '-' }}</span></div>
     {% endif %}
   </div>
-  <h4>Histórico de titulares</h4>
+  <h4>HistÃ³rico de titulares</h4>
   <table>
     <thead>
       <tr>
@@ -297,7 +298,7 @@
         <td><a href="{{ url_for('cemetery.person_edit', person_id=t_item.person.id) }}">{{ t_item.person.full_name }}</a></td>
         <td>{{ t_item.start_date }}</td>
         <td>{{ t_item.end_date or '-' }}</td>
-        <td>{% if t_item.is_pensioner %}Sí ({{ t_item.pensioner_since_date or 's/f' }}){% else %}No{% endif %}</td>
+        <td>{% if t_item.is_pensioner %}SÃ­ ({{ t_item.pensioner_since_date or 's/f' }}){% else %}No{% endif %}</td>
         <td>{% if t_item.is_provisional %}{{ t('common.yes') }}{% else %}{{ t('common.no') }}{% endif %}</td>
       </tr>
       {% else %}
@@ -473,7 +474,7 @@
       {% include "components/person_picker.html" %}
     {% endwith %}
     <label>Notas</label>
-    <input type="text" name="notes" placeholder="Observaciones de inhumación">
+    <input type="text" name="notes" placeholder="Observaciones de inhumaciÃ³n">
     <div class="actions-row">
       <button class="btn primary" type="submit">Registrar difunto</button>
     </div>
@@ -486,7 +487,7 @@
   <table>
     <thead>
       <tr>
-        <th>Año</th>
+        <th>AÃ±o</th>
         <th>Importe</th>
         <th>Descuento</th>
         <th>Estado</th>
@@ -539,9 +540,9 @@
     </div>
   </div>
   <div class="quick-actions">
-    <a class="btn primary" href="{{ url_for('cemetery.contract_title_pdf', contract_id=data.contrato.id) }}" target="_blank">{{ t('common.download') }} título (PDF)</a>
-    <a class="btn" href="{{ url_for('module_pending', slug='ampliacion-derecho') }}">Ampliación</a>
-    <a class="btn" href="{{ url_for('module_pending', slug='prorroga-derecho') }}">Prórroga</a>
+    <a class="btn primary" href="{{ url_for('cemetery.contract_title_pdf', contract_id=data.contrato.id) }}" target="_blank">{{ t('common.download') }} tÃ­tulo (PDF)</a>
+    <a class="btn" href="{{ url_for('module_pending', slug='ampliacion-derecho') }}">AmpliaciÃ³n</a>
+    <a class="btn" href="{{ url_for('module_pending', slug='prorroga-derecho') }}">PrÃ³rroga</a>
   </div>
   {% else %}
   <form method="post" action="{{ url_for('cemetery.contract_create', sepultura_id=data.sepultura.id) }}">
@@ -596,7 +597,7 @@
       </div>
       <div>
         <label>
-          <input type="checkbox" name="legacy_99_years"> Concesión legacy (hasta 99 años)
+          <input type="checkbox" name="legacy_99_years"> ConcesiÃ³n legacy (hasta 99 aÃ±os)
         </label>
       </div>
     </div>
@@ -611,11 +612,11 @@
   <h3>{{ t('cem.engraving') }}</h3>
   <form class="inline-form" method="post" action="{{ url_for('cemetery.lapidas_create_inscripcion') }}">
     <input type="hidden" name="sepultura_id" value="{{ data.sepultura.id }}">
-    <input type="text" name="texto" placeholder="Texto de inscripción" required>
-    <button class="btn" type="submit">Crear encargo de inscripción</button>
+    <input type="text" name="texto" placeholder="Texto de inscripciÃ³n" required>
+    <button class="btn" type="submit">Crear encargo de inscripciÃ³n</button>
   </form>
   <div class="actions-row">
-    <a class="btn primary" href="{{ url_for('cemetery.lapidas', sepultura_id=data.sepultura.id) }}">Abrir módulo de lápidas</a>
+    <a class="btn primary" href="{{ url_for('cemetery.lapidas', sepultura_id=data.sepultura.id) }}">Abrir mÃ³dulo de lÃ¡pidas</a>
   </div>
 </div>
 {% else %}
@@ -675,3 +676,4 @@
 </div>
 {% endif %}
 {% endblock %}
+

@@ -847,11 +847,17 @@ tr:last-child td {
 
 .detail-cards {
   display: grid;
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(320px, 1fr));
+  gap: 10px;
 }
 
 .detail-card {
   margin-bottom: 0;
+  padding: 12px;
+}
+
+.detail-card-wide {
+  grid-column: 1 / -1;
 }
 
 .detail-card-head {
@@ -859,45 +865,58 @@ tr:last-child td {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .detail-card-head h3 {
   margin: 0;
+  font-size: 18px;
 }
 
-.detail-card-grid {
+.detail-meta {
   display: grid;
-  grid-template-columns: repeat(2, minmax(220px, 1fr));
-  gap: 10px 14px;
+  grid-template-columns: repeat(2, minmax(170px, 1fr));
+  gap: 6px 14px;
 }
 
-.detail-field {
+.detail-meta--3 {
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
+}
+
+.detail-meta-item {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface-2);
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
 }
 
-.detail-field-label {
+.detail-meta-label {
   font-size: 12px;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   color: var(--text-soft);
   font-weight: 700;
+  white-space: nowrap;
 }
 
-.detail-field-value {
+.detail-meta-value {
   font-size: 14px;
   color: var(--text);
   font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-meta-value.wrap {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  overflow: visible;
+  text-overflow: initial;
+  white-space: normal;
 }
 
 .detail-checkbox {
@@ -909,6 +928,8 @@ tr:last-child td {
 
 .detail-checkbox input[type="checkbox"] {
   pointer-events: none;
+  width: 14px;
+  height: 14px;
 }
 
 .pensionista-badge {
@@ -921,6 +942,26 @@ tr:last-child td {
   padding: 4px 10px;
   font-size: 12px;
   font-weight: 700;
+}
+
+.detail-empty-action {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+}
+
+.detail-table-compact th,
+.detail-table-compact td {
+  padding: 7px 10px;
+}
+
+.detail-table-compact th {
+  font-size: 11px;
+}
+
+.detail-card .actions-row {
+  justify-content: flex-start;
+  margin-top: 8px;
 }
 
 .small {
@@ -1062,8 +1103,17 @@ tr:last-child td {
   .split,
   .form-grid,
   .search-form .search-fields,
-  .detail-card-grid {
+  .detail-meta,
+  .detail-meta--3 {
     grid-template-columns: 1fr;
+  }
+
+  .detail-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-card-wide {
+    grid-column: auto;
   }
 
   .box,
