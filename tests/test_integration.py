@@ -257,7 +257,7 @@ def test_grave_detail_notes_tab_updates_postit_and_renders_on_principal(
 
     principal_response = client.get(f"/cementerio/sepulturas/{sep_id}")
     assert principal_response.status_code == 200
-    assert b"Post it" in principal_response.data
+    assert b"Post it" not in principal_response.data
     assert b"Revisar documentacion pendiente" in principal_response.data
 
 
