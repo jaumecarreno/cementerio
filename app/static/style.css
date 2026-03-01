@@ -873,6 +873,12 @@ tr:last-child td {
   font-size: 18px;
 }
 
+.detail-card-title-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .detail-meta {
   display: grid;
   grid-template-columns: repeat(2, minmax(170px, 1fr));

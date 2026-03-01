@@ -53,11 +53,6 @@
     <div class="content">
       <div id="nav-overlay" class="nav-overlay" hidden></div>
       <aside class="sidebar">
-        <div class="sidebar-head">
-          <a class="sidebar-brand" href="{{ url_for('dashboard_page') }}">
-            <span class="sidebar-brand-main">SENDA</span>
-          </a>
-        </div>
         <nav class="sidebar-nav" aria-label="Navegacion principal">
           <a class="menu-link {% if active_global == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard_page') }}">
             <span class="menu-icon">{{ sidebar_icon('dashboard') }}</span>

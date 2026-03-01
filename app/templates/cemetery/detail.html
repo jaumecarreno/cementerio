@@ -3,6 +3,7 @@
 {% set active_cem = 'sepulturas' %}
 {% block title %}{{ t('field.grave') }} {{ data.sepultura.location_label }}{% endblock %}
 {% block content %}
+{% from "partials/icons.html" import action_icon %}
 <h1 class="page-title">{{ t('field.grave') }} {{ data.sepultura.location_label }}</h1>
 
 <div class="box">
@@ -62,7 +63,17 @@
 <section class="detail-cards">
   <div class="box detail-card">
     <div class="detail-card-head">
-      <h3>Titular</h3>
+      <div class="detail-card-title-row">
+        <h3>Titular</h3>
+        {% if titular_person %}
+        <a
+          class="icon-btn"
+          href="{{ url_for('cemetery.person_edit', person_id=titular_person.id) }}"
+          title="Editar titular"
+          aria-label="Editar titular"
+        >{{ action_icon('edit') }}</a>
+        {% endif %}
+      </div>
       {% if data.contrato %}
       <a class="btn primary" href="{{ url_for('cemetery.ownership_cases', prefill_contract_id=data.contrato.id) }}">Cambiar titular</a>
       {% else %}
@@ -106,7 +117,17 @@
 
   <div class="box detail-card">
     <div class="detail-card-head">
-      <h3>Beneficiario</h3>
+      <div class="detail-card-title-row">
+        <h3>Beneficiario</h3>
+        {% if beneficiario_person %}
+        <a
+          class="icon-btn"
+          href="{{ url_for('cemetery.person_edit', person_id=beneficiario_person.id) }}"
+          title="Editar beneficiario"
+          aria-label="Editar beneficiario"
+        >{{ action_icon('edit') }}</a>
+        {% endif %}
+      </div>
       {% if data.contrato %}
       <a class="btn" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='beneficiarios') }}">Cambiar beneficiario</a>
       {% endif %}
