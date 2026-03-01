@@ -1211,6 +1211,19 @@ def change_sepultura_state(sepultura: Sepultura, new_state: SepulturaEstado) -> 
     db.session.commit()
 
 
+def update_sepultura_notes(sepultura_id: int, payload: dict[str, str]) -> Sepultura:
+    sepultura = sepultura_by_id(sepultura_id)
+    postit = (payload.get("postit") or "").strip()
+    notas = (payload.get("notas") or payload.get("notes") or "").strip()
+    if len(postit) > 255:
+        raise ValueError("El Post it no puede superar 255 caracteres")
+    sepultura.postit = postit
+    sepultura.notas = notas
+    db.session.add(sepultura)
+    db.session.commit()
+    return sepultura
+
+
 def sepultura_tickets_and_invoices(sepultura_id: int) -> dict[str, object]:
     sep = sepultura_by_id(sepultura_id)
     contrato = active_contract_for_sepultura(sep.id)

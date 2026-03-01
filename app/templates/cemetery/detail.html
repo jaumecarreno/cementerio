@@ -50,6 +50,7 @@
   <a class="tab-link {% if data.tab == 'movimientos' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='movimientos') }}">Movimientos</a>
   <a class="tab-link {% if data.tab == 'tasas' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='tasas') }}">Tasas</a>
   <a class="tab-link {% if data.tab == 'derecho' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='derecho') }}">{{ t('cem.rights') }}</a>
+  <a class="tab-link {% if data.tab == 'notas' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='notas') }}">Notas</a>
   <a class="tab-link {% if data.tab == 'lapidas' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='lapidas') }}">{{ t('cem.engraving') }}</a>
 </div>
 
@@ -69,6 +70,15 @@
 {% set beneficiario_locality_value = [beneficiario_person.codigo_postal, beneficiario_person.poblacion]|select|join(' ') if beneficiario_person else '' %}
 {% set beneficiario_address_value = [beneficiario_person.direccion_linea, beneficiario_locality_value, beneficiario_person.provincia]|select|join(', ') if beneficiario_person else '' %}
 <section class="detail-cards">
+  {% if data.sepultura.postit %}
+  <div class="box detail-card detail-card-wide postit-card">
+    <div class="detail-card-head">
+      <h3>Post it</h3>
+    </div>
+    <p class="postit-card-text">{{ data.sepultura.postit }}</p>
+  </div>
+  {% endif %}
+
   <div class="box detail-card">
     <div class="detail-card-head">
       <div class="detail-card-title-row">
@@ -757,6 +767,36 @@
     </div>
   </form>
   {% endif %}
+</div>
+{% elif data.tab == 'notas' %}
+<div class="box">
+  <h3>Notas</h3>
+  <form method="post" action="{{ url_for('cemetery.grave_notes_update', sepultura_id=data.sepultura.id) }}">
+    <div class="form-grid">
+      <div>
+        <label>Post it</label>
+        <input
+          type="text"
+          name="postit"
+          maxlength="255"
+          placeholder="Frase corta visible en principal"
+          value="{{ data.sepultura.postit or '' }}"
+        >
+      </div>
+    </div>
+    <div>
+      <label>Anotaciones</label>
+      <textarea
+        class="sepultura-notes-textarea"
+        name="notas"
+        rows="14"
+        placeholder="Escribe aqui las anotaciones internas de la sepultura"
+      >{{ data.sepultura.notas or '' }}</textarea>
+    </div>
+    <div class="actions-row">
+      <button class="btn primary" type="submit">Guardar notas</button>
+    </div>
+  </form>
 </div>
 {% elif data.tab == 'lapidas' %}
 <div class="box">

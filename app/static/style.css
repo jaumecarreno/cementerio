@@ -894,6 +894,22 @@ tr:last-child td {
   line-height: 1;
 }
 
+.postit-card {
+  border-left: 4px solid #f4c542;
+}
+
+.postit-card-text {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.sepultura-notes-textarea {
+  min-height: 280px;
+  resize: vertical;
+}
+
 .detail-meta {
   display: grid;
   grid-template-columns: repeat(2, minmax(170px, 1fr));

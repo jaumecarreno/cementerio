@@ -228,6 +228,39 @@ def test_grave_detail_principal_uses_latest_representative_and_shows_cards(
     assert b"inscripciones" in response.data
 
 
+def test_grave_detail_notes_tab_updates_postit_and_renders_on_principal(
+    app, client, login_admin
+):
+    login_admin()
+    with app.app_context():
+        sep = Sepultura.query.filter_by(bloque="B-12", numero=127).first()
+        assert sep is not None
+        sep_id = sep.id
+
+    save_response = client.post(
+        f"/cementerio/sepulturas/{sep_id}/notas",
+        data={
+            "postit": "Revisar documentacion pendiente",
+            "notas": "Nota interna larga para seguimiento de esta sepultura.",
+        },
+        follow_redirects=True,
+    )
+    assert save_response.status_code == 200
+    assert b"Notas actualizadas" in save_response.data
+    assert b"Guardar notas" in save_response.data
+
+    with app.app_context():
+        refreshed = db.session.get(Sepultura, sep_id)
+        assert refreshed is not None
+        assert refreshed.postit == "Revisar documentacion pendiente"
+        assert refreshed.notas == "Nota interna larga para seguimiento de esta sepultura."
+
+    principal_response = client.get(f"/cementerio/sepulturas/{sep_id}")
+    assert principal_response.status_code == 200
+    assert b"Post it" in principal_response.data
+    assert b"Revisar documentacion pendiente" in principal_response.data
+
+
 def test_contract_creation_and_pdf_title(app, client, login_admin):
     login_admin()
     with app.app_context():

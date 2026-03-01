@@ -246,6 +246,8 @@ class Sepultura(db.Model):
     tipo_bloque: Mapped[str] = mapped_column(db.String(60), nullable=False, default="")
     tipo_lapida: Mapped[str] = mapped_column(db.String(60), nullable=False, default="")
     orientacion: Mapped[str] = mapped_column(db.String(30), nullable=False, default="")
+    postit: Mapped[str] = mapped_column(db.String(255), nullable=False, default="")
+    notas: Mapped[str] = mapped_column(db.Text(), nullable=False, default="")
     sepultura_principal_id: Mapped[int | None] = mapped_column(ForeignKey("sepultura.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
 

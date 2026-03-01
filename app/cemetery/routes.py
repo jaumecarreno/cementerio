@@ -71,6 +71,7 @@ from app.cemetery.services import (
     sepultura_tickets_and_invoices,
     transition_expediente_state,
     transition_inscripcion_estado,
+    update_sepultura_notes,
     update_person,
     upload_case_document,
     verify_case_document,
@@ -587,6 +588,19 @@ def grave_detail(sepultura_id: int):
     return render_template(
         "cemetery/detail.html", data=data, SepulturaEstado=SepulturaEstado, money=money
     )
+
+
+@cemetery_bp.post("/sepulturas/<int:sepultura_id>/notas")
+@login_required
+@require_membership
+def grave_notes_update(sepultura_id: int):
+    payload = {k: v for k, v in request.form.items()}
+    try:
+        update_sepultura_notes(sepultura_id, payload)
+        flash("Notas actualizadas", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.grave_detail", sepultura_id=sepultura_id, tab="notas"))
 
 
 @cemetery_bp.post("/sepulturas/<int:sepultura_id>/cambiar-titular")
