@@ -879,6 +879,21 @@ tr:last-child td {
   gap: 8px;
 }
 
+.beneficiario-alert-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fce8e8;
+  color: #b42318;
+  border: 1px solid #f7b2b2;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
 .detail-meta {
   display: grid;
   grid-template-columns: repeat(2, minmax(170px, 1fr));

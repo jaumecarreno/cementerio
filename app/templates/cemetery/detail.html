@@ -134,6 +134,8 @@
           title="Editar beneficiario"
           aria-label="Editar beneficiario"
         >{{ action_icon('edit') }}</a>
+        {% else %}
+        <span class="beneficiario-alert-icon" title="Sin beneficiario activo" aria-label="Sin beneficiario activo">!</span>
         {% endif %}
       </div>
       {% if data.contrato %}
@@ -141,12 +143,12 @@
       {% endif %}
     </div>
     <div class="detail-meta">
-      <div class="detail-meta-item"><span class="detail-meta-label">Nombre</span><span class="detail-meta-value">{{ beneficiario_person.full_name if beneficiario_person else '-' }}</span></div>
-      <div class="detail-meta-item"><span class="detail-meta-label">Telefono</span><span class="detail-meta-value">{{ beneficiario_phone_value or '-' }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">Nombre</span><span class="detail-meta-value">{{ beneficiario_person.full_name if beneficiario_person else '' }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">Telefono</span><span class="detail-meta-value">{{ beneficiario_phone_value or '' }}</span></div>
       <div class="detail-meta-item">
         <span class="detail-meta-label">Email</span>
         <span class="detail-meta-value wrap">
-          <span>{{ beneficiario_email_value or '-' }}</span>
+          <span>{{ beneficiario_email_value or '' }}</span>
           {% if beneficiario_email_value %}
           <button
             type="button"
@@ -158,8 +160,8 @@
           {% endif %}
         </span>
       </div>
-      <div class="detail-meta-item"><span class="detail-meta-label">DNI/NIF</span><span class="detail-meta-value">{{ beneficiario_person.dni_nif if beneficiario_person else '-' }}</span></div>
-      <div class="detail-meta-item"><span class="detail-meta-label">Direccion</span><span class="detail-meta-value">{{ beneficiario_address_value or (beneficiario_person.direccion_linea if beneficiario_person else '-') or '-' }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">DNI/NIF</span><span class="detail-meta-value">{{ beneficiario_person.dni_nif if beneficiario_person else '' }}</span></div>
+      <div class="detail-meta-item"><span class="detail-meta-label">Direccion</span><span class="detail-meta-value">{{ beneficiario_address_value or (beneficiario_person.direccion_linea if beneficiario_person else '') }}</span></div>
     </div>
   </div>
 
