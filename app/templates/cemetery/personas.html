@@ -40,9 +40,15 @@
         <td>{{ person.id }}</td>
         <td>{{ person.full_name }}</td>
         <td>{{ person.dni_nif or '-' }}</td>
-        <td>{{ person.telefono or '-' }}</td>
-        <td>{{ person.email or '-' }}</td>
-        <td>{{ person.direccion or '-' }}</td>
+        <td>
+          {{ person.telefono or '-' }}
+          {% if person.telefono2 %}<br><span class="small muted">{{ person.telefono2 }}</span>{% endif %}
+        </td>
+        <td>
+          {{ person.email or '-' }}
+          {% if person.email2 %}<br><span class="small muted">{{ person.email2 }}</span>{% endif %}
+        </td>
+        <td>{{ person.formatted_address or person.direccion or '-' }}</td>
         {% set primary_href = url_for('cemetery.person_edit', person_id=person.id) %}
         {% set primary_label = t('common.edit') %}
         {% set primary = false %}

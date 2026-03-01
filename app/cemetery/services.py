@@ -409,6 +409,15 @@ def list_people(search_text: str = "", limit: int = 200) -> list[Person]:
                 Person.first_name.ilike(pattern),
                 Person.last_name.ilike(pattern),
                 Person.dni_nif.ilike(pattern),
+                Person.telefono.ilike(pattern),
+                Person.telefono2.ilike(pattern),
+                Person.email.ilike(pattern),
+                Person.email2.ilike(pattern),
+                Person.direccion_linea.ilike(pattern),
+                Person.codigo_postal.ilike(pattern),
+                Person.poblacion.ilike(pattern),
+                Person.provincia.ilike(pattern),
+                Person.pais.ilike(pattern),
             )
         )
     return (
@@ -432,6 +441,15 @@ def list_people_paged(
                 Person.first_name.ilike(pattern),
                 Person.last_name.ilike(pattern),
                 Person.dni_nif.ilike(pattern),
+                Person.telefono.ilike(pattern),
+                Person.telefono2.ilike(pattern),
+                Person.email.ilike(pattern),
+                Person.email2.ilike(pattern),
+                Person.direccion_linea.ilike(pattern),
+                Person.codigo_postal.ilike(pattern),
+                Person.poblacion.ilike(pattern),
+                Person.provincia.ilike(pattern),
+                Person.pais.ilike(pattern),
             )
         )
 
@@ -476,7 +494,54 @@ def _validate_email(value: str) -> str:
     return email
 
 
+def _compose_person_address(
+    direccion_linea: str,
+    codigo_postal: str,
+    poblacion: str,
+    provincia: str,
+    pais: str,
+) -> str:
+    parts: list[str] = []
+    street = (direccion_linea or "").strip()
+    if street:
+        parts.append(street)
+
+    locality = " ".join(
+        [part for part in [(codigo_postal or "").strip(), (poblacion or "").strip()] if part]
+    ).strip()
+    if locality:
+        parts.append(locality)
+
+    province = (provincia or "").strip()
+    if province:
+        parts.append(province)
+
+    country = (pais or "").strip()
+    if country:
+        parts.append(country)
+
+    return ", ".join(parts)
+
+
 def _person_payload(payload: dict[str, str]) -> dict[str, str | None]:
+    direccion_linea = (
+        payload.get("direccion_linea")
+        or payload.get("adreca")
+        or payload.get("direccion")
+        or payload.get("address")
+        or ""
+    ).strip()
+    codigo_postal = (payload.get("codigo_postal") or payload.get("postal_code") or "").strip()
+    poblacion = (payload.get("poblacion") or payload.get("city") or "").strip()
+    provincia = (payload.get("provincia") or payload.get("province") or "").strip()
+    pais = (payload.get("pais") or payload.get("country") or "").strip()
+    direccion = _compose_person_address(
+        direccion_linea=direccion_linea,
+        codigo_postal=codigo_postal,
+        poblacion=poblacion,
+        provincia=provincia,
+        pais=pais,
+    )
     return {
         "first_name": (
             payload.get("nombre") or payload.get("first_name") or ""
@@ -486,8 +551,15 @@ def _person_payload(payload: dict[str, str]) -> dict[str, str | None]:
         ).strip(),
         "dni_nif": _clean_dni_nif(payload.get("dni_nif") or payload.get("document_id")),
         "telefono": (payload.get("telefono") or payload.get("phone") or "").strip(),
+        "telefono2": (payload.get("telefono2") or payload.get("phone2") or "").strip(),
         "email": _validate_email(payload.get("email") or ""),
-        "direccion": (payload.get("direccion") or payload.get("address") or "").strip(),
+        "email2": _validate_email(payload.get("email2") or ""),
+        "direccion_linea": direccion_linea,
+        "codigo_postal": codigo_postal,
+        "poblacion": poblacion,
+        "provincia": provincia,
+        "pais": pais,
+        "direccion": direccion,
         "notas": (payload.get("notas") or payload.get("notes") or "").strip(),
     }
 
@@ -509,8 +581,15 @@ def create_person(payload: dict[str, str]) -> Person:
         last_name=str(values["last_name"]),
         dni_nif=values["dni_nif"],
         telefono=str(values["telefono"]),
+        telefono2=str(values["telefono2"]),
         email=str(values["email"]),
+        email2=str(values["email2"]),
         direccion=str(values["direccion"]),
+        direccion_linea=str(values["direccion_linea"]),
+        codigo_postal=str(values["codigo_postal"]),
+        poblacion=str(values["poblacion"]),
+        provincia=str(values["provincia"]),
+        pais=str(values["pais"]),
         notas=str(values["notas"]),
     )
     db.session.add(person)
@@ -536,8 +615,15 @@ def update_person(person_id: int, payload: dict[str, str]) -> Person:
     person.last_name = str(values["last_name"])
     person.dni_nif = values["dni_nif"]
     person.telefono = str(values["telefono"])
+    person.telefono2 = str(values["telefono2"])
     person.email = str(values["email"])
+    person.email2 = str(values["email2"])
     person.direccion = str(values["direccion"])
+    person.direccion_linea = str(values["direccion_linea"])
+    person.codigo_postal = str(values["codigo_postal"])
+    person.poblacion = str(values["poblacion"])
+    person.provincia = str(values["provincia"])
+    person.pais = str(values["pais"])
     person.notas = str(values["notas"])
     db.session.add(person)
     db.session.commit()

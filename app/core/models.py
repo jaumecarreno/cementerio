@@ -295,8 +295,15 @@ class Person(db.Model):
     last_name: Mapped[str] = mapped_column(db.String(120), nullable=False, default="")
     dni_nif: Mapped[str | None] = mapped_column(db.String(30), nullable=True)
     telefono: Mapped[str] = mapped_column(db.String(40), nullable=False, default="")
+    telefono2: Mapped[str] = mapped_column(db.String(40), nullable=False, default="")
     email: Mapped[str] = mapped_column(db.String(120), nullable=False, default="")
+    email2: Mapped[str] = mapped_column(db.String(120), nullable=False, default="")
     direccion: Mapped[str] = mapped_column(db.String(255), nullable=False, default="")
+    direccion_linea: Mapped[str] = mapped_column(db.String(255), nullable=False, default="")
+    codigo_postal: Mapped[str] = mapped_column(db.String(20), nullable=False, default="")
+    poblacion: Mapped[str] = mapped_column(db.String(120), nullable=False, default="")
+    provincia: Mapped[str] = mapped_column(db.String(120), nullable=False, default="")
+    pais: Mapped[str] = mapped_column(db.String(120), nullable=False, default="")
     notas: Mapped[str] = mapped_column(db.String(500), nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
 
@@ -306,6 +313,25 @@ class Person(db.Model):
     @property
     def full_name(self) -> str:
         return f"{self.first_name} {self.last_name}".strip()
+
+    @property
+    def formatted_address(self) -> str:
+        parts: list[str] = []
+        street = (self.direccion_linea or "").strip()
+        if street:
+            parts.append(street)
+        locality = " ".join(
+            [part for part in [(self.codigo_postal or "").strip(), (self.poblacion or "").strip()] if part]
+        ).strip()
+        if locality:
+            parts.append(locality)
+        if (self.provincia or "").strip():
+            parts.append((self.provincia or "").strip())
+        if (self.pais or "").strip():
+            parts.append((self.pais or "").strip())
+        if parts:
+            return ", ".join(parts)
+        return (self.direccion or "").strip()
 
 
 class SepulturaDifunto(db.Model):

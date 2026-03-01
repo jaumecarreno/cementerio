@@ -1,5 +1,6 @@
 {# Reusable HTMX picker for Person #}
 {% set selected = selected_person if selected_person else None %}
+{% set default_country = 'España' if current_lang == 'es' else 'Espanya' %}
 <div class="person-picker" id="{{ picker_id }}" data-required="{{ '1' if required else '0' }}">
   <label>{{ label }}</label>
   <input type="hidden" id="{{ picker_id }}-person-id" name="{{ field_name }}" value="{{ selected.id if selected else '' }}">
@@ -51,12 +52,36 @@
         <input type="text" name="telefono" placeholder="{{ t('field.phone') }}" autocomplete="off">
       </div>
       <div>
+        <label>{{ t('field.phone_secondary') }}</label>
+        <input type="text" name="telefono2" placeholder="{{ t('field.phone_secondary') }}" autocomplete="off">
+      </div>
+      <div>
         <label>{{ t('field.email') }}</label>
         <input type="text" name="email" placeholder="{{ t('field.email') }}" autocomplete="off">
       </div>
       <div>
+        <label>{{ t('field.email_secondary') }}</label>
+        <input type="text" name="email2" placeholder="{{ t('field.email_secondary') }}" autocomplete="off">
+      </div>
+      <div>
         <label>{{ t('field.address') }}</label>
-        <input type="text" name="direccion" placeholder="{{ t('field.address') }}" autocomplete="off">
+        <input type="text" name="direccion_linea" placeholder="{{ t('field.address') }}" autocomplete="off">
+      </div>
+      <div>
+        <label>{{ t('field.postal_code') }}</label>
+        <input type="text" name="codigo_postal" placeholder="{{ t('field.postal_code') }}" autocomplete="off">
+      </div>
+      <div>
+        <label>{{ t('field.city') }}</label>
+        <input type="text" name="poblacion" placeholder="{{ t('field.city') }}" autocomplete="off">
+      </div>
+      <div>
+        <label>{{ t('field.province') }}</label>
+        <input type="text" name="provincia" placeholder="{{ t('field.province') }}" autocomplete="off">
+      </div>
+      <div>
+        <label>{{ t('field.country') }}</label>
+        <input type="text" name="pais" value="{{ default_country }}" placeholder="{{ t('field.country') }}" autocomplete="off">
       </div>
       <div>
         <label>{{ t('field.notes') }}</label>

@@ -4,6 +4,7 @@
 {% block content %}
 <h1 class="page-title">{{ title }}</h1>
 {% set d = form_data or {} %}
+{% set default_country = 'España' if current_lang == 'es' else 'Espanya' %}
 
 <div class="box">
   <form method="post" action="{{ form_action }}">
@@ -25,12 +26,36 @@
         <input type="text" name="telefono" value="{{ d.get('telefono', person.telefono if person else '') }}">
       </div>
       <div>
+        <label>{{ t('field.phone_secondary') }}</label>
+        <input type="text" name="telefono2" value="{{ d.get('telefono2', person.telefono2 if person else '') }}">
+      </div>
+      <div>
         <label>{{ t('field.email') }}</label>
         <input type="text" name="email" value="{{ d.get('email', person.email if person else '') }}">
       </div>
       <div>
+        <label>{{ t('field.email_secondary') }}</label>
+        <input type="text" name="email2" value="{{ d.get('email2', person.email2 if person else '') }}">
+      </div>
+      <div>
         <label>{{ t('field.address') }}</label>
-        <input type="text" name="direccion" value="{{ d.get('direccion', person.direccion if person else '') }}">
+        <input type="text" name="direccion_linea" value="{{ d.get('direccion_linea', person.direccion_linea if person and person.direccion_linea else (person.direccion if person else '')) }}">
+      </div>
+      <div>
+        <label>{{ t('field.postal_code') }}</label>
+        <input type="text" name="codigo_postal" value="{{ d.get('codigo_postal', person.codigo_postal if person else '') }}">
+      </div>
+      <div>
+        <label>{{ t('field.city') }}</label>
+        <input type="text" name="poblacion" value="{{ d.get('poblacion', person.poblacion if person else '') }}">
+      </div>
+      <div>
+        <label>{{ t('field.province') }}</label>
+        <input type="text" name="provincia" value="{{ d.get('provincia', person.provincia if person else '') }}">
+      </div>
+      <div>
+        <label>{{ t('field.country') }}</label>
+        <input type="text" name="pais" value="{{ d.get('pais', person.pais if person and person.pais else default_country) }}">
       </div>
       <div>
         <label>{{ t('field.notes') }}</label>
