@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from io import BytesIO
 
@@ -287,6 +287,37 @@ def test_fees_warning_without_beneficiary_and_quick_nomination(app, client, logi
     )
     assert nominate_response.status_code == 200
     assert b"Beneficiario guardado" in nominate_response.data
+
+
+def test_fees_warning_when_beneficiary_ends_today(app, client, login_admin):
+    login_admin()
+    with app.app_context():
+        contract = (
+            DerechoFunerarioContrato.query.join(Sepultura)
+            .filter(Sepultura.bloque == "B-20", Sepultura.numero == 210)
+            .first()
+        )
+        assert contract is not None
+        sep_id = contract.sepultura_id
+        active = Beneficiario.query.filter_by(contrato_id=contract.id, activo_hasta=None).first()
+        assert active is not None
+
+    remove_response = client.post(
+        f"/cementerio/contratos/{contract.id}/beneficiario/eliminar",
+        data={"sepultura_id": sep_id, "end_date": date.today().isoformat()},
+        follow_redirects=True,
+    )
+    assert remove_response.status_code == 200
+    assert b"Beneficiario eliminado" in remove_response.data
+
+    fees_response = client.get(f"/cementerio/tasas/cobro?sepultura_id={sep_id}")
+    assert fees_response.status_code == 200
+    assert b"no tiene beneficiario" in fees_response.data
+
+    principal_response = client.get(f"/cementerio/sepulturas/{sep_id}")
+    assert principal_response.status_code == 200
+    assert b'aria-label="Sin beneficiario activo"' in principal_response.data
+    assert b'aria-label="Editar beneficiario"' not in principal_response.data
 
 
 def test_change_holder_direct_redirects_with_prefill_and_does_not_create_case(
@@ -847,6 +878,74 @@ def test_mortis_causa_con_beneficiario_requires_active_beneficiary_and_preloads_
     )
     assert create_fail.status_code == 200
     assert b"requiere beneficiario activo" in create_fail.data
+
+
+def test_mortis_causa_with_beneficiary_end_date_today_is_rejected(app, client, login_admin):
+    login_admin()
+    with app.app_context():
+        contract = (
+            DerechoFunerarioContrato.query.join(Sepultura)
+            .filter(Sepultura.bloque == "B-20", Sepultura.numero == 210)
+            .first()
+        )
+        assert contract is not None
+        active_benef = Beneficiario.query.filter_by(contrato_id=contract.id, activo_hasta=None).first()
+        assert active_benef is not None
+        active_benef.activo_hasta = date.today()
+        db.session.add(active_benef)
+        db.session.commit()
+        contract_id = contract.id
+
+    response = client.post(
+        "/cementerio/titularidad/casos",
+        data={"contract_id": str(contract_id), "type": "MORTIS_CAUSA_CON_BENEFICIARIO"},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert b"requiere beneficiario activo" in response.data
+
+
+def test_mortis_causa_with_beneficiary_end_date_tomorrow_is_allowed(app, client, login_admin):
+    login_admin()
+    with app.app_context():
+        contract = (
+            DerechoFunerarioContrato.query.join(Sepultura)
+            .filter(Sepultura.bloque == "B-20", Sepultura.numero == 210)
+            .first()
+        )
+        assert contract is not None
+        active_benef = Beneficiario.query.filter_by(contrato_id=contract.id, activo_hasta=None).first()
+        assert active_benef is not None
+        active_benef.activo_hasta = date.today() + timedelta(days=1)
+        db.session.add(active_benef)
+        db.session.commit()
+        expected_person_id = active_benef.person_id
+        contract_id = contract.id
+
+    response = client.post(
+        "/cementerio/titularidad/casos",
+        data={"contract_id": str(contract_id), "type": "MORTIS_CAUSA_CON_BENEFICIARIO"},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+
+    with app.app_context():
+        case = (
+            OwnershipTransferCase.query.filter_by(
+                contract_id=contract_id,
+                type=OwnershipTransferType.MORTIS_CAUSA_CON_BENEFICIARIO,
+            )
+            .order_by(OwnershipTransferCase.id.desc())
+            .first()
+        )
+        assert case is not None
+        new_holder_party = (
+            OwnershipTransferParty.query.filter_by(case_id=case.id, role=OwnershipPartyRole.NUEVO_TITULAR)
+            .order_by(OwnershipTransferParty.id.desc())
+            .first()
+        )
+        assert new_holder_party is not None
+        assert new_holder_party.person_id == expected_person_id
 
 
 def test_provisional_owner_blocks_exhumacion_and_rescate_with_prior_remains(app, client, login_admin):

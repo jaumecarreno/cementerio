@@ -355,9 +355,9 @@ def active_beneficiario_for_contract(contract_id: int) -> Beneficiario | None:
     return (
         Beneficiario.query.filter_by(org_id=org_id(), contrato_id=contract_id)
         .filter(
-            or_(Beneficiario.activo_hasta.is_(None), Beneficiario.activo_hasta >= today)
+            or_(Beneficiario.activo_hasta.is_(None), Beneficiario.activo_hasta > today)
         )
-        .order_by(Beneficiario.activo_desde.desc())
+        .order_by(Beneficiario.activo_desde.desc(), Beneficiario.id.desc())
         .first()
     )
 
