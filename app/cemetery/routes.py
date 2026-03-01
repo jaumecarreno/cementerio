@@ -28,6 +28,7 @@ from app.cemetery.services import (
     contract_by_id,
     create_expediente,
     create_expediente_ot,
+    create_holder_change_case_for_sepultura,
     create_inscripcion_lateral,
     create_person,
     create_ownership_case,
@@ -573,7 +574,7 @@ def fees_search():
 @require_membership
 def grave_detail(sepultura_id: int):
     # Spec 9.4.3 / 9.4.4 / 9.4.5 / 9.1.7 - Ficha de sepultura con tabs
-    tab = request.args.get("tab", "movimientos")
+    tab = request.args.get("tab", "principal")
     mov_filters = {
         "tipo": request.args.get("tipo", "").strip(),
         "desde": request.args.get("desde", "").strip(),
@@ -586,6 +587,22 @@ def grave_detail(sepultura_id: int):
     return render_template(
         "cemetery/detail.html", data=data, SepulturaEstado=SepulturaEstado, money=money
     )
+
+
+@cemetery_bp.post("/sepulturas/<int:sepultura_id>/cambiar-titular")
+@login_required
+@require_membership
+@require_role("admin")
+def change_holder_direct(sepultura_id: int):
+    try:
+        created = create_holder_change_case_for_sepultura(sepultura_id, current_user.id)
+        flash(f"Caso {created.case_number} creado", "success")
+        return redirect(
+            url_for("cemetery.ownership_case_detail_page", case_id=created.id)
+        )
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.grave_detail", sepultura_id=sepultura_id))
 
 
 @cemetery_bp.get("/titularidad")

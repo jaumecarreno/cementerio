@@ -845,6 +845,84 @@ tr:last-child td {
   margin-bottom: 8px;
 }
 
+.detail-cards {
+  display: grid;
+  gap: 12px;
+}
+
+.detail-card {
+  margin-bottom: 0;
+}
+
+.detail-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.detail-card-head h3 {
+  margin: 0;
+}
+
+.detail-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 10px 14px;
+}
+
+.detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.detail-field-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-soft);
+  font-weight: 700;
+}
+
+.detail-field-value {
+  font-size: 14px;
+  color: var(--text);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.detail-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.detail-checkbox input[type="checkbox"] {
+  pointer-events: none;
+}
+
+.pensionista-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid #79c89c;
+  background: #e5f7ed;
+  color: #1a7e43;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .small {
   font-size: 13px;
 }
@@ -983,7 +1061,8 @@ tr:last-child td {
   .panel-grid,
   .split,
   .form-grid,
-  .search-form .search-fields {
+  .search-form .search-fields,
+  .detail-card-grid {
     grid-template-columns: 1fr;
   }
 

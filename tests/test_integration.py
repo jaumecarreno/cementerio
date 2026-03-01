@@ -65,6 +65,8 @@ def test_vertical_flow_search_to_collect(app, client, login_admin):
     detail_response = client.get(f"/cementerio/sepulturas/{sep.id}")
     assert detail_response.status_code == 200
     assert b"Sepultura" in detail_response.data
+    assert b"Titular" in detail_response.data
+    assert b"Movimientos" in detail_response.data
 
     fees_response = client.get(f"/cementerio/tasas/cobro?sepultura_id={sep.id}")
     assert fees_response.status_code == 200
@@ -137,6 +139,93 @@ def test_search_graves_filters_by_modalidad_estado_deuda_and_shows_sepultura_id(
     assert expected_location not in only_deuda.data
 
 
+def test_grave_detail_principal_uses_latest_representative_and_shows_cards(
+    app, client, login_admin
+):
+    login_admin()
+    with app.app_context():
+        contract = (
+            DerechoFunerarioContrato.query.join(Sepultura)
+            .filter(Sepultura.bloque == "B-12", Sepultura.numero == 127)
+            .first()
+        )
+        sep = contract.sepultura
+        sep_id = sep.id
+        old_rep = Person(
+            org_id=sep.org_id,
+            first_name="Representante",
+            last_name="Antiguo",
+            dni_nif="REP-OLD-127",
+            telefono="900111000",
+            email="old.rep@example.test",
+            direccion="Calle Antigua 1",
+        )
+        new_rep = Person(
+            org_id=sep.org_id,
+            first_name="Representante",
+            last_name="Reciente",
+            dni_nif="REP-NEW-127",
+            telefono="900222000",
+            email="new.rep@example.test",
+            direccion="Calle Nueva 2",
+        )
+        db.session.add_all([old_rep, new_rep])
+        db.session.flush()
+        old_case = OwnershipTransferCase(
+            org_id=sep.org_id,
+            case_number="TR-2026-4101",
+            contract_id=contract.id,
+            type=OwnershipTransferType.INTER_VIVOS,
+            status=OwnershipTransferStatus.DRAFT,
+            opened_at=datetime(2026, 1, 10, tzinfo=timezone.utc),
+        )
+        new_case = OwnershipTransferCase(
+            org_id=sep.org_id,
+            case_number="TR-2026-4102",
+            contract_id=contract.id,
+            type=OwnershipTransferType.INTER_VIVOS,
+            status=OwnershipTransferStatus.DRAFT,
+            opened_at=datetime(2026, 2, 10, tzinfo=timezone.utc),
+        )
+        db.session.add_all([old_case, new_case])
+        db.session.flush()
+        db.session.add_all(
+            [
+                OwnershipTransferParty(
+                    org_id=sep.org_id,
+                    case_id=old_case.id,
+                    role=OwnershipPartyRole.REPRESENTANTE,
+                    person_id=old_rep.id,
+                ),
+                OwnershipTransferParty(
+                    org_id=sep.org_id,
+                    case_id=new_case.id,
+                    role=OwnershipPartyRole.REPRESENTANTE,
+                    person_id=new_rep.id,
+                ),
+            ]
+        )
+        active_owner = (
+            OwnershipRecord.query.filter_by(contract_id=contract.id)
+            .filter(OwnershipRecord.end_date.is_(None))
+            .first()
+        )
+        active_owner.is_pensioner = True
+        db.session.add(active_owner)
+        db.session.commit()
+
+    response = client.get(f"/cementerio/sepulturas/{sep_id}")
+    assert response.status_code == 200
+    assert b"Principal" in response.data
+    assert b"Cambiar titular" in response.data
+    assert b"Beneficiario" in response.data
+    assert b"Representante" in response.data
+    assert b"Representante Reciente" in response.data
+    assert b"Representante Antiguo" not in response.data
+    assert b"Pensionista" in response.data
+    assert b"inscripciones" in response.data
+
+
 def test_contract_creation_and_pdf_title(app, client, login_admin):
     login_admin()
     with app.app_context():
@@ -196,6 +285,99 @@ def test_fees_warning_without_beneficiary_and_quick_nomination(app, client, logi
     )
     assert nominate_response.status_code == 200
     assert b"Beneficiario guardado" in nominate_response.data
+
+
+def test_change_holder_direct_infers_case_type_by_active_beneficiary(
+    app, client, login_admin
+):
+    login_admin()
+    with app.app_context():
+        contract_with_benef = (
+            DerechoFunerarioContrato.query.join(Sepultura)
+            .filter(Sepultura.bloque == "B-20", Sepultura.numero == 210)
+            .first()
+        )
+        contract_without_benef = (
+            DerechoFunerarioContrato.query.join(Sepultura)
+            .filter(Sepultura.bloque == "B-12", Sepultura.numero == 127)
+            .first()
+        )
+        contract_with_benef_id = contract_with_benef.id
+        contract_without_benef_id = contract_without_benef.id
+        sep_with_benef = contract_with_benef.sepultura_id
+        sep_without_benef = contract_without_benef.sepultura_id
+
+    first = client.post(
+        f"/cementerio/sepulturas/{sep_with_benef}/cambiar-titular",
+        follow_redirects=True,
+    )
+    assert first.status_code == 200
+    with app.app_context():
+        created_with_benef = (
+            OwnershipTransferCase.query.filter_by(contract_id=contract_with_benef_id)
+            .order_by(OwnershipTransferCase.id.desc())
+            .first()
+        )
+        assert created_with_benef is not None
+        assert (
+            created_with_benef.type
+            == OwnershipTransferType.MORTIS_CAUSA_CON_BENEFICIARIO
+        )
+
+    second = client.post(
+        f"/cementerio/sepulturas/{sep_without_benef}/cambiar-titular",
+        follow_redirects=True,
+    )
+    assert second.status_code == 200
+    with app.app_context():
+        created_without_benef = (
+            OwnershipTransferCase.query.filter_by(contract_id=contract_without_benef_id)
+            .order_by(OwnershipTransferCase.id.desc())
+            .first()
+        )
+        assert created_without_benef is not None
+        assert created_without_benef.type == OwnershipTransferType.INTER_VIVOS
+
+
+def test_change_holder_direct_requires_admin_and_handles_missing_contract(
+    app, client, login_operator, login_admin
+):
+    with app.app_context():
+        sep_with_contract = Sepultura.query.filter_by(bloque="B-12", numero=127).first()
+        sep_with_contract_id = sep_with_contract.id
+        cemetery = Cemetery.query.order_by(Cemetery.id.asc()).first()
+        sep_without_contract = Sepultura(
+            org_id=cemetery.org_id,
+            cemetery_id=cemetery.id,
+            bloque="B-NOC",
+            fila=9,
+            columna=9,
+            via="V-9",
+            numero=9090,
+            modalidad="Ninxol nou",
+            estado=SepulturaEstado.DISPONIBLE,
+            tipo_bloque="Ninxols",
+            tipo_lapida="Resina",
+            orientacion="Nord",
+        )
+        db.session.add(sep_without_contract)
+        db.session.commit()
+        sep_without_contract_id = sep_without_contract.id
+
+    login_operator()
+    forbidden = client.post(
+        f"/cementerio/sepulturas/{sep_with_contract_id}/cambiar-titular",
+    )
+    assert forbidden.status_code == 403
+
+    client.post("/auth/logout", follow_redirects=True)
+    login_admin()
+    missing_contract = client.post(
+        f"/cementerio/sepulturas/{sep_without_contract_id}/cambiar-titular",
+        follow_redirects=True,
+    )
+    assert missing_contract.status_code == 200
+    assert b"No hay contrato activo asociado a esta sepultura" in missing_contract.data
 
 
 

@@ -1401,6 +1401,7 @@ def sepultura_tabs_data(
     tasas = []
     active_titular = None
     active_beneficiario = None
+    representante = None
     if contrato:
         active_titular = active_titular_for_contract(contrato.id)
         active_beneficiario = active_beneficiario_for_contract(contrato.id)
@@ -1421,6 +1422,31 @@ def sepultura_tabs_data(
             .order_by(TasaMantenimientoTicket.anio.desc())
             .all()
         )
+        representante_party = (
+            OwnershipTransferParty.query.options(joinedload(OwnershipTransferParty.person))
+            .join(
+                OwnershipTransferCase,
+                OwnershipTransferCase.id == OwnershipTransferParty.case_id,
+            )
+            .filter(OwnershipTransferParty.org_id == org_id())
+            .filter(OwnershipTransferCase.org_id == org_id())
+            .filter(OwnershipTransferCase.contract_id == contrato.id)
+            .filter(OwnershipTransferParty.role == OwnershipPartyRole.REPRESENTANTE)
+            .order_by(
+                OwnershipTransferCase.opened_at.desc(),
+                OwnershipTransferCase.id.desc(),
+                OwnershipTransferParty.id.desc(),
+            )
+            .first()
+        )
+        representante = representante_party.person if representante_party else None
+
+    difuntos = sorted(sep.difuntos, key=lambda item: item.created_at, reverse=True)
+    inscripciones = (
+        InscripcionLateral.query.filter_by(org_id=org_id(), sepultura_id=sep.id)
+        .order_by(InscripcionLateral.created_at.desc(), InscripcionLateral.id.desc())
+        .all()
+    )
 
     movements_query = MovimientoSepultura.query.filter_by(
         org_id=org_id(), sepultura_id=sep.id
@@ -1445,13 +1471,16 @@ def sepultura_tabs_data(
         "sepultura": sep,
         "contrato": contrato,
         "tab": tab,
-        "difuntos": sorted(sep.difuntos, key=lambda item: item.created_at, reverse=True),
+        "difuntos": difuntos,
+        "difuntos_count": len(difuntos),
         "active_titular": active_titular,
         "active_beneficiario": active_beneficiario,
+        "representante": representante,
         "titulares": titulares,
         "beneficiarios": beneficiarios,
         "movimientos": movimientos,
         "tasas": tasas,
+        "inscripciones": inscripciones,
     }
 
 
@@ -3349,6 +3378,26 @@ def create_ownership_case(
     )
     db.session.commit()
     return case
+
+
+def create_holder_change_case_for_sepultura(
+    sepultura_id: int, user_id: int | None
+) -> OwnershipTransferCase:
+    sep = sepultura_by_id(sepultura_id)
+    contract = active_contract_for_sepultura(sep.id)
+    if not contract:
+        raise ValueError("No hay contrato activo asociado a esta sepultura")
+
+    has_active_beneficiary = active_beneficiario_for_contract(contract.id) is not None
+    case_type = (
+        OwnershipTransferType.MORTIS_CAUSA_CON_BENEFICIARIO.value
+        if has_active_beneficiary
+        else OwnershipTransferType.INTER_VIVOS.value
+    )
+    return create_ownership_case(
+        payload={"contract_id": str(contract.id), "type": case_type},
+        user_id=user_id,
+    )
 
 
 def ownership_case_detail(case_id: int) -> dict[str, object]:
