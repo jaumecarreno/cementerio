@@ -56,6 +56,9 @@
 {% set titular_person = data.active_titular.person if data.active_titular else none %}
 {% set beneficiario_person = data.active_beneficiario.person if data.active_beneficiario else none %}
 {% set representante_person = data.representante %}
+{% set tasas_limit = 5 %}
+{% set visible_tasas = data.tasas[:tasas_limit] %}
+{% set hidden_tasas = data.tasas[tasas_limit:] %}
 <section class="detail-cards">
   <div class="box detail-card">
     <div class="detail-card-head">
@@ -69,7 +72,21 @@
     <div class="detail-meta">
       <div class="detail-meta-item"><span class="detail-meta-label">Nombre</span><span class="detail-meta-value">{{ titular_person.full_name if titular_person else '-' }}</span></div>
       <div class="detail-meta-item"><span class="detail-meta-label">Telefono</span><span class="detail-meta-value">{{ titular_person.telefono if titular_person else '-' }}</span></div>
-      <div class="detail-meta-item"><span class="detail-meta-label">Email</span><span class="detail-meta-value">{{ titular_person.email if titular_person else '-' }}</span></div>
+      <div class="detail-meta-item">
+        <span class="detail-meta-label">Email</span>
+        <span class="detail-meta-value wrap">
+          <span>{{ titular_person.email if titular_person and titular_person.email else '-' }}</span>
+          {% if titular_person and titular_person.email %}
+          <button
+            type="button"
+            class="copy-email-btn"
+            data-copy-text="{{ titular_person.email }}"
+            title="Copiar email"
+            aria-label="Copiar email titular"
+          >&#x2398;</button>
+          {% endif %}
+        </span>
+      </div>
       <div class="detail-meta-item"><span class="detail-meta-label">DNI/NIF</span><span class="detail-meta-value">{{ titular_person.dni_nif if titular_person else '-' }}</span></div>
       <div class="detail-meta-item"><span class="detail-meta-label">Direccion</span><span class="detail-meta-value">{{ titular_person.direccion if titular_person else '-' }}</span></div>
       <div class="detail-meta-item">
@@ -88,11 +105,30 @@
   </div>
 
   <div class="box detail-card">
-    <h3>Beneficiario</h3>
+    <div class="detail-card-head">
+      <h3>Beneficiario</h3>
+      {% if data.contrato %}
+      <a class="btn" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='beneficiarios') }}">Cambiar beneficiario</a>
+      {% endif %}
+    </div>
     <div class="detail-meta">
       <div class="detail-meta-item"><span class="detail-meta-label">Nombre</span><span class="detail-meta-value">{{ beneficiario_person.full_name if beneficiario_person else '-' }}</span></div>
       <div class="detail-meta-item"><span class="detail-meta-label">Telefono</span><span class="detail-meta-value">{{ beneficiario_person.telefono if beneficiario_person else '-' }}</span></div>
-      <div class="detail-meta-item"><span class="detail-meta-label">Email</span><span class="detail-meta-value">{{ beneficiario_person.email if beneficiario_person else '-' }}</span></div>
+      <div class="detail-meta-item">
+        <span class="detail-meta-label">Email</span>
+        <span class="detail-meta-value wrap">
+          <span>{{ beneficiario_person.email if beneficiario_person and beneficiario_person.email else '-' }}</span>
+          {% if beneficiario_person and beneficiario_person.email %}
+          <button
+            type="button"
+            class="copy-email-btn"
+            data-copy-text="{{ beneficiario_person.email }}"
+            title="Copiar email"
+            aria-label="Copiar email beneficiario"
+          >&#x2398;</button>
+          {% endif %}
+        </span>
+      </div>
       <div class="detail-meta-item"><span class="detail-meta-label">DNI/NIF</span><span class="detail-meta-value">{{ beneficiario_person.dni_nif if beneficiario_person else '-' }}</span></div>
       <div class="detail-meta-item"><span class="detail-meta-label">Direccion</span><span class="detail-meta-value">{{ beneficiario_person.direccion if beneficiario_person else '-' }}</span></div>
     </div>
@@ -152,7 +188,7 @@
         </tr>
       </thead>
       <tbody>
-        {% for ticket in data.tasas %}
+        {% for ticket in visible_tasas %}
         <tr>
           <td>{{ ticket.anio }}</td>
           <td>{{ ticket.estado.value }}</td>
@@ -162,7 +198,30 @@
         <tr><td colspan="3">Sin tasas</td></tr>
         {% endfor %}
       </tbody>
+      {% if hidden_tasas %}
+      <tbody id="tasas-extra-{{ data.sepultura.id }}" hidden>
+        {% for ticket in hidden_tasas %}
+        <tr>
+          <td>{{ ticket.anio }}</td>
+          <td>{{ ticket.estado.value }}</td>
+          <td>{{ money(ticket.importe) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      {% endif %}
     </table>
+    <div class="actions-row">
+      <a class="btn primary" href="{{ url_for('cemetery.fee_collection', sepultura_id=data.sepultura.id) }}">Cobrar tasas</a>
+      {% if hidden_tasas %}
+      <button
+        type="button"
+        class="text-toggle-btn"
+        data-toggle-target="tasas-extra-{{ data.sepultura.id }}"
+        data-open-label="Ver mas tasas"
+        data-close-label="Ver menos tasas"
+      >Ver mas tasas</button>
+      {% endif %}
+    </div>
   </div>
 
   <div class="box detail-card">
@@ -246,6 +305,65 @@
     </table>
   </div>
 </section>
+<script>
+  (function () {
+    function fallbackCopy(value) {
+      const el = document.createElement("textarea");
+      el.value = value;
+      el.setAttribute("readonly", "");
+      el.style.position = "absolute";
+      el.style.left = "-9999px";
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+    }
+
+    function handleCopyButton(button) {
+      const value = button.getAttribute("data-copy-text") || "";
+      if (!value) return;
+      const applyCopiedState = function () {
+        button.classList.add("is-copied");
+        window.setTimeout(function () {
+          button.classList.remove("is-copied");
+        }, 900);
+      };
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(value).then(applyCopiedState).catch(function () {
+          fallbackCopy(value);
+          applyCopiedState();
+        });
+        return;
+      }
+      fallbackCopy(value);
+      applyCopiedState();
+    }
+
+    function handleTextToggle(button) {
+      const targetId = button.getAttribute("data-toggle-target");
+      if (!targetId) return;
+      const target = document.getElementById(targetId);
+      if (!target) return;
+      const openLabel = button.getAttribute("data-open-label") || "Ver mas";
+      const closeLabel = button.getAttribute("data-close-label") || "Ver menos";
+      const nextOpen = target.hidden;
+      target.hidden = !nextOpen;
+      button.textContent = nextOpen ? closeLabel : openLabel;
+    }
+
+    document.addEventListener("click", function (event) {
+      const copyButton = event.target.closest(".copy-email-btn");
+      if (copyButton) {
+        handleCopyButton(copyButton);
+        return;
+      }
+      const toggleButton = event.target.closest(".text-toggle-btn");
+      if (toggleButton) {
+        handleTextToggle(toggleButton);
+      }
+    });
+  })();
+</script>
 {% elif data.tab == 'resumen' %}
 <div class="box">
   <h3>{{ t('common.summary') }}</h3>
