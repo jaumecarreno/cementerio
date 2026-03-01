@@ -16,6 +16,7 @@ from flask_login import current_user, login_required
 
 from app.cemetery import cemetery_bp
 from app.cemetery.services import (
+    active_contract_for_sepultura,
     add_case_party,
     add_case_publication,
     add_deceased_to_sepultura,
@@ -28,7 +29,6 @@ from app.cemetery.services import (
     contract_by_id,
     create_expediente,
     create_expediente_ot,
-    create_holder_change_case_for_sepultura,
     create_inscripcion_lateral,
     create_person,
     create_ownership_case,
@@ -595,10 +595,12 @@ def grave_detail(sepultura_id: int):
 @require_role("admin")
 def change_holder_direct(sepultura_id: int):
     try:
-        created = create_holder_change_case_for_sepultura(sepultura_id, current_user.id)
-        flash(f"Caso {created.case_number} creado", "success")
+        sep = sepultura_by_id(sepultura_id)
+        contract = active_contract_for_sepultura(sep.id)
+        if not contract:
+            raise ValueError("No hay contrato activo asociado a esta sepultura")
         return redirect(
-            url_for("cemetery.ownership_case_detail_page", case_id=created.id)
+            url_for("cemetery.ownership_cases", prefill_contract_id=contract.id)
         )
     except ValueError as exc:
         flash(str(exc), "error")
@@ -616,6 +618,16 @@ def ownership_cases_alias():
 @login_required
 @require_membership
 def ownership_cases():
+    prefill_contract_id = ""
+    if request.method == "GET":
+        raw_prefill = request.args.get("prefill_contract_id", "").strip()
+        if raw_prefill.isdigit():
+            try:
+                contract = contract_by_id(int(raw_prefill))
+                prefill_contract_id = str(contract.id)
+            except ValueError:
+                prefill_contract_id = ""
+
     if request.method == "POST":
         if not g.membership or (g.membership.role or "").lower() != "admin":
             abort(403)
@@ -644,6 +656,7 @@ def ownership_cases():
         "cemetery/ownership_cases.html",
         rows=rows,
         filters=filters,
+        prefill_contract_id=prefill_contract_id,
         OwnershipTransferType=OwnershipTransferType,
         OwnershipTransferStatus=OwnershipTransferStatus,
     )

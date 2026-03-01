@@ -60,9 +60,11 @@
   <div class="box detail-card">
     <div class="detail-card-head">
       <h3>Titular</h3>
-      <form method="post" action="{{ url_for('cemetery.change_holder_direct', sepultura_id=data.sepultura.id) }}">
-        <button class="btn primary" type="submit">Cambiar titular</button>
-      </form>
+      {% if data.contrato %}
+      <a class="btn primary" href="{{ url_for('cemetery.ownership_cases', prefill_contract_id=data.contrato.id) }}">Cambiar titular</a>
+      {% else %}
+      <span class="small muted">Sin contrato activo</span>
+      {% endif %}
     </div>
     <div class="detail-meta">
       <div class="detail-meta-item"><span class="detail-meta-label">Nombre</span><span class="detail-meta-value">{{ titular_person.full_name if titular_person else '-' }}</span></div>

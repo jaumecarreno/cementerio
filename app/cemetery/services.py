@@ -3380,26 +3380,6 @@ def create_ownership_case(
     return case
 
 
-def create_holder_change_case_for_sepultura(
-    sepultura_id: int, user_id: int | None
-) -> OwnershipTransferCase:
-    sep = sepultura_by_id(sepultura_id)
-    contract = active_contract_for_sepultura(sep.id)
-    if not contract:
-        raise ValueError("No hay contrato activo asociado a esta sepultura")
-
-    has_active_beneficiary = active_beneficiario_for_contract(contract.id) is not None
-    case_type = (
-        OwnershipTransferType.MORTIS_CAUSA_CON_BENEFICIARIO.value
-        if has_active_beneficiary
-        else OwnershipTransferType.INTER_VIVOS.value
-    )
-    return create_ownership_case(
-        payload={"contract_id": str(contract.id), "type": case_type},
-        user_id=user_id,
-    )
-
-
 def ownership_case_detail(case_id: int) -> dict[str, object]:
     case = _get_case_or_404(case_id)
     current_owner = active_titular_for_contract(case.contract_id)
