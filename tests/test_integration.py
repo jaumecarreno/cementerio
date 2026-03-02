@@ -1080,3 +1080,14 @@ def test_expediente_accepts_declarante_and_shows_person_names(app, client, login
     assert detail.status_code == 200
     assert b"Antoni Ferrer" in detail.data
     assert b"Lucia Navarro" in detail.data
+
+def test_work_orders_sidebar_and_page_access(app, client, login_admin):
+    login_admin()
+
+    home = client.get("/cementerio/panel")
+    assert home.status_code == 200
+    assert b"/cementerio/ordenes-trabajo" in home.data
+
+    response = client.get("/cementerio/ordenes-trabajo")
+    assert response.status_code == 200
+    assert b"Ordenes de trabajo" in response.data or b"\xc3\x93rdenes de trabajo" in response.data

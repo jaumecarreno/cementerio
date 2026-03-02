@@ -21,6 +21,7 @@ I18N: dict[str, dict[str, str]] = {
     "cem.graves": {"es": "Sepulturas", "ca": "Sepultures"},
     "cem.fees": {"es": "Tasas", "ca": "Taxes"},
     "cem.cases": {"es": "Expedientes", "ca": "Expedients"},
+    "cem.work_orders": {"es": "Órdenes de trabajo", "ca": "Ordres de treball"},
     "cem.ownership": {"es": "Titularidad", "ca": "Titularitat"},
     "cem.people": {"es": "Personas", "ca": "Persones"},
     "cem.reports": {"es": "Informes", "ca": "Informes"},

@@ -198,7 +198,10 @@ def panel_data() -> dict[str, object]:
         .all()
     )
     recent_movements = (
-        MovimientoSepultura.query.options(joinedload(MovimientoSepultura.sepultura))
+        MovimientoSepultura.query.options(
+            joinedload(MovimientoSepultura.sepultura),
+            joinedload(MovimientoSepultura.user),
+        )
         .filter_by(org_id=oid)
         .order_by(MovimientoSepultura.fecha.desc())
         .limit(30)
@@ -238,11 +241,37 @@ def panel_data() -> dict[str, object]:
             "pendientes_notificar": pendientes_notificar,
         },
         "recent_expedientes": recent_expedientes,
-        "recent_activity_by_titular": _recent_activity_by_titular(
-            oid, recent_movements
-        ),
+        "recent_activity_by_titular": _recent_activity_by_titular(oid, recent_movements),
+        "recent_activity": _recent_activity_companywide(recent_movements),
         "alerts": alerts,
     }
+
+
+def _recent_activity_companywide(
+    movements: list[MovimientoSepultura],
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for movement in movements:
+        sepultura_label = (
+            movement.sepultura.location_label
+            if movement.sepultura
+            else f"#{movement.sepultura_id}"
+        )
+        movement_type = (
+            movement.tipo.value
+            if hasattr(movement.tipo, "value")
+            else str(movement.tipo)
+        )
+        rows.append(
+            {
+                "fecha": movement.fecha,
+                "usuario": movement.user.full_name if movement.user else "Sistema",
+                "tipo": movement_type,
+                "sepultura": sepultura_label,
+                "detalle": movement.detalle,
+            }
+        )
+    return rows
 
 
 def _recent_activity_by_titular(
@@ -1832,6 +1861,25 @@ def list_expediente_ots(expediente_id: int) -> list[OrdenTrabajo]:
         .order_by(OrdenTrabajo.created_at.desc(), OrdenTrabajo.id.desc())
         .all()
     )
+
+
+def list_work_orders(
+    filters: dict[str, str] | None = None,
+) -> list[tuple[OrdenTrabajo, Expediente | None]]:
+    filters = filters or {}
+    state = (filters.get("estado") or "").strip().upper()
+    case_number = (filters.get("expediente") or "").strip()
+
+    query = (
+        db.session.query(OrdenTrabajo, Expediente)
+        .outerjoin(Expediente, OrdenTrabajo.expediente_id == Expediente.id)
+        .filter(OrdenTrabajo.org_id == org_id())
+    )
+    if state:
+        query = query.filter(OrdenTrabajo.estado == state)
+    if case_number:
+        query = query.filter(Expediente.numero.ilike(f"%{case_number}%"))
+    return query.order_by(OrdenTrabajo.created_at.desc(), OrdenTrabajo.id.desc()).all()
 
 
 def create_expediente_ot(

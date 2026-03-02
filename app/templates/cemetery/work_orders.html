@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% set active_cem = 'ordenes_trabajo' %}
+{% set breadcrumbs = [
+  {'label': t('menu.cemetery'), 'href': url_for('cemetery.panel')},
+  {'label': t('common.work_orders'), 'href': None}
+] %}
+{% block title %}{{ t('common.work_orders') }}{% endblock %}
+{% block content %}
+<h1 class="page-title">{{ t('common.work_orders') }}</h1>
+
+<div class="box">
+  <h3>{{ t('common.filter') }}</h3>
+  <form class="inline-form" method="get" action="{{ url_for('cemetery.work_orders') }}">
+    <label>
+      {{ t('field.status') }}
+      <select name="estado">
+        <option value="">Todos</option>
+        {% for st in states %}
+        <option value="{{ st }}" {% if filters.estado == st %}selected{% endif %}>{{ st }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      {{ t('cases.title') }}
+      <input type="text" name="expediente" value="{{ filters.expediente }}" placeholder="2026-000123">
+    </label>
+    <button class="btn" type="submit">{{ t('common.search') }}</button>
+  </form>
+</div>
+
+<div class="box">
+  <h3>{{ t('common.create') }} OT</h3>
+  <form method="post" action="{{ url_for('cemetery.work_orders') }}">
+    <div class="form-grid">
+      <div>
+        <label>{{ t('cases.title') }} ID</label>
+        <input type="number" min="1" name="expediente_id" required>
+      </div>
+      <div>
+        <label>{{ t('common.title') }}</label>
+        <input type="text" name="titulo" placeholder="OT manual">
+      </div>
+      <div>
+        <label>{{ t('field.notes') }}</label>
+        <input type="text" name="notes" placeholder="Indicaciones de trabajo">
+      </div>
+    </div>
+    <div class="actions-row">
+      <button class="btn primary" type="submit">{{ t('common.create') }}</button>
+    </div>
+  </form>
+</div>
+
+<div class="box">
+  <h3>{{ t('common.work_orders') }}</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>OT</th>
+        <th>{{ t('common.title') }}</th>
+        <th>{{ t('field.status') }}</th>
+        <th>{{ t('cases.title') }}</th>
+        <th>{{ t('field.date') }}</th>
+        <th>{{ t('common.actions') }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ot, expediente in rows %}
+      <tr>
+        <td>#{{ ot.id }}</td>
+        <td>{{ ot.titulo }}</td>
+        <td>{{ ot.estado }}</td>
+        <td>
+          {% if expediente %}
+            <a href="{{ url_for('cemetery.expediente_detail', expediente_id=expediente.id) }}">{{ expediente.numero }}</a>
+          {% else %}
+            -
+          {% endif %}
+        </td>
+        <td>{{ ot.created_at.date() }}</td>
+        <td>
+          {% if expediente %}
+          <a class="btn" href="{{ url_for('cemetery.expediente_ot_order_pdf', expediente_id=expediente.id, ot_id=ot.id) }}" target="_blank">PDF</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6">{{ t('common.no_results') }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
