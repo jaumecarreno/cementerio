@@ -64,12 +64,13 @@
     </thead>
     <tbody>
       {% for ot in ots %}
-      <tr>
+      <tr id="ot-{{ ot.id }}">
         <td>#{{ ot.id }}</td>
         <td>{{ ot.titulo }}</td>
         <td>{{ ot.estado }}</td>
         <td>{{ ot.completed_at or '-' }}</td>
         <td>
+          <a class="btn" href="{{ url_for('cemetery.expediente_detail', expediente_id=expediente.id) }}#ot-{{ ot.id }}">{{ t('common.open') }}</a>
           <a class="btn" href="{{ url_for('cemetery.expediente_ot_order_pdf', expediente_id=expediente.id, ot_id=ot.id) }}" target="_blank">PDF</a>
           {% if ot.estado != 'COMPLETADA' %}
           <form class="inline-form" method="post" action="{{ url_for('cemetery.expediente_complete_ot', expediente_id=expediente.id, ot_id=ot.id) }}">
