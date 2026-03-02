@@ -290,6 +290,7 @@ def _recent_activity_from_logs(logs: list[ActivityLog]) -> list[dict[str, object
     rows: list[dict[str, object]] = []
     for item in logs:
         sepultura_label = item.sepultura.location_label if item.sepultura else "-"
+        open_path = _activity_open_path(item.action_type, item.sepultura_id)
         rows.append(
             {
                 "fecha": item.created_at,
@@ -297,6 +298,7 @@ def _recent_activity_from_logs(logs: list[ActivityLog]) -> list[dict[str, object
                 "tipo": item.action_type,
                 "sepultura": sepultura_label,
                 "detalle": item.details,
+                "open_path": open_path,
             }
         )
     return rows
@@ -324,9 +326,30 @@ def _recent_activity_companywide(
                 "tipo": movement_type,
                 "sepultura": sepultura_label,
                 "detalle": movement.detalle,
+                "open_path": _activity_open_path(movement_type, movement.sepultura_id),
             }
         )
     return rows
+
+
+def _activity_open_path(action_type: str | None, sepultura_id: int | None) -> str | None:
+    if sepultura_id:
+        return f"/cementerio/sepulturas/{sepultura_id}"
+
+    action = (action_type or "").strip().upper()
+    if not action:
+        return None
+    if action.startswith("OT_"):
+        return "/cementerio/ot"
+    if action.startswith("PERSONA_"):
+        return "/cementerio/personas"
+    if "TITULAR" in action or "TRANSMISION" in action or "BENEFICIARIO" in action:
+        return "/cementerio/titularidad/casos"
+    if "TASA" in action or "COBRO" in action:
+        return "/cementerio/tasas"
+    if "LAPIDA" in action or "INSCRIPCION" in action:
+        return "/cementerio/lapidas"
+    return None
 
 
 def _recent_activity_by_titular(
