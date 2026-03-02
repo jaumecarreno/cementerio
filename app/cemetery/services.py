@@ -198,7 +198,10 @@ def panel_data() -> dict[str, object]:
         .all()
     )
     recent_movements = (
-        MovimientoSepultura.query.options(joinedload(MovimientoSepultura.sepultura))
+        MovimientoSepultura.query.options(
+            joinedload(MovimientoSepultura.sepultura),
+            joinedload(MovimientoSepultura.user),
+        )
         .filter_by(org_id=oid)
         .order_by(MovimientoSepultura.fecha.desc())
         .limit(30)
@@ -238,11 +241,37 @@ def panel_data() -> dict[str, object]:
             "pendientes_notificar": pendientes_notificar,
         },
         "recent_expedientes": recent_expedientes,
-        "recent_activity_by_titular": _recent_activity_by_titular(
-            oid, recent_movements
-        ),
+        "recent_activity_by_titular": _recent_activity_by_titular(oid, recent_movements),
+        "recent_activity": _recent_activity_companywide(recent_movements),
         "alerts": alerts,
     }
+
+
+def _recent_activity_companywide(
+    movements: list[MovimientoSepultura],
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for movement in movements:
+        sepultura_label = (
+            movement.sepultura.location_label
+            if movement.sepultura
+            else f"#{movement.sepultura_id}"
+        )
+        movement_type = (
+            movement.tipo.value
+            if hasattr(movement.tipo, "value")
+            else str(movement.tipo)
+        )
+        rows.append(
+            {
+                "fecha": movement.fecha,
+                "usuario": movement.user.full_name if movement.user else "Sistema",
+                "tipo": movement_type,
+                "sepultura": sepultura_label,
+                "detalle": movement.detalle,
+            }
+        )
+    return rows
 
 
 def _recent_activity_by_titular(

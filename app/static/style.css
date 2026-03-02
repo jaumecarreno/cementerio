@@ -539,6 +539,25 @@ a:hover {
   font-weight: 800;
 }
 
+
+.compact-activity-box {
+  margin-top: 12px;
+}
+
+.compact-activity-table th,
+.compact-activity-table td {
+  padding: 6px 8px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.compact-activity-table td:nth-child(5) {
+  max-width: 320px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 button,
 .btn,
 .icon-btn {
