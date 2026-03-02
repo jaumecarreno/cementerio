@@ -45,6 +45,12 @@
         <label>{{ t('field.deceased') }}</label>
         <input type="text" name="difunto" value="{{ filters.difunto }}">
       </div>
+      <div class="search-debt-check">
+        <label>
+          <input type="checkbox" name="con_deuda" value="1" {% if filters.con_deuda %}checked{% endif %}>
+          Deuda
+        </label>
+      </div>
     </div>
     <div class="actions-row search-actions">
       <a class="btn" href="{{ url_for('cemetery.fees_search') }}">{{ t('common.clear') }}</a>

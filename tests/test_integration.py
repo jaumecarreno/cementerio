@@ -139,6 +139,40 @@ def test_search_graves_filters_by_modalidad_estado_deuda_and_shows_sepultura_id(
     assert expected_location not in only_deuda.data
 
 
+def test_fees_search_filters_by_debt_checkbox(app, client, login_admin):
+    login_admin()
+    with app.app_context():
+        cemetery = Cemetery.query.order_by(Cemetery.id.asc()).first()
+        sep = Sepultura(
+            org_id=cemetery.org_id,
+            cemetery_id=cemetery.id,
+            bloque="ZZ-FEE",
+            fila=1,
+            columna=1,
+            via="V-TEST",
+            numero=9902,
+            modalidad="Modalitat Test",
+            estado=SepulturaEstado.DISPONIBLE,
+            tipo_bloque="Ninxols",
+            tipo_lapida="Resina",
+            orientacion="Nord",
+        )
+        db.session.add(sep)
+        db.session.commit()
+        expected_location = b"ZZ-FEE / F1 C1 / N9902"
+
+    base = client.post("/cementerio/tasas", data={"bloque": "ZZ-FEE"})
+    assert base.status_code == 200
+    assert expected_location in base.data
+
+    only_deuda = client.post(
+        "/cementerio/tasas",
+        data={"bloque": "ZZ-FEE", "con_deuda": "1"},
+    )
+    assert only_deuda.status_code == 200
+    assert expected_location not in only_deuda.data
+
+
 def test_grave_detail_principal_uses_latest_representative_and_shows_cards(
     app, client, login_admin
 ):

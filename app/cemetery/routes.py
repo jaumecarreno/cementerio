@@ -559,6 +559,7 @@ def fees_search():
         "fila": request.values.get("fila", "").strip(),
         "columna": request.values.get("columna", "").strip(),
         "numero": request.values.get("numero", "").strip(),
+        "con_deuda": request.values.get("con_deuda", "").strip(),
         "titular": request.values.get("titular", "").strip(),
         "difunto": request.values.get("difunto", "").strip(),
     }
