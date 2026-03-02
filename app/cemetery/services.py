@@ -18,6 +18,7 @@ from app.core.demo_people import generate_demo_names, is_generic_demo_name
 from app.core.extensions import db
 from app.core.i18n import translate
 from app.core.models import (
+    ActivityLog,
     Beneficiario,
     Cemetery,
     DerechoTipo,
@@ -207,6 +208,19 @@ def panel_data() -> dict[str, object]:
         .limit(30)
         .all()
     )
+    recent_activity_logs = (
+        ActivityLog.query.options(
+            joinedload(ActivityLog.sepultura),
+            joinedload(ActivityLog.user),
+        )
+        .filter_by(org_id=oid)
+        .order_by(ActivityLog.created_at.desc(), ActivityLog.id.desc())
+        .limit(60)
+        .all()
+    )
+    recent_activity = _recent_activity_from_logs(recent_activity_logs)
+    if not recent_activity:
+        recent_activity = _recent_activity_companywide(recent_movements)
 
     lliures = Sepultura.query.filter_by(
         org_id=oid, estado=SepulturaEstado.LLIURE
@@ -242,9 +256,25 @@ def panel_data() -> dict[str, object]:
         },
         "recent_expedientes": recent_expedientes,
         "recent_activity_by_titular": _recent_activity_by_titular(oid, recent_movements),
-        "recent_activity": _recent_activity_companywide(recent_movements),
+        "recent_activity": recent_activity,
         "alerts": alerts,
     }
+
+
+def _recent_activity_from_logs(logs: list[ActivityLog]) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for item in logs:
+        sepultura_label = item.sepultura.location_label if item.sepultura else "-"
+        rows.append(
+            {
+                "fecha": item.created_at,
+                "usuario": item.user.full_name if item.user else "Sistema",
+                "tipo": item.action_type,
+                "sepultura": sepultura_label,
+                "detalle": item.details,
+            }
+        )
+    return rows
 
 
 def _recent_activity_companywide(
@@ -593,7 +623,7 @@ def _person_payload(payload: dict[str, str]) -> dict[str, str | None]:
     }
 
 
-def create_person(payload: dict[str, str]) -> Person:
+def create_person(payload: dict[str, str], user_id: int | None = None) -> Person:
     # Spec Cementiri: ver cementerio_extract.md (9.4.3 / 9.4.4 / 9.1.6)
     values = _person_payload(payload)
     if not values["first_name"]:
@@ -622,13 +652,17 @@ def create_person(payload: dict[str, str]) -> Person:
         notas=str(values["notas"]),
     )
     db.session.add(person)
+    _log_activity_event("PERSONA_ALTA", f"Persona creada: {person.full_name}", user_id)
     db.session.commit()
     return person
 
 
-def update_person(person_id: int, payload: dict[str, str]) -> Person:
+def update_person(
+    person_id: int, payload: dict[str, str], user_id: int | None = None
+) -> Person:
     # Spec Cementiri: ver cementerio_extract.md (9.4.3 / 9.4.4)
     person = person_by_id(person_id)
+    previous_name = person.full_name
     values = _person_payload(payload)
     if not values["first_name"]:
         raise ValueError("El nombre es obligatorio")
@@ -655,6 +689,19 @@ def update_person(person_id: int, payload: dict[str, str]) -> Person:
     person.pais = str(values["pais"])
     person.notas = str(values["notas"])
     db.session.add(person)
+    current_name = person.full_name
+    if previous_name != current_name:
+        _log_activity_event(
+            "PERSONA_CAMBIO_NOMBRE",
+            f"Cambio de nombre: {previous_name} -> {current_name}",
+            user_id,
+        )
+    else:
+        _log_activity_event(
+            "PERSONA_ACTUALIZADA",
+            f"Persona actualizada: {current_name}",
+            user_id,
+        )
     db.session.commit()
     return person
 
@@ -1249,6 +1296,12 @@ def update_sepultura_notes(sepultura_id: int, payload: dict[str, str]) -> Sepult
     sepultura.postit = postit
     sepultura.notas = notas
     db.session.add(sepultura)
+    _log_activity_event(
+        "SEPULTURA_NOTAS",
+        f"Notas actualizadas en sepultura {sepultura.location_label}",
+        None,
+        sepultura.id,
+    )
     db.session.commit()
     return sepultura
 
@@ -1444,6 +1497,12 @@ def collect_tickets(
         ticket.estado = TicketEstado.COBRADO
         ticket.invoice_id = invoice.id
         db.session.add(ticket)
+    _log_activity_event(
+        "TASAS_COBRO",
+        f"Cobro de tasas en sepultura #{sepultura_id}: {len(selected)} tiquet(s), total {total}",
+        user_id,
+        sepultura_id,
+    )
     db.session.commit()
     return invoice, payment
 
@@ -1515,6 +1574,11 @@ def create_mass_sepulturas(payload: dict[str, str]) -> int:
                 )
             )
             created += 1
+    _log_activity_event(
+        "SEPULTURA_ALTA_MASIVA",
+        f"Alta masiva de sepulturas en bloque {payload['bloque']}: {created} creada(s)",
+        None,
+    )
     db.session.commit()
     return created
 
@@ -1632,7 +1696,7 @@ def add_deceased_to_sepultura(
             "direccion": payload.get("direccion", ""),
             "notas": payload.get("notas", ""),
         }
-        person = create_person(person_data)
+        person = create_person(person_data, user_id=user_id)
     else:
         person = Person.query.filter_by(org_id=org_id(), id=person_id).first()
         if not person:
@@ -1704,17 +1768,17 @@ def _log_sepultura_movement(
     detail: str,
     user_id: int | None,
 ) -> None:
-    if not sepultura_id:
-        return
-    db.session.add(
-        MovimientoSepultura(
-            org_id=org_id(),
-            sepultura_id=sepultura_id,
-            tipo=movement_type,
-            detalle=detail,
-            user_id=user_id,
+    if sepultura_id:
+        db.session.add(
+            MovimientoSepultura(
+                org_id=org_id(),
+                sepultura_id=sepultura_id,
+                tipo=movement_type,
+                detalle=detail,
+                user_id=user_id,
+            )
         )
-    )
+    _log_activity_event(movement_type.value, detail, user_id, sepultura_id)
 
 
 def _next_expediente_number(year: int) -> str:
@@ -2411,6 +2475,7 @@ def _demo_operational_counts(oid: int) -> dict[str, int]:
         "lapida_stock": LapidaStock.query.filter_by(org_id=oid).count(),
         "lapida_movements": LapidaStockMovimiento.query.filter_by(org_id=oid).count(),
         "inscripciones": InscripcionLateral.query.filter_by(org_id=oid).count(),
+        "activity_logs": ActivityLog.query.filter_by(org_id=oid).count(),
     }
 
 
@@ -2421,6 +2486,9 @@ def _purge_org_operational_data() -> None:
         shutil.rmtree(storage_root, ignore_errors=True)
 
     db.session.query(ContractEvent).filter_by(org_id=oid).delete(
+        synchronize_session=False
+    )
+    db.session.query(ActivityLog).filter_by(org_id=oid).delete(
         synchronize_session=False
     )
     db.session.query(Publication).filter_by(org_id=oid).delete(
@@ -3246,21 +3314,30 @@ def _log_contract_event(
     )
 
 
+def _log_activity_event(
+    action_type: str,
+    details: str,
+    user_id: int | None,
+    sepultura_id: int | None = None,
+) -> None:
+    db.session.add(
+        ActivityLog(
+            org_id=org_id(),
+            sepultura_id=sepultura_id,
+            action_type=str(action_type),
+            details=(details or "").strip(),
+            user_id=user_id,
+        )
+    )
+
+
 def _log_case_movement(
     contract: DerechoFunerarioContrato,
     movement_type: MovimientoTipo,
     detail: str,
     user_id: int | None,
 ) -> None:
-    db.session.add(
-        MovimientoSepultura(
-            org_id=org_id(),
-            sepultura_id=contract.sepultura_id,
-            tipo=movement_type,
-            detalle=detail,
-            user_id=user_id,
-        )
-    )
+    _log_sepultura_movement(contract.sepultura_id, movement_type, detail, user_id)
 
 
 def _next_transfer_number(prefix: str, year: int) -> str:

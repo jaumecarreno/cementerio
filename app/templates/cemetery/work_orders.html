@@ -80,6 +80,7 @@
         <td>{{ ot.created_at.date() }}</td>
         <td>
           {% if expediente %}
+          <a class="btn" href="{{ url_for('cemetery.expediente_detail', expediente_id=expediente.id) }}#ot-{{ ot.id }}">{{ t('common.open') }}</a>
           <a class="btn" href="{{ url_for('cemetery.expediente_ot_order_pdf', expediente_id=expediente.id, ot_id=ot.id) }}" target="_blank">PDF</a>
           {% endif %}
         </td>

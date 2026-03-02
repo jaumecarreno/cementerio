@@ -627,6 +627,24 @@ class ContractEvent(db.Model):
     user = relationship("User")
 
 
+class ActivityLog(db.Model):
+    __tablename__ = "activity_log"
+    __table_args__ = (
+        Index("ix_activity_log_org_created_at", "org_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
+    sepultura_id: Mapped[int | None] = mapped_column(ForeignKey("sepultura.id"), nullable=True, index=True)
+    action_type: Mapped[str] = mapped_column(db.String(60), nullable=False)
+    details: Mapped[str] = mapped_column(db.String(500), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False, index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"), nullable=True, index=True)
+
+    sepultura = relationship("Sepultura")
+    user = relationship("User")
+
+
 class MovimientoSepultura(db.Model):
     # Spec 9.4.5 - consulta de movimientos
     __tablename__ = "movimiento_sepultura"
@@ -803,6 +821,16 @@ def contract_after_insert(_mapper, connection, target: DerechoFunerarioContrato)
             user_id=None,
         )
     )
+    connection.execute(
+        ActivityLog.__table__.insert().values(
+            org_id=target.org_id,
+            sepultura_id=target.sepultura_id,
+            action_type=MovimientoTipo.CONTRATO.value,
+            details=f"Contrato {target.tipo.value} {target.fecha_inicio} - {target.fecha_fin}",
+            created_at=utcnow(),
+            user_id=None,
+        )
+    )
 
 
 @event.listens_for(Sepultura, "after_update")
@@ -817,6 +845,16 @@ def sepultura_after_update(_mapper, connection, target: Sepultura) -> None:
                 tipo=MovimientoTipo.CAMBIO_ESTADO,
                 fecha=utcnow(),
                 detalle=f"Cambio de estado a {target.estado.value}",
+                user_id=None,
+            )
+        )
+        connection.execute(
+            ActivityLog.__table__.insert().values(
+                org_id=target.org_id,
+                sepultura_id=target.id,
+                action_type=MovimientoTipo.CAMBIO_ESTADO.value,
+                details=f"Cambio de estado a {target.estado.value}",
+                created_at=utcnow(),
                 user_id=None,
             )
         )
@@ -838,6 +876,16 @@ def ticket_after_update(_mapper, connection, target: TasaMantenimientoTicket) ->
                     tipo=MovimientoTipo.TASAS,
                     fecha=utcnow(),
                     detalle=f"Tiquet {target.anio} -> {target.estado.value}",
+                    user_id=None,
+                )
+            )
+            connection.execute(
+                ActivityLog.__table__.insert().values(
+                    org_id=target.org_id,
+                    sepultura_id=contrato["sepultura_id"],
+                    action_type=MovimientoTipo.TASAS.value,
+                    details=f"Tiquet {target.anio} -> {target.estado.value}",
+                    created_at=utcnow(),
                     user_id=None,
                 )
             )

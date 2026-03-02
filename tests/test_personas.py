@@ -135,3 +135,39 @@ def test_nominate_beneficiary_with_picker_person_id(app, client, login_admin):
         )
         assert active is not None
         assert active.person_id == person.id
+
+
+def test_dashboard_recent_activity_includes_person_name_change(app, client, login_admin):
+    login_admin()
+
+    create_response = client.post(
+        "/cementerio/personas/nueva",
+        data={
+            "nombre": "Marta",
+            "apellidos": "Vila",
+            "dni_nif": "12345678A",
+        },
+        follow_redirects=True,
+    )
+    assert create_response.status_code == 200
+
+    with app.app_context():
+        person = Person.query.filter_by(dni_nif="12345678A").first()
+        assert person is not None
+        person_id = person.id
+
+    edit_response = client.post(
+        f"/cementerio/personas/{person_id}/editar",
+        data={
+            "nombre": "Marta",
+            "apellidos": "Vilanova",
+            "dni_nif": "12345678A",
+        },
+        follow_redirects=True,
+    )
+    assert edit_response.status_code == 200
+
+    dashboard = client.get("/dashboard")
+    assert dashboard.status_code == 200
+    assert b"PERSONA_CAMBIO_NOMBRE" in dashboard.data
+    assert b"Cambio de nombre: Marta Vila -&gt; Marta Vilanova" in dashboard.data

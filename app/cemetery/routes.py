@@ -139,7 +139,7 @@ def person_new():
     form_data = dict(request.form.items()) if request.method == "POST" else {}
     if request.method == "POST":
         try:
-            person = create_person(form_data)
+            person = create_person(form_data, user_id=current_user.id)
             flash(f"Persona {person.full_name} creada", "success")
             return redirect(url_for("cemetery.person_edit", person_id=person.id))
         except ValueError as exc:
@@ -165,7 +165,7 @@ def person_edit(person_id: int):
     form_data = dict(request.form.items()) if request.method == "POST" else {}
     if request.method == "POST":
         try:
-            person = update_person(person_id, form_data)
+            person = update_person(person_id, form_data, user_id=current_user.id)
             flash("Persona actualizada", "success")
             return redirect(url_for("cemetery.person_edit", person_id=person.id))
         except ValueError as exc:
@@ -206,7 +206,7 @@ def person_picker_create():
     field_name = (request.form.get("field_name") or "person_id").strip() or "person_id"
     payload = {k: v for k, v in request.form.items()}
     try:
-        person = create_person(payload)
+        person = create_person(payload, user_id=current_user.id)
         return render_template(
             "components/person_picker_create_result.html",
             picker_id=picker_id,
