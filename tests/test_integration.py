@@ -16,6 +16,7 @@ from app.core.models import (
     Expediente,
     MovimientoSepultura,
     MovimientoTipo,
+    OrdenTrabajo,
     OwnershipRecord,
     OwnershipTransferCase,
     OwnershipPartyRole,
@@ -260,6 +261,59 @@ def test_grave_detail_principal_uses_latest_representative_and_shows_cards(
     assert b"Representante Antiguo" not in response.data
     assert b"Pensionista" in response.data
     assert b"inscripciones" in response.data
+    assert b"Ordenes de trabajo" in response.data
+    assert b"Pendientes:" in response.data
+    assert b"Abiertas:" in response.data
+    assert b"Historicas:" in response.data
+    assert b"Todas:" in response.data
+
+
+def test_grave_detail_principal_allows_create_ot_for_sepultura_expediente(
+    app, client, login_admin
+):
+    login_admin()
+    with app.app_context():
+        sep = Sepultura.query.filter_by(bloque="B-12", numero=127).first()
+        assert sep is not None
+        sep_id = sep.id
+
+    create_exp = client.post(
+        "/cementerio/expedientes",
+        data={"tipo": "INHUMACION", "sepultura_id": str(sep_id), "notas": "ot desde principal"},
+        follow_redirects=True,
+    )
+    assert create_exp.status_code == 200
+
+    with app.app_context():
+        expediente = (
+            Expediente.query.filter_by(sepultura_id=sep_id)
+            .order_by(Expediente.id.desc())
+            .first()
+        )
+        assert expediente is not None
+
+    create_ot = client.post(
+        f"/cementerio/sepulturas/{sep_id}/ot",
+        data={
+            "expediente_id": str(expediente.id),
+            "titulo": "OT sep principal",
+            "notes": "creada desde ficha",
+        },
+        follow_redirects=True,
+    )
+    assert create_ot.status_code == 200
+    assert b"OT #" in create_ot.data
+    assert b"Ordenes de trabajo" in create_ot.data
+    assert b"OT sep principal" in create_ot.data
+    assert expediente.numero.encode() in create_ot.data
+
+    with app.app_context():
+        ot = (
+            OrdenTrabajo.query.filter_by(expediente_id=expediente.id, titulo="OT sep principal")
+            .order_by(OrdenTrabajo.id.desc())
+            .first()
+        )
+        assert ot is not None
 
 
 def test_grave_detail_notes_tab_updates_postit_and_renders_on_principal(

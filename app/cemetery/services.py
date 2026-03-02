@@ -1639,6 +1639,42 @@ def sepultura_tabs_data(
         .order_by(InscripcionLateral.created_at.desc(), InscripcionLateral.id.desc())
         .all()
     )
+    expedientes = (
+        Expediente.query.filter_by(org_id=org_id(), sepultura_id=sep.id)
+        .order_by(Expediente.created_at.desc(), Expediente.id.desc())
+        .all()
+    )
+    expediente_map = {row.id: row for row in expedientes}
+    ot_rows: list[dict[str, object]] = []
+    if expediente_map:
+        ots = (
+            OrdenTrabajo.query.filter_by(org_id=org_id())
+            .filter(OrdenTrabajo.expediente_id.in_(list(expediente_map.keys())))
+            .order_by(OrdenTrabajo.created_at.desc(), OrdenTrabajo.id.desc())
+            .all()
+        )
+        for ot in ots:
+            expediente = expediente_map.get(ot.expediente_id)
+            if not expediente:
+                continue
+            ot_rows.append(
+                {
+                    "ot": ot,
+                    "expediente": expediente,
+                }
+            )
+    pending_count = sum(
+        1 for row in ot_rows if (row["ot"].estado or "").upper() == "PENDIENTE"
+    )
+    open_count = sum(
+        1
+        for row in ot_rows
+        if (row["ot"].estado or "").upper() in {"PENDIENTE", "EN_CURSO"}
+    )
+    historic_count = sum(
+        1 for row in ot_rows if (row["ot"].estado or "").upper() == "COMPLETADA"
+    )
+    all_count = len(ot_rows)
 
     movements_query = MovimientoSepultura.query.filter_by(
         org_id=org_id(), sepultura_id=sep.id
@@ -1673,6 +1709,14 @@ def sepultura_tabs_data(
         "movimientos": movimientos,
         "tasas": tasas,
         "inscripciones": inscripciones,
+        "expedientes": expedientes,
+        "ot_rows": ot_rows,
+        "ot_counts": {
+            "pendientes": pending_count,
+            "abiertas": open_count,
+            "historicas": historic_count,
+            "todas": all_count,
+        },
     }
 
 

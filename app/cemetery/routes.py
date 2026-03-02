@@ -623,6 +623,31 @@ def grave_detail(sepultura_id: int):
     )
 
 
+@cemetery_bp.post("/sepulturas/<int:sepultura_id>/ot")
+@login_required
+@require_membership
+def grave_create_ot(sepultura_id: int):
+    payload = {k: v for k, v in request.form.items()}
+    expediente_id = request.form.get("expediente_id", type=int)
+    redirect_url = (
+        url_for("cemetery.grave_detail", sepultura_id=sepultura_id, tab="principal")
+        + "#ordenes-trabajo"
+    )
+    if not expediente_id:
+        flash("Debes seleccionar un expediente", "error")
+        return redirect(redirect_url)
+    try:
+        sep = sepultura_by_id(sepultura_id)
+        expediente = expediente_by_id(expediente_id)
+        if expediente.sepultura_id != sep.id:
+            raise ValueError("El expediente no pertenece a esta sepultura")
+        ot = create_expediente_ot(expediente.id, payload, current_user.id)
+        flash(f"OT #{ot.id} creada", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(redirect_url)
+
+
 @cemetery_bp.post("/sepulturas/<int:sepultura_id>/notas")
 @login_required
 @require_membership
