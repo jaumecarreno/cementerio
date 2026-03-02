@@ -64,6 +64,43 @@ class MovimientoTipo(str, Enum):
     PENSIONISTA = "PENSIONISTA"
 
 
+class WorkOrderCategory(str, Enum):
+    FUNERARIA = "FUNERARIA"
+    MANTENIMIENTO = "MANTENIMIENTO"
+    INCIDENCIA = "INCIDENCIA"
+    ADMINISTRATIVA = "ADMINISTRATIVA"
+
+
+class WorkOrderPriority(str, Enum):
+    BAJA = "BAJA"
+    MEDIA = "MEDIA"
+    ALTA = "ALTA"
+    URGENTE = "URGENTE"
+
+
+class WorkOrderStatus(str, Enum):
+    BORRADOR = "BORRADOR"
+    PENDIENTE_PLANIFICACION = "PENDIENTE_PLANIFICACION"
+    PLANIFICADA = "PLANIFICADA"
+    ASIGNADA = "ASIGNADA"
+    EN_CURSO = "EN_CURSO"
+    BLOQUEADA = "BLOQUEADA"
+    EN_VALIDACION = "EN_VALIDACION"
+    COMPLETADA = "COMPLETADA"
+    CANCELADA = "CANCELADA"
+
+
+class WorkOrderAreaType(str, Enum):
+    SECTOR = "SECTOR"
+    BLOQUE = "BLOQUE"
+    VIAL = "VIAL"
+    GENERAL = "GENERAL"
+
+
+class WorkOrderDependencyType(str, Enum):
+    FINISH_TO_START = "FINISH_TO_START"
+
+
 class InvoiceEstado(str, Enum):
     BORRADOR = "BORRADOR"
     EMITIDA = "EMITIDA"
@@ -643,6 +680,264 @@ class ActivityLog(db.Model):
 
     sepultura = relationship("Sepultura")
     user = relationship("User")
+
+
+class WorkOrderType(db.Model):
+    __tablename__ = "work_order_type"
+    __table_args__ = (
+        UniqueConstraint("org_id", "code", name="uq_work_order_type_org_code"),
+        Index("ix_work_order_type_org_active", "org_id", "active"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
+    code: Mapped[str] = mapped_column(db.String(40), nullable=False)
+    name: Mapped[str] = mapped_column(db.String(120), nullable=False)
+    category: Mapped[WorkOrderCategory] = mapped_column(
+        SAEnum(WorkOrderCategory, name="work_order_category"),
+        nullable=False,
+    )
+    is_critical: Mapped[bool] = mapped_column(nullable=False, default=False)
+    active: Mapped[bool] = mapped_column(nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
+
+
+class WorkOrder(db.Model):
+    __tablename__ = "work_order"
+    __table_args__ = (
+        UniqueConstraint("org_id", "code", name="uq_work_order_org_code"),
+        CheckConstraint(
+            "(sepultura_id IS NOT NULL) OR (area_type IS NOT NULL AND (area_code IS NOT NULL OR location_text IS NOT NULL))",
+            name="ck_work_order_location",
+        ),
+        Index("ix_work_order_org_status_due", "org_id", "status", "due_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
+    code: Mapped[str] = mapped_column(db.String(30), nullable=False)
+    title: Mapped[str] = mapped_column(db.String(140), nullable=False)
+    description: Mapped[str] = mapped_column(db.String(500), nullable=False, default="")
+    category: Mapped[WorkOrderCategory] = mapped_column(
+        SAEnum(WorkOrderCategory, name="work_order_category"),
+        nullable=False,
+    )
+    type_code: Mapped[str | None] = mapped_column(db.String(40), nullable=True, index=True)
+    priority: Mapped[WorkOrderPriority] = mapped_column(
+        SAEnum(WorkOrderPriority, name="work_order_priority"),
+        nullable=False,
+        default=WorkOrderPriority.MEDIA,
+    )
+    status: Mapped[WorkOrderStatus] = mapped_column(
+        SAEnum(WorkOrderStatus, name="work_order_status"),
+        nullable=False,
+        default=WorkOrderStatus.BORRADOR,
+    )
+    sepultura_id: Mapped[int | None] = mapped_column(ForeignKey("sepultura.id"), nullable=True, index=True)
+    area_type: Mapped[WorkOrderAreaType | None] = mapped_column(
+        SAEnum(WorkOrderAreaType, name="work_order_area_type"),
+        nullable=True,
+    )
+    area_code: Mapped[str | None] = mapped_column(db.String(60), nullable=True, default=None)
+    location_text: Mapped[str | None] = mapped_column(db.String(255), nullable=True, default=None)
+    assigned_user_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"), nullable=True, index=True)
+    planned_start_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    planned_end_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    due_at: Mapped[datetime | None] = mapped_column(nullable=True, index=True)
+    started_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    cancelled_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    block_reason: Mapped[str] = mapped_column(db.String(255), nullable=False, default="")
+    cancel_reason: Mapped[str] = mapped_column(db.String(255), nullable=False, default="")
+    close_notes: Mapped[str] = mapped_column(db.String(500), nullable=False, default="")
+    created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"), nullable=True)
+    updated_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False, index=True)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow, nullable=False)
+
+    sepultura = relationship("Sepultura")
+    assigned_user = relationship("User", foreign_keys=[assigned_user_id])
+    created_by = relationship("User", foreign_keys=[created_by_user_id])
+    updated_by = relationship("User", foreign_keys=[updated_by_user_id])
+
+
+class WorkOrderTemplate(db.Model):
+    __tablename__ = "work_order_template"
+    __table_args__ = (
+        UniqueConstraint("org_id", "code", name="uq_work_order_template_org_code"),
+        Index("ix_work_order_template_org_active", "org_id", "active"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
+    code: Mapped[str] = mapped_column(db.String(40), nullable=False)
+    name: Mapped[str] = mapped_column(db.String(120), nullable=False)
+    type_id: Mapped[int | None] = mapped_column(ForeignKey("work_order_type.id"), nullable=True, index=True)
+    default_priority: Mapped[WorkOrderPriority] = mapped_column(
+        SAEnum(WorkOrderPriority, name="work_order_priority"),
+        nullable=False,
+        default=WorkOrderPriority.MEDIA,
+    )
+    sla_hours: Mapped[int | None] = mapped_column(nullable=True)
+    auto_create: Mapped[bool] = mapped_column(nullable=False, default=False)
+    requires_sepultura: Mapped[bool] = mapped_column(nullable=False, default=False)
+    allows_area: Mapped[bool] = mapped_column(nullable=False, default=True)
+    active: Mapped[bool] = mapped_column(nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
+
+    type = relationship("WorkOrderType")
+
+
+class WorkOrderTemplateChecklistItem(db.Model):
+    __tablename__ = "work_order_template_checklist_item"
+    __table_args__ = (
+        Index("ix_wo_template_checklist_template", "template_id", "sort_order"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    template_id: Mapped[int] = mapped_column(ForeignKey("work_order_template.id"), nullable=False, index=True)
+    label: Mapped[str] = mapped_column(db.String(255), nullable=False)
+    required: Mapped[bool] = mapped_column(nullable=False, default=False)
+    sort_order: Mapped[int] = mapped_column(nullable=False, default=0)
+
+    template = relationship("WorkOrderTemplate")
+
+
+class WorkOrderChecklistItem(db.Model):
+    __tablename__ = "work_order_checklist_item"
+    __table_args__ = (
+        Index("ix_wo_checklist_work_order", "work_order_id", "sort_order"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    work_order_id: Mapped[int] = mapped_column(ForeignKey("work_order.id"), nullable=False, index=True)
+    label: Mapped[str] = mapped_column(db.String(255), nullable=False)
+    required: Mapped[bool] = mapped_column(nullable=False, default=False)
+    done: Mapped[bool] = mapped_column(nullable=False, default=False)
+    done_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"), nullable=True)
+    done_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    notes: Mapped[str] = mapped_column(db.String(500), nullable=False, default="")
+    sort_order: Mapped[int] = mapped_column(nullable=False, default=0)
+
+    work_order = relationship("WorkOrder")
+    done_by = relationship("User")
+
+
+class WorkOrderEvidence(db.Model):
+    __tablename__ = "work_order_evidence"
+    __table_args__ = (
+        Index("ix_wo_evidence_work_order", "work_order_id", "uploaded_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    work_order_id: Mapped[int] = mapped_column(ForeignKey("work_order.id"), nullable=False, index=True)
+    file_path: Mapped[str] = mapped_column(db.String(255), nullable=False)
+    file_name: Mapped[str] = mapped_column(db.String(120), nullable=False)
+    mime_type: Mapped[str] = mapped_column(db.String(120), nullable=False, default="application/octet-stream")
+    uploaded_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"), nullable=True)
+    uploaded_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
+    notes: Mapped[str] = mapped_column(db.String(500), nullable=False, default="")
+
+    work_order = relationship("WorkOrder")
+    uploaded_by = relationship("User")
+
+
+class WorkOrderDependency(db.Model):
+    __tablename__ = "work_order_dependency"
+    __table_args__ = (
+        UniqueConstraint("work_order_id", "depends_on_work_order_id", name="uq_wo_dependency_pair"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    work_order_id: Mapped[int] = mapped_column(ForeignKey("work_order.id"), nullable=False, index=True)
+    depends_on_work_order_id: Mapped[int] = mapped_column(ForeignKey("work_order.id"), nullable=False, index=True)
+    dependency_type: Mapped[WorkOrderDependencyType] = mapped_column(
+        SAEnum(WorkOrderDependencyType, name="work_order_dependency_type"),
+        nullable=False,
+        default=WorkOrderDependencyType.FINISH_TO_START,
+    )
+
+    work_order = relationship("WorkOrder", foreign_keys=[work_order_id])
+    depends_on = relationship("WorkOrder", foreign_keys=[depends_on_work_order_id])
+
+
+class WorkOrderEventRule(db.Model):
+    __tablename__ = "work_order_event_rule"
+    __table_args__ = (
+        Index("ix_wo_event_rule_org_event_active", "org_id", "event_type", "active"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
+    event_type: Mapped[str] = mapped_column(db.String(60), nullable=False)
+    template_id: Mapped[int] = mapped_column(ForeignKey("work_order_template.id"), nullable=False, index=True)
+    conditions_json: Mapped[str] = mapped_column(db.Text(), nullable=False, default="{}")
+    active: Mapped[bool] = mapped_column(nullable=False, default=True)
+    priority: Mapped[int] = mapped_column(nullable=False, default=100)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
+
+    template = relationship("WorkOrderTemplate")
+
+
+class WorkOrderEventLog(db.Model):
+    __tablename__ = "work_order_event_log"
+    __table_args__ = (
+        Index("ix_wo_event_log_org_event", "org_id", "event_type", "processed_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
+    event_type: Mapped[str] = mapped_column(db.String(60), nullable=False)
+    payload_json: Mapped[str] = mapped_column(db.Text(), nullable=False, default="{}")
+    processed_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
+    result: Mapped[str] = mapped_column(db.String(255), nullable=False, default="")
+
+
+class WorkOrderStatusLog(db.Model):
+    __tablename__ = "work_order_status_log"
+    __table_args__ = (
+        Index("ix_wo_status_log_work_order_at", "work_order_id", "changed_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    work_order_id: Mapped[int] = mapped_column(ForeignKey("work_order.id"), nullable=False, index=True)
+    from_status: Mapped[str] = mapped_column(db.String(40), nullable=False, default="")
+    to_status: Mapped[str] = mapped_column(db.String(40), nullable=False)
+    changed_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"), nullable=True)
+    changed_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
+    reason: Mapped[str] = mapped_column(db.String(500), nullable=False, default="")
+
+    work_order = relationship("WorkOrder")
+    changed_by = relationship("User")
+
+
+class LegacyExpediente(db.Model):
+    __tablename__ = "legacy_expediente"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(nullable=False, index=True)
+    numero: Mapped[str] = mapped_column(db.String(40), nullable=False)
+    tipo: Mapped[str] = mapped_column(db.String(40), nullable=False)
+    estado: Mapped[str] = mapped_column(db.String(40), nullable=False)
+    sepultura_id: Mapped[int | None] = mapped_column(nullable=True)
+    difunto_id: Mapped[int | None] = mapped_column(nullable=True)
+    declarante_id: Mapped[int | None] = mapped_column(nullable=True)
+    fecha_prevista: Mapped[date | None] = mapped_column(nullable=True)
+    notas: Mapped[str] = mapped_column(db.Text(), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
+
+
+class LegacyOrdenTrabajo(db.Model):
+    __tablename__ = "legacy_orden_trabajo"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(nullable=False, index=True)
+    expediente_id: Mapped[int | None] = mapped_column(nullable=True)
+    titulo: Mapped[str] = mapped_column(db.String(120), nullable=False)
+    estado: Mapped[str] = mapped_column(db.String(40), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    notes: Mapped[str] = mapped_column(db.String(255), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
 
 
 class MovimientoSepultura(db.Model):
@@ -1292,6 +1587,227 @@ def seed_demo_data(session) -> None:
                 estado="PENDIENTE_NOTIFICAR",
             ),
         ]
+    )
+
+    wo_type_inhum = WorkOrderType(
+        org_id=org.id,
+        code="INHUMACION",
+        name="Inhumacion operativa",
+        category=WorkOrderCategory.FUNERARIA,
+        is_critical=True,
+        active=True,
+    )
+    wo_type_exhum = WorkOrderType(
+        org_id=org.id,
+        code="EXHUMACION",
+        name="Exhumacion operativa",
+        category=WorkOrderCategory.FUNERARIA,
+        is_critical=True,
+        active=True,
+    )
+    wo_type_docs = WorkOrderType(
+        org_id=org.id,
+        code="ACTUALIZACION_DOC",
+        name="Actualizacion documental",
+        category=WorkOrderCategory.ADMINISTRATIVA,
+        is_critical=False,
+        active=True,
+    )
+    wo_type_lap = WorkOrderType(
+        org_id=org.id,
+        code="LAPIDA_COORD",
+        name="Coordinacion lapida",
+        category=WorkOrderCategory.MANTENIMIENTO,
+        is_critical=False,
+        active=True,
+    )
+    wo_type_stock = WorkOrderType(
+        org_id=org.id,
+        code="APROVISIONAMIENTO",
+        name="Aprovisionamiento",
+        category=WorkOrderCategory.MANTENIMIENTO,
+        is_critical=False,
+        active=True,
+    )
+    session.add_all([wo_type_inhum, wo_type_exhum, wo_type_docs, wo_type_lap, wo_type_stock])
+    session.flush()
+
+    tpl_inhum = WorkOrderTemplate(
+        org_id=org.id,
+        code="TPL_INHUMACION_BASE",
+        name="Bundle inhumacion base",
+        type_id=wo_type_inhum.id,
+        default_priority=WorkOrderPriority.ALTA,
+        sla_hours=24,
+        auto_create=True,
+        requires_sepultura=True,
+        allows_area=False,
+        active=True,
+    )
+    tpl_exhum = WorkOrderTemplate(
+        org_id=org.id,
+        code="TPL_EXHUMACION_BASE",
+        name="Bundle exhumacion base",
+        type_id=wo_type_exhum.id,
+        default_priority=WorkOrderPriority.ALTA,
+        sla_hours=24,
+        auto_create=True,
+        requires_sepultura=True,
+        allows_area=False,
+        active=True,
+    )
+    tpl_docs = WorkOrderTemplate(
+        org_id=org.id,
+        code="TPL_DOCS_OWNERSHIP",
+        name="Actualizacion documental titularidad",
+        type_id=wo_type_docs.id,
+        default_priority=WorkOrderPriority.MEDIA,
+        sla_hours=72,
+        auto_create=True,
+        requires_sepultura=False,
+        allows_area=True,
+        active=True,
+    )
+    tpl_lap = WorkOrderTemplate(
+        org_id=org.id,
+        code="TPL_LAPIDA_COORD",
+        name="Seguimiento lapida",
+        type_id=wo_type_lap.id,
+        default_priority=WorkOrderPriority.MEDIA,
+        sla_hours=48,
+        auto_create=True,
+        requires_sepultura=True,
+        allows_area=False,
+        active=True,
+    )
+    tpl_stock = WorkOrderTemplate(
+        org_id=org.id,
+        code="TPL_STOCK_BAJO",
+        name="Stock bajo lapidas",
+        type_id=wo_type_stock.id,
+        default_priority=WorkOrderPriority.ALTA,
+        sla_hours=48,
+        auto_create=True,
+        requires_sepultura=False,
+        allows_area=True,
+        active=True,
+    )
+    session.add_all([tpl_inhum, tpl_exhum, tpl_docs, tpl_lap, tpl_stock])
+    session.flush()
+
+    session.add_all(
+        [
+            WorkOrderTemplateChecklistItem(
+                template_id=tpl_inhum.id,
+                label="Verificacion documental final",
+                required=True,
+                sort_order=1,
+            ),
+            WorkOrderTemplateChecklistItem(
+                template_id=tpl_inhum.id,
+                label="Preparacion de unidad",
+                required=True,
+                sort_order=2,
+            ),
+            WorkOrderTemplateChecklistItem(
+                template_id=tpl_inhum.id,
+                label="Cierre y confirmacion",
+                required=True,
+                sort_order=3,
+            ),
+            WorkOrderTemplateChecklistItem(
+                template_id=tpl_exhum.id,
+                label="Validacion legal exhumacion",
+                required=True,
+                sort_order=1,
+            ),
+            WorkOrderTemplateChecklistItem(
+                template_id=tpl_exhum.id,
+                label="Ejecucion exhumacion",
+                required=True,
+                sort_order=2,
+            ),
+            WorkOrderTemplateChecklistItem(
+                template_id=tpl_docs.id,
+                label="Actualizar expediente documental",
+                required=True,
+                sort_order=1,
+            ),
+            WorkOrderTemplateChecklistItem(
+                template_id=tpl_lap.id,
+                label="Confirmar texto y estado de placa",
+                required=False,
+                sort_order=1,
+            ),
+            WorkOrderTemplateChecklistItem(
+                template_id=tpl_stock.id,
+                label="Solicitar reposicion a proveedor",
+                required=True,
+                sort_order=1,
+            ),
+        ]
+    )
+
+    session.add_all(
+        [
+            WorkOrderEventRule(
+                org_id=org.id,
+                event_type="DECEASED_ADDED_TO_SEPULTURA",
+                template_id=tpl_inhum.id,
+                conditions_json="{}",
+                active=True,
+                priority=10,
+            ),
+            WorkOrderEventRule(
+                org_id=org.id,
+                event_type="DECEASED_REMOVED_FROM_SEPULTURA",
+                template_id=tpl_exhum.id,
+                conditions_json="{}",
+                active=True,
+                priority=10,
+            ),
+            WorkOrderEventRule(
+                org_id=org.id,
+                event_type="OWNERSHIP_CASE_APPROVED",
+                template_id=tpl_docs.id,
+                conditions_json="{}",
+                active=True,
+                priority=10,
+            ),
+            WorkOrderEventRule(
+                org_id=org.id,
+                event_type="LAPIDA_ORDER_CREATED",
+                template_id=tpl_lap.id,
+                conditions_json="{}",
+                active=True,
+                priority=10,
+            ),
+            WorkOrderEventRule(
+                org_id=org.id,
+                event_type="LOW_STOCK_DETECTED",
+                template_id=tpl_stock.id,
+                conditions_json="{}",
+                active=True,
+                priority=10,
+            ),
+        ]
+    )
+
+    session.add(
+        WorkOrder(
+            org_id=org.id,
+            code="OT-2026-000001",
+            title="Revision inicial de zona B-12",
+            description="OT de ejemplo para panel operativo",
+            category=WorkOrderCategory.MANTENIMIENTO,
+            type_code=wo_type_lap.code,
+            priority=WorkOrderPriority.MEDIA,
+            status=WorkOrderStatus.PLANIFICADA,
+            sepultura_id=sep_1.id,
+            due_at=utcnow(),
+            created_by_user_id=admin.id,
+            updated_by_user_id=admin.id,
+        )
     )
 
     successor_1 = Person(

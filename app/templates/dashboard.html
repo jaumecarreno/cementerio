@@ -5,8 +5,10 @@
 <h1 class="page-title">{{ t('menu.dashboard') }}</h1>
 
 <div class="dashboard-top-actions">
-  <a class="btn primary" href="{{ url_for('cemetery.expedientes', create_tipo='INHUMACION') }}">Nova inhumaci&oacute;</a>
-  <a class="btn primary" href="{{ url_for('cemetery.expedientes', create_tipo='EXHUMACION') }}">Nova exhumaci&oacute;</a>
+  {% if g.membership and g.membership.role|lower == 'admin' %}
+  <a class="btn primary" href="{{ url_for('cemetery.ot_new') }}">Nueva OT</a>
+  {% endif %}
+  <a class="btn primary" href="{{ url_for('cemetery.ot_list', status='EN_CURSO') }}">OT en curso</a>
   <a class="btn" href="{{ url_for('cemetery.search_graves') }}">Buscar</a>
   <a class="btn" href="{{ url_for('cemetery.fees_search') }}">Cobrar</a>
 </div>
@@ -16,8 +18,8 @@
     <h3>Resumen</h3>
     <div class="kpi-metrics">
       <div class="kpi-row">
-        <span>Expedientes abiertos</span>
-        <span class="value">{{ data.kpis.expedientes_abiertos }}</span>
+        <span>OT abiertas</span>
+        <span class="value">{{ data.kpis.ot_abiertas }}</span>
       </div>
       <div class="kpi-row">
         <span>OT pendientes</span>

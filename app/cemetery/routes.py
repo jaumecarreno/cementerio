@@ -4,6 +4,7 @@ from datetime import date
 
 from flask import (
     abort,
+    current_app,
     flash,
     g,
     make_response,
@@ -15,6 +16,27 @@ from flask import (
 from flask_login import current_user, login_required
 
 from app.cemetery import cemetery_bp
+from app.cemetery.work_order_service import (
+    OT_EVENT_TYPES,
+    add_work_order_checklist_item,
+    add_work_order_dependency,
+    add_work_order_evidence,
+    assign_work_order,
+    create_work_order,
+    create_work_order_event_rule,
+    create_work_order_template,
+    create_work_order_type,
+    detail_payload as work_order_detail_payload,
+    kanban_work_orders,
+    list_active_types,
+    list_event_rules,
+    list_templates,
+    list_users_for_assignment,
+    list_work_orders as list_native_work_orders,
+    transition_work_order,
+    update_work_order_checklist_item,
+    work_order_pdf_bytes,
+)
 from app.cemetery.services import (
     active_contract_for_sepultura,
     add_case_party,
@@ -78,6 +100,10 @@ from app.cemetery.services import (
     verify_case_document,
 )
 from app.core.models import (
+    WorkOrderAreaType,
+    WorkOrderCategory,
+    WorkOrderPriority,
+    WorkOrderStatus,
     OwnershipTransferStatus,
     OwnershipTransferType,
     SepulturaEstado,
@@ -88,6 +114,11 @@ from app.core.utils import money
 
 def _is_htmx() -> bool:
     return request.headers.get("HX-Request", "").lower() == "true"
+
+
+def _actor_role() -> str:
+    membership = getattr(g, "membership", None)
+    return (membership.role or "").lower() if membership else ""
 
 
 @cemetery_bp.get("/panel")
@@ -228,103 +259,42 @@ def person_picker_create():
 @login_required
 @require_membership
 def expedientes():
-    if request.method == "POST":
-        payload = {k: v for k, v in request.form.items()}
-        try:
-            expediente = create_expediente(payload, current_user.id)
-            flash(f"Expediente {expediente.numero} creado", "success")
-            return redirect(
-                url_for("cemetery.expediente_detail", expediente_id=expediente.id)
-            )
-        except ValueError as exc:
-            flash(str(exc), "error")
-
-    filters = {
-        "tipo": request.args.get("tipo", "").strip(),
-        "estado": request.args.get("estado", "").strip(),
-        "created_from": request.args.get("created_from", "").strip(),
-        "created_to": request.args.get("created_to", "").strip(),
-        "sepultura_id": request.args.get("sepultura_id", "").strip(),
-    }
-    rows = list_expedientes(filters)
-    return render_template(
-        "cemetery/expedientes.html",
-        rows=rows,
-        filters=filters,
-        states=["ABIERTO", "EN_TRAMITE", "FINALIZADO", "CANCELADO"],
-    )
+    abort(404)
 
 
 @cemetery_bp.get("/expedientes/<int:expediente_id>")
 @login_required
 @require_membership
 def expediente_detail(expediente_id: int):
-    try:
-        expediente = expediente_by_id(expediente_id)
-    except ValueError:
-        abort(404)
-    ots = list_expediente_ots(expediente.id)
-    return render_template(
-        "cemetery/expediente_detail.html",
-        expediente=expediente,
-        ots=ots,
-        states=["ABIERTO", "EN_TRAMITE", "FINALIZADO", "CANCELADO"],
-    )
+    abort(404)
 
 
 @cemetery_bp.post("/expedientes/<int:expediente_id>/estado")
 @login_required
 @require_membership
 def expediente_change_state(expediente_id: int):
-    new_state = request.form.get("estado", "")
-    try:
-        transition_expediente_state(expediente_id, new_state, current_user.id)
-        flash("Estado de expediente actualizado", "success")
-    except ValueError as exc:
-        flash(str(exc), "error")
-    return redirect(url_for("cemetery.expediente_detail", expediente_id=expediente_id))
+    abort(404)
 
 
 @cemetery_bp.post("/expedientes/<int:expediente_id>/ot")
 @login_required
 @require_membership
 def expediente_create_ot(expediente_id: int):
-    payload = {k: v for k, v in request.form.items()}
-    try:
-        ot = create_expediente_ot(expediente_id, payload, current_user.id)
-        flash(f"OT #{ot.id} creada", "success")
-    except ValueError as exc:
-        flash(str(exc), "error")
-    return redirect(url_for("cemetery.expediente_detail", expediente_id=expediente_id))
+    abort(404)
 
 
 @cemetery_bp.post("/expedientes/<int:expediente_id>/ot/<int:ot_id>/completar")
 @login_required
 @require_membership
 def expediente_complete_ot(expediente_id: int, ot_id: int):
-    payload = {k: v for k, v in request.form.items()}
-    try:
-        complete_expediente_ot(expediente_id, ot_id, payload, current_user.id)
-        flash(f"OT #{ot_id} completada", "success")
-    except ValueError as exc:
-        flash(str(exc), "error")
-    return redirect(url_for("cemetery.expediente_detail", expediente_id=expediente_id))
+    abort(404)
 
 
 @cemetery_bp.get("/expedientes/<int:expediente_id>/ot/<int:ot_id>/orden.pdf")
 @login_required
 @require_membership
 def expediente_ot_order_pdf(expediente_id: int, ot_id: int):
-    try:
-        content = expediente_ot_pdf(expediente_id, ot_id)
-    except ValueError:
-        abort(404)
-    response = make_response(content)
-    response.headers["Content-Type"] = "application/pdf"
-    response.headers["Content-Disposition"] = (
-        f'inline; filename="orden-trabajo-{ot_id}.pdf"'
-    )
-    return response
+    abort(404)
 
 
 
@@ -334,28 +304,263 @@ def expediente_ot_order_pdf(expediente_id: int, ot_id: int):
 @require_membership
 def work_orders():
     if request.method == "POST":
-        expediente_id = request.form.get("expediente_id", type=int)
-        if not expediente_id:
-            flash("Debes indicar un expediente valido", "error")
-            return redirect(url_for("cemetery.work_orders"))
-        payload = {k: v for k, v in request.form.items()}
+        return redirect(url_for("cemetery.ot_new"))
+    return ot_list()
+
+
+@cemetery_bp.get("/ot")
+@login_required
+@require_membership
+def ot_list():
+    filters = {
+        "status": request.args.get("status", "").strip(),
+        "priority": request.args.get("priority", "").strip(),
+        "category": request.args.get("category", "").strip(),
+        "type_code": request.args.get("type_code", "").strip(),
+        "sepultura_id": request.args.get("sepultura_id", "").strip(),
+        "area_type": request.args.get("area_type", "").strip(),
+        "assigned_user_id": request.args.get("assigned_user_id", "").strip(),
+        "sla_overdue": request.args.get("sla_overdue", "").strip(),
+        "date_from": request.args.get("date_from", "").strip(),
+        "date_to": request.args.get("date_to", "").strip(),
+        "q": request.args.get("q", "").strip(),
+    }
+    view_mode = (request.args.get("view") or "table").strip().lower() or "table"
+    rows = list_native_work_orders(filters)
+    kanban = kanban_work_orders(filters) if view_mode == "kanban" else {}
+    return render_template(
+        "cemetery/ot_list.html",
+        rows=rows,
+        kanban=kanban,
+        filters=filters,
+        view_mode=view_mode,
+        users=list_users_for_assignment(),
+        types=list_active_types(),
+        statuses=[status.value for status in WorkOrderStatus],
+        priorities=[priority.value for priority in WorkOrderPriority],
+        categories=[category.value for category in WorkOrderCategory],
+        area_types=[area.value for area in WorkOrderAreaType],
+    )
+
+
+@cemetery_bp.route("/ot/nueva", methods=["GET", "POST"])
+@login_required
+@require_membership
+def ot_new():
+    role = _actor_role()
+    if role != "admin":
+        abort(403)
+
+    form_data = dict(request.form.items()) if request.method == "POST" else {
+        "sepultura_id": request.args.get("sepultura_id", "").strip(),
+        "category": request.args.get("category", "").strip(),
+    }
+    if request.method == "POST":
         try:
-            ot = create_expediente_ot(expediente_id, payload, current_user.id)
-            flash(f"OT #{ot.id} creada", "success")
+            row = create_work_order(form_data, current_user.id)
+            flash(f"OT {row.code} creada", "success")
+            return redirect(url_for("cemetery.ot_detail", ot_id=row.id))
         except ValueError as exc:
             flash(str(exc), "error")
-        return redirect(url_for("cemetery.work_orders"))
-
-    filters = {
-        "estado": request.args.get("estado", "").strip(),
-        "expediente": request.args.get("expediente", "").strip(),
-    }
-    rows = list_work_orders(filters)
     return render_template(
-        "cemetery/work_orders.html",
-        rows=rows,
-        filters=filters,
-        states=["PENDIENTE", "EN_CURSO", "COMPLETADA"],
+        "cemetery/ot_form.html",
+        form_data=form_data,
+        users=list_users_for_assignment(),
+        templates=list_templates(active_only=True),
+        types=list_active_types(),
+        statuses=[status.value for status in WorkOrderStatus],
+        priorities=[priority.value for priority in WorkOrderPriority],
+        categories=[category.value for category in WorkOrderCategory],
+        area_types=[area.value for area in WorkOrderAreaType],
+    )
+
+
+@cemetery_bp.get("/ot/<int:ot_id>")
+@login_required
+@require_membership
+def ot_detail(ot_id: int):
+    try:
+        data = work_order_detail_payload(ot_id)
+    except ValueError:
+        abort(404)
+    return render_template(
+        "cemetery/ot_detail.html",
+        data=data,
+        users=list_users_for_assignment(),
+    )
+
+
+@cemetery_bp.get("/ot/<int:ot_id>/orden.pdf")
+@login_required
+@require_membership
+def ot_pdf(ot_id: int):
+    try:
+        content = work_order_pdf_bytes(ot_id)
+    except ValueError:
+        abort(404)
+    response = make_response(content)
+    response.headers["Content-Type"] = "application/pdf"
+    response.headers["Content-Disposition"] = f'inline; filename="orden-trabajo-{ot_id}.pdf"'
+    return response
+
+
+@cemetery_bp.post("/ot/<int:ot_id>/estado")
+@login_required
+@require_membership
+def ot_change_state(ot_id: int):
+    try:
+        transition_work_order(
+            ot_id,
+            request.form.get("status", ""),
+            request.form.get("reason", ""),
+            current_user.id,
+            _actor_role(),
+        )
+        flash("Estado OT actualizado", "success")
+    except (ValueError, PermissionError) as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.ot_detail", ot_id=ot_id))
+
+
+@cemetery_bp.post("/ot/<int:ot_id>/asignar")
+@login_required
+@require_membership
+def ot_assign(ot_id: int):
+    assigned_user_id = request.form.get("assigned_user_id", type=int)
+    try:
+        assign_work_order(ot_id, assigned_user_id, current_user.id, _actor_role())
+        flash("Asignacion OT actualizada", "success")
+    except (ValueError, PermissionError) as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.ot_detail", ot_id=ot_id))
+
+
+@cemetery_bp.post("/ot/<int:ot_id>/checklist")
+@login_required
+@require_membership
+def ot_checklist(ot_id: int):
+    item_id = request.form.get("item_id", type=int)
+    if not item_id:
+        flash("Item checklist invalido", "error")
+        return redirect(url_for("cemetery.ot_detail", ot_id=ot_id))
+    try:
+        update_work_order_checklist_item(
+            ot_id,
+            item_id,
+            request.form.get("done") == "1",
+            request.form.get("notes", ""),
+            current_user.id,
+        )
+        flash("Checklist OT actualizada", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.ot_detail", ot_id=ot_id))
+
+
+@cemetery_bp.post("/ot/<int:ot_id>/checklist/add")
+@login_required
+@require_membership
+def ot_checklist_add(ot_id: int):
+    payload = {k: v for k, v in request.form.items()}
+    try:
+        add_work_order_checklist_item(ot_id, payload, _actor_role())
+        flash("Item checklist agregado", "success")
+    except (ValueError, PermissionError) as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.ot_detail", ot_id=ot_id))
+
+
+@cemetery_bp.post("/ot/<int:ot_id>/evidencias")
+@login_required
+@require_membership
+def ot_evidences(ot_id: int):
+    file_obj = request.files.get("evidence")
+    try:
+        add_work_order_evidence(
+            ot_id,
+            file_obj,
+            request.form.get("notes", ""),
+            current_user.id,
+            current_app.instance_path,
+        )
+        flash("Evidencia OT subida", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.ot_detail", ot_id=ot_id))
+
+
+@cemetery_bp.post("/ot/<int:ot_id>/dependencias")
+@login_required
+@require_membership
+def ot_add_dependency(ot_id: int):
+    depends_on_id = request.form.get("depends_on_work_order_id", type=int)
+    if not depends_on_id:
+        flash("Dependencia invalida", "error")
+        return redirect(url_for("cemetery.ot_detail", ot_id=ot_id))
+    try:
+        add_work_order_dependency(ot_id, depends_on_id, current_user.id, _actor_role())
+        flash("Dependencia agregada", "success")
+    except (ValueError, PermissionError) as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.ot_detail", ot_id=ot_id))
+
+
+@cemetery_bp.route("/ot/config/tipos", methods=["GET", "POST"])
+@login_required
+@require_membership
+@require_role("admin")
+def ot_config_types():
+    if request.method == "POST":
+        payload = {k: v for k, v in request.form.items()}
+        try:
+            create_work_order_type(payload, _actor_role())
+            flash("Tipo OT guardado", "success")
+        except (ValueError, PermissionError) as exc:
+            flash(str(exc), "error")
+    return render_template(
+        "cemetery/ot_config_types.html",
+        rows=list_active_types(),
+        categories=[category.value for category in WorkOrderCategory],
+    )
+
+
+@cemetery_bp.route("/ot/config/plantillas", methods=["GET", "POST"])
+@login_required
+@require_membership
+@require_role("admin")
+def ot_config_templates():
+    if request.method == "POST":
+        payload = {k: v for k, v in request.form.items()}
+        try:
+            create_work_order_template(payload, _actor_role())
+            flash("Plantilla OT guardada", "success")
+        except (ValueError, PermissionError) as exc:
+            flash(str(exc), "error")
+    return render_template(
+        "cemetery/ot_config_templates.html",
+        rows=list_templates(),
+        types=list_active_types(),
+        priorities=[priority.value for priority in WorkOrderPriority],
+    )
+
+
+@cemetery_bp.route("/ot/config/reglas", methods=["GET", "POST"])
+@login_required
+@require_membership
+@require_role("admin")
+def ot_config_rules():
+    if request.method == "POST":
+        payload = {k: v for k, v in request.form.items()}
+        try:
+            create_work_order_event_rule(payload, _actor_role())
+            flash("Regla OT guardada", "success")
+        except (ValueError, PermissionError) as exc:
+            flash(str(exc), "error")
+    return render_template(
+        "cemetery/ot_config_rules.html",
+        rows=list_event_rules(),
+        templates=list_templates(active_only=True),
+        event_types=OT_EVENT_TYPES,
     )
 
 @cemetery_bp.get("/lapidas")
@@ -628,22 +833,26 @@ def grave_detail(sepultura_id: int):
 @require_membership
 def grave_create_ot(sepultura_id: int):
     payload = {k: v for k, v in request.form.items()}
-    expediente_id = request.form.get("expediente_id", type=int)
     redirect_url = (
         url_for("cemetery.grave_detail", sepultura_id=sepultura_id, tab="principal")
         + "#ordenes-trabajo"
     )
-    if not expediente_id:
-        flash("Debes seleccionar un expediente", "error")
-        return redirect(redirect_url)
     try:
         sep = sepultura_by_id(sepultura_id)
-        expediente = expediente_by_id(expediente_id)
-        if expediente.sepultura_id != sep.id:
-            raise ValueError("El expediente no pertenece a esta sepultura")
-        ot = create_expediente_ot(expediente.id, payload, current_user.id)
-        flash(f"OT #{ot.id} creada", "success")
-    except ValueError as exc:
+        payload["sepultura_id"] = str(sep.id)
+        if not (payload.get("title") or "").strip():
+            payload["title"] = (payload.get("titulo") or "").strip() or f"OT sepultura {sep.location_label}"
+        if "notes" in payload and "description" not in payload:
+            payload["description"] = payload.get("notes", "")
+        if not (payload.get("category") or "").strip():
+            payload["category"] = WorkOrderCategory.FUNERARIA.value
+        if not (payload.get("priority") or "").strip():
+            payload["priority"] = WorkOrderPriority.MEDIA.value
+        if not (payload.get("status") or "").strip():
+            payload["status"] = WorkOrderStatus.PENDIENTE_PLANIFICACION.value
+        row = create_work_order(payload, current_user.id)
+        flash(f"OT {row.code} creada", "success")
+    except (ValueError, PermissionError) as exc:
         flash(str(exc), "error")
     return redirect(redirect_url)
 

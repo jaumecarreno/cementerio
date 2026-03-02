@@ -62,10 +62,6 @@
             <span class="menu-icon">{{ sidebar_icon('inventory') }}</span>
             <span class="menu-label">{{ t('cem.graves') }}</span>
           </a>
-          <a class="menu-link {% if active_cem == 'expedientes' %}active{% endif %}" href="{{ url_for('cemetery.expedientes') }}">
-            <span class="menu-icon">{{ sidebar_icon('funeral_services') }}</span>
-            <span class="menu-label">{{ t('cem.cases') }}</span>
-          </a>
           <a class="menu-link {% if active_cem == 'ordenes_trabajo' %}active{% endif %}" href="{{ url_for('cemetery.work_orders') }}">
             <span class="menu-icon">{{ sidebar_icon('work_orders') }}</span>
             <span class="menu-label">{{ t('cem.work_orders') }}</span>

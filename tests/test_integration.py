@@ -29,6 +29,8 @@ from app.core.models import (
     SepulturaEstado,
     TasaMantenimientoTicket,
     TicketEstado,
+    WorkOrder,
+    WorkOrderStatus,
 )
 
 
@@ -268,7 +270,7 @@ def test_grave_detail_principal_uses_latest_representative_and_shows_cards(
     assert b"Todas:" in response.data
 
 
-def test_grave_detail_principal_allows_create_ot_for_sepultura_expediente(
+def test_grave_detail_principal_allows_create_ot_for_sepultura(
     app, client, login_admin
 ):
     login_admin()
@@ -277,43 +279,28 @@ def test_grave_detail_principal_allows_create_ot_for_sepultura_expediente(
         assert sep is not None
         sep_id = sep.id
 
-    create_exp = client.post(
-        "/cementerio/expedientes",
-        data={"tipo": "INHUMACION", "sepultura_id": str(sep_id), "notas": "ot desde principal"},
-        follow_redirects=True,
-    )
-    assert create_exp.status_code == 200
-
-    with app.app_context():
-        expediente = (
-            Expediente.query.filter_by(sepultura_id=sep_id)
-            .order_by(Expediente.id.desc())
-            .first()
-        )
-        assert expediente is not None
-
     create_ot = client.post(
         f"/cementerio/sepulturas/{sep_id}/ot",
         data={
-            "expediente_id": str(expediente.id),
-            "titulo": "OT sep principal",
-            "notes": "creada desde ficha",
+            "title": "OT sep principal",
+            "description": "creada desde ficha",
+            "priority": "MEDIA",
         },
         follow_redirects=True,
     )
     assert create_ot.status_code == 200
-    assert b"OT #" in create_ot.data
+    assert b"OT " in create_ot.data
     assert b"Ordenes de trabajo" in create_ot.data
     assert b"OT sep principal" in create_ot.data
-    assert expediente.numero.encode() in create_ot.data
 
     with app.app_context():
         ot = (
-            OrdenTrabajo.query.filter_by(expediente_id=expediente.id, titulo="OT sep principal")
-            .order_by(OrdenTrabajo.id.desc())
+            WorkOrder.query.filter_by(sepultura_id=sep_id, title="OT sep principal")
+            .order_by(WorkOrder.id.desc())
             .first()
         )
         assert ot is not None
+        assert ot.status == WorkOrderStatus.PENDIENTE_PLANIFICACION
 
 
 def test_grave_detail_notes_tab_updates_postit_and_renders_on_principal(
@@ -1100,32 +1087,14 @@ def test_provisional_owner_blocks_exhumacion_and_rescate_with_prior_remains(app,
         db.session.add(owner)
         db.session.commit()
 
-    blocked_exh = client.post(
-        "/cementerio/expedientes",
-        data={"tipo": "EXHUMACION", "sepultura_id": str(sep_id), "notas": "test"},
-        follow_redirects=True,
-    )
-    assert blocked_exh.status_code == 200
-    assert b"titularidad provisional con restos previos" in blocked_exh.data
+    blocked_exh = client.post("/cementerio/expedientes", data={"tipo": "EXHUMACION", "sepultura_id": str(sep_id)})
+    assert blocked_exh.status_code == 404
 
-    blocked_rescate = client.post(
-        "/cementerio/expedientes",
-        data={"tipo": "RESCATE", "sepultura_id": str(sep_id), "notas": "test"},
-        follow_redirects=True,
-    )
-    assert blocked_rescate.status_code == 200
-    assert b"titularidad provisional con restos previos" in blocked_rescate.data
-
-    allowed_inh = client.post(
-        "/cementerio/expedientes",
-        data={"tipo": "INHUMACION", "sepultura_id": str(sep_id), "notas": "permitido"},
-        follow_redirects=True,
-    )
-    assert allowed_inh.status_code == 200
-    assert b"Expediente" in allowed_inh.data
+    blocked_rescate = client.post("/cementerio/expedientes", data={"tipo": "RESCATE", "sepultura_id": str(sep_id)})
+    assert blocked_rescate.status_code == 404
 
 
-def test_expediente_accepts_declarante_and_shows_person_names(app, client, login_admin):
+def test_expediente_routes_removed(app, client, login_admin):
     login_admin()
     with app.app_context():
         sep = Sepultura.query.filter_by(bloque="B-12", numero=127).first()
@@ -1147,27 +1116,7 @@ def test_expediente_accepts_declarante_and_shows_person_names(app, client, login
         },
         follow_redirects=True,
     )
-    assert create.status_code == 200
-    assert b"Expediente" in create.data
-
-    with app.app_context():
-        created = (
-            Expediente.query.filter_by(
-                org_id=sep.org_id,
-                sepultura_id=sep.id,
-                difunto_id=difunto.id,
-                declarante_id=declarante.id,
-            )
-            .order_by(Expediente.id.desc())
-            .first()
-        )
-        assert created is not None
-        expediente_id = created.id
-
-    detail = client.get(f"/cementerio/expedientes/{expediente_id}")
-    assert detail.status_code == 200
-    assert b"Antoni Ferrer" in detail.data
-    assert b"Lucia Navarro" in detail.data
+    assert create.status_code == 404
 
 def test_work_orders_sidebar_and_page_access(app, client, login_admin):
     login_admin()

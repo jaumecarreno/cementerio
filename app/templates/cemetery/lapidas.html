@@ -58,10 +58,6 @@
           <input type="number" name="sepultura_id" value="{{ filters.sepultura_id }}">
         </div>
         <div>
-          <label>Expediente ID</label>
-          <input type="number" name="expediente_id">
-        </div>
-        <div>
           <label>{{ t('field.notes') }}</label>
           <input type="text" name="notes">
         </div>
@@ -111,7 +107,6 @@
         <th>Movimiento</th>
         <th>{{ t('field.quantity') }}</th>
         <th>Sepultura</th>
-        <th>Expediente</th>
       </tr>
     </thead>
     <tbody>
@@ -122,10 +117,9 @@
         <td>{{ row.movimiento }}</td>
         <td>{{ row.quantity }}</td>
         <td>{{ row.sepultura_id or '-' }}</td>
-        <td>{{ row.expediente_id or '-' }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="6">Sin movimientos</td></tr>
+      <tr><td colspan="5">Sin movimientos</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -165,10 +159,6 @@
         <label>Sepultura ID</label>
         <input type="number" name="sepultura_id" required>
       </div>
-      <div>
-        <label>Expediente ID</label>
-        <input type="number" name="expediente_id">
-      </div>
       <div style="grid-column: 1 / -1;">
         <label>Texto</label>
         <input type="text" name="texto" required>
@@ -184,7 +174,6 @@
       <tr>
         <th>{{ t('common.id') }}</th>
         <th>Sepultura</th>
-        <th>Expediente</th>
         <th>Texto</th>
         <th>{{ t('field.status') }}</th>
         <th>Acción</th>
@@ -195,7 +184,6 @@
       <tr>
         <td>{{ row.id }}</td>
         <td>{{ row.sepultura_id }}</td>
-        <td>{{ row.expediente_id or '-' }}</td>
         <td>{{ row.texto }}</td>
         <td>{{ row.estado }}</td>
         <td>
@@ -212,7 +200,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6">Sin inscripciones</td></tr>
+      <tr><td colspan="5">Sin inscripciones</td></tr>
       {% endfor %}
     </tbody>
   </table>

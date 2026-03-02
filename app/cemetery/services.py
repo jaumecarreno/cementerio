@@ -54,7 +54,13 @@ from app.core.models import (
     TasaMantenimientoTicket,
     TicketDescuentoTipo,
     TicketEstado,
+    WorkOrder,
+    WorkOrderAreaType,
+    WorkOrderCategory,
+    WorkOrderPriority,
+    WorkOrderStatus,
 )
+from app.cemetery.work_order_service import emit_work_order_event
 
 
 @dataclass
@@ -171,14 +177,23 @@ def _add_years(base: date, years: int) -> date:
 
 def panel_data() -> dict[str, object]:
     oid = org_id()
-    expedientes_abiertos = (
-        Expediente.query.filter_by(org_id=oid)
-        .filter(Expediente.estado.notin_(["FINALIZADO", "CANCELADO"]))
+    ot_abiertas = (
+        WorkOrder.query.filter_by(org_id=oid)
+        .filter(WorkOrder.status.notin_([WorkOrderStatus.COMPLETADA, WorkOrderStatus.CANCELADA]))
         .count()
     )
     ot_pendientes = (
-        OrdenTrabajo.query.filter_by(org_id=oid)
-        .filter(OrdenTrabajo.estado.in_(["PENDIENTE", "EN_CURSO"]))
+        WorkOrder.query.filter_by(org_id=oid)
+        .filter(
+            WorkOrder.status.in_(
+                [
+                    WorkOrderStatus.BORRADOR,
+                    WorkOrderStatus.PENDIENTE_PLANIFICACION,
+                    WorkOrderStatus.PLANIFICADA,
+                    WorkOrderStatus.ASIGNADA,
+                ]
+            )
+        )
         .count()
     )
     tiquets_impagados = (
@@ -190,11 +205,10 @@ def panel_data() -> dict[str, object]:
         org_id=oid, estado="PENDIENTE_NOTIFICAR"
     ).count()
 
-    recent_expedientes = (
-        db.session.query(Expediente, Person)
-        .outerjoin(Person, Person.id == Expediente.difunto_id)
-        .filter(Expediente.org_id == oid)
-        .order_by(Expediente.created_at.desc())
+    recent_work_orders = (
+        WorkOrder.query.options(joinedload(WorkOrder.sepultura))
+        .filter_by(org_id=oid)
+        .order_by(WorkOrder.created_at.desc(), WorkOrder.id.desc())
         .limit(5)
         .all()
     )
@@ -249,12 +263,14 @@ def panel_data() -> dict[str, object]:
 
     return {
         "kpis": {
-            "expedientes_abiertos": expedientes_abiertos,
+            "expedientes_abiertos": 0,
+            "ot_abiertas": ot_abiertas,
             "ot_pendientes": ot_pendientes,
             "tiquets_impagados": tiquets_impagados,
             "pendientes_notificar": pendientes_notificar,
         },
-        "recent_expedientes": recent_expedientes,
+        "recent_expedientes": [],
+        "recent_work_orders": recent_work_orders,
         "recent_activity_by_titular": _recent_activity_by_titular(oid, recent_movements),
         "recent_activity": recent_activity,
         "alerts": alerts,
@@ -1639,40 +1655,41 @@ def sepultura_tabs_data(
         .order_by(InscripcionLateral.created_at.desc(), InscripcionLateral.id.desc())
         .all()
     )
-    expedientes = (
-        Expediente.query.filter_by(org_id=org_id(), sepultura_id=sep.id)
-        .order_by(Expediente.created_at.desc(), Expediente.id.desc())
+    ot_rows = (
+        WorkOrder.query.options(joinedload(WorkOrder.assigned_user))
+        .filter_by(org_id=org_id(), sepultura_id=sep.id)
+        .order_by(WorkOrder.created_at.desc(), WorkOrder.id.desc())
         .all()
     )
-    expediente_map = {row.id: row for row in expedientes}
-    ot_rows: list[dict[str, object]] = []
-    if expediente_map:
-        ots = (
-            OrdenTrabajo.query.filter_by(org_id=org_id())
-            .filter(OrdenTrabajo.expediente_id.in_(list(expediente_map.keys())))
-            .order_by(OrdenTrabajo.created_at.desc(), OrdenTrabajo.id.desc())
-            .all()
-        )
-        for ot in ots:
-            expediente = expediente_map.get(ot.expediente_id)
-            if not expediente:
-                continue
-            ot_rows.append(
-                {
-                    "ot": ot,
-                    "expediente": expediente,
-                }
-            )
     pending_count = sum(
-        1 for row in ot_rows if (row["ot"].estado or "").upper() == "PENDIENTE"
+        1
+        for row in ot_rows
+        if row.status
+        in {
+            WorkOrderStatus.BORRADOR,
+            WorkOrderStatus.PENDIENTE_PLANIFICACION,
+            WorkOrderStatus.PLANIFICADA,
+            WorkOrderStatus.ASIGNADA,
+        }
     )
     open_count = sum(
         1
         for row in ot_rows
-        if (row["ot"].estado or "").upper() in {"PENDIENTE", "EN_CURSO"}
+        if row.status
+        in {
+            WorkOrderStatus.BORRADOR,
+            WorkOrderStatus.PENDIENTE_PLANIFICACION,
+            WorkOrderStatus.PLANIFICADA,
+            WorkOrderStatus.ASIGNADA,
+            WorkOrderStatus.EN_CURSO,
+            WorkOrderStatus.BLOQUEADA,
+            WorkOrderStatus.EN_VALIDACION,
+        }
     )
     historic_count = sum(
-        1 for row in ot_rows if (row["ot"].estado or "").upper() == "COMPLETADA"
+        1
+        for row in ot_rows
+        if row.status in {WorkOrderStatus.COMPLETADA, WorkOrderStatus.CANCELADA}
     )
     all_count = len(ot_rows)
 
@@ -1709,7 +1726,7 @@ def sepultura_tabs_data(
         "movimientos": movimientos,
         "tasas": tasas,
         "inscripciones": inscripciones,
-        "expedientes": expedientes,
+        "expedientes": [],
         "ot_rows": ot_rows,
         "ot_counts": {
             "pendientes": pending_count,
@@ -1769,6 +1786,16 @@ def add_deceased_to_sepultura(
         user_id,
     )
     db.session.commit()
+    emit_work_order_event(
+        "DECEASED_ADDED_TO_SEPULTURA",
+        {
+            "sepultura_id": sepultura.id,
+            "deceased_id": person.id,
+            "deceased_name": person.full_name,
+            "category": WorkOrderCategory.FUNERARIA.value,
+        },
+        user_id=user_id,
+    )
     return deceased
 
 
@@ -1804,6 +1831,15 @@ def remove_deceased_from_sepultura(
         user_id,
     )
     db.session.commit()
+    emit_work_order_event(
+        "DECEASED_REMOVED_FROM_SEPULTURA",
+        {
+            "sepultura_id": sepultura.id,
+            "deceased_name": full_name,
+            "category": WorkOrderCategory.FUNERARIA.value,
+        },
+        user_id=user_id,
+    )
 
 
 def _log_sepultura_movement(
@@ -2165,14 +2201,6 @@ def lapida_stock_exit(payload: dict[str, str], user_id: int | None) -> LapidaSto
         sepultura_id = int(sep_raw)
         sepultura_by_id(sepultura_id)
 
-    expediente_id = None
-    exp_raw = (payload.get("expediente_id") or "").strip()
-    if exp_raw:
-        if not exp_raw.isdigit():
-            raise ValueError("Expediente invalido")
-        expediente_id = int(exp_raw)
-        expediente_by_id(expediente_id)
-
     stock.available_qty = current_qty - quantity
     db.session.add(stock)
     db.session.add(
@@ -2182,7 +2210,7 @@ def lapida_stock_exit(payload: dict[str, str], user_id: int | None) -> LapidaSto
             movimiento="SALIDA",
             quantity=quantity,
             sepultura_id=sepultura_id,
-            expediente_id=expediente_id,
+            expediente_id=None,
             notes=(payload.get("notes") or "").strip(),
         )
     )
@@ -2193,6 +2221,20 @@ def lapida_stock_exit(payload: dict[str, str], user_id: int | None) -> LapidaSto
         user_id,
     )
     db.session.commit()
+    if int(stock.available_qty or 0) <= 5:
+        emit_work_order_event(
+            "LOW_STOCK_DETECTED",
+            {
+                "stock_id": stock.id,
+                "stock_code": stock.codigo,
+                "available_qty": int(stock.available_qty or 0),
+                "area_type": WorkOrderAreaType.GENERAL.value,
+                "location_text": f"Almacen lapidas ({stock.codigo})",
+                "category": WorkOrderCategory.MANTENIMIENTO.value,
+                "title": f"Reposicion stock lapida {stock.codigo}",
+            },
+            user_id=user_id,
+        )
     return stock
 
 
@@ -2225,18 +2267,10 @@ def create_inscripcion_lateral(
     if not text:
         raise ValueError("Texto de inscripcion obligatorio")
 
-    expediente_id = None
-    exp_raw = (payload.get("expediente_id") or "").strip()
-    if exp_raw:
-        if not exp_raw.isdigit():
-            raise ValueError("Expediente invalido")
-        expediente = expediente_by_id(int(exp_raw))
-        expediente_id = expediente.id
-
     item = InscripcionLateral(
         org_id=org_id(),
         sepultura_id=sepultura.id,
-        expediente_id=expediente_id,
+        expediente_id=None,
         texto=text,
         estado="PENDIENTE_GRABAR",
     )
@@ -2249,6 +2283,17 @@ def create_inscripcion_lateral(
         user_id,
     )
     db.session.commit()
+    emit_work_order_event(
+        "LAPIDA_ORDER_CREATED",
+        {
+            "sepultura_id": sepultura.id,
+            "inscripcion_id": item.id,
+            "title": f"Coordinar lapida / inscripcion #{item.id}",
+            "description": item.texto,
+            "category": WorkOrderCategory.FUNERARIA.value,
+        },
+        user_id=user_id,
+    )
     return item
 
 
@@ -3842,6 +3887,18 @@ def approve_ownership_case(case_id: int, user_id: int | None) -> OwnershipTransf
         user_id,
     )
     db.session.commit()
+    emit_work_order_event(
+        "OWNERSHIP_CASE_APPROVED",
+        {
+            "case_id": case.id,
+            "case_number": case.case_number,
+            "contract_id": case.contract_id,
+            "sepultura_id": case.contract.sepultura_id if case.contract else None,
+            "category": WorkOrderCategory.ADMINISTRATIVA.value,
+            "title": f"Actualizar documental por caso {case.case_number}",
+        },
+        user_id=user_id,
+    )
     return case
 
 

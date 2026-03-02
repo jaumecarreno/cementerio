@@ -33,7 +33,7 @@
     {% if not data.contrato %}
     <a class="btn" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='derecho') }}">Crear derecho funerario</a>
     {% endif %}
-    <a class="btn" href="{{ url_for('cemetery.expedientes', sepultura_id=data.sepultura.id) }}">Nuevo exp.</a>
+    <a class="btn" href="{{ url_for('cemetery.ot_new', sepultura_id=data.sepultura.id, category='FUNERARIA') }}">Nueva OT</a>
     <a class="btn" href="{{ url_for('cemetery.ownership_cases') }}">{{ t('cem.ownership') }}</a>
     <a class="btn" href="{{ url_for('cemetery.lapidas', sepultura_id=data.sepultura.id) }}">LÃ¡pidas</a>
   </div>
@@ -301,38 +301,32 @@
       <div><strong>Historicas:</strong> {{ data.ot_counts.historicas }}</div>
       <div><strong>Todas:</strong> {{ data.ot_counts.todas }}</div>
     </div>
-
-    {% if data.expedientes %}
     <form method="post" action="{{ url_for('cemetery.grave_create_ot', sepultura_id=data.sepultura.id) }}">
       <div class="form-grid">
         <div>
-          <label>Expediente</label>
-          <select name="expediente_id" required>
-            <option value="">Selecciona expediente</option>
-            {% for exp in data.expedientes %}
-            <option value="{{ exp.id }}">{{ exp.numero }} ({{ exp.estado }})</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div>
           <label>Titulo</label>
-          <input type="text" name="titulo" placeholder="OT manual">
+          <input type="text" name="title" placeholder="Nueva OT en sepultura">
         </div>
         <div>
-          <label>Notas</label>
-          <input type="text" name="notes" placeholder="Indicaciones de trabajo">
+          <label>Descripcion</label>
+          <input type="text" name="description" placeholder="Indicaciones de trabajo">
+        </div>
+        <div>
+          <label>Prioridad</label>
+          <select name="priority">
+            <option value="MEDIA">MEDIA</option>
+            <option value="ALTA">ALTA</option>
+            <option value="URGENTE">URGENTE</option>
+            <option value="BAJA">BAJA</option>
+          </select>
         </div>
       </div>
       <div class="actions-row">
+        <input type="hidden" name="status" value="PENDIENTE_PLANIFICACION">
+        <input type="hidden" name="category" value="FUNERARIA">
         <button class="btn primary" type="submit">Crear OT</button>
       </div>
     </form>
-    {% else %}
-    <p class="muted">No hay expedientes en esta sepultura. Crea primero un expediente para poder generar OT.</p>
-    <div class="actions-row">
-      <a class="btn primary" href="{{ url_for('cemetery.expedientes', sepultura_id=data.sepultura.id) }}">Crear expediente</a>
-    </div>
-    {% endif %}
 
     <table class="table-zebra detail-table-compact">
       <thead>
@@ -340,30 +334,30 @@
           <th>OT</th>
           <th>Titulo</th>
           <th>Estado</th>
-          <th>Expediente</th>
+          <th>Prioridad</th>
+          <th>Asignado</th>
           <th>Fecha alta</th>
           <th>Completada</th>
           <th>Acciones</th>
         </tr>
       </thead>
       <tbody>
-        {% for row in data.ot_rows %}
-        <tr id="ot-{{ row.ot.id }}">
-          <td>#{{ row.ot.id }}</td>
-          <td>{{ row.ot.titulo }}</td>
-          <td>{{ row.ot.estado }}</td>
+        {% for ot in data.ot_rows %}
+        <tr id="ot-{{ ot.id }}">
+          <td>{{ ot.code }}</td>
+          <td>{{ ot.title }}</td>
+          <td>{{ ot.status.value }}</td>
+          <td>{{ ot.priority.value }}</td>
+          <td>{{ ot.assigned_user.full_name if ot.assigned_user else '-' }}</td>
+          <td>{{ ot.created_at.date() }}</td>
+          <td>{{ ot.completed_at.date() if ot.completed_at else '-' }}</td>
           <td>
-            <a href="{{ url_for('cemetery.expediente_detail', expediente_id=row.expediente.id) }}">{{ row.expediente.numero }}</a>
-          </td>
-          <td>{{ row.ot.created_at.date() }}</td>
-          <td>{{ row.ot.completed_at.date() if row.ot.completed_at else '-' }}</td>
-          <td>
-            <a class="btn" href="{{ url_for('cemetery.expediente_detail', expediente_id=row.expediente.id) }}#ot-{{ row.ot.id }}">Abrir</a>
-            <a class="btn" href="{{ url_for('cemetery.expediente_ot_order_pdf', expediente_id=row.expediente.id, ot_id=row.ot.id) }}" target="_blank">PDF</a>
+            <a class="btn" href="{{ url_for('cemetery.ot_detail', ot_id=ot.id) }}">Abrir</a>
+            <a class="btn" href="{{ url_for('cemetery.ot_pdf', ot_id=ot.id) }}" target="_blank">PDF</a>
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="7">Sin ordenes de trabajo</td></tr>
+        <tr><td colspan="8">Sin ordenes de trabajo</td></tr>
         {% endfor %}
       </tbody>
     </table>

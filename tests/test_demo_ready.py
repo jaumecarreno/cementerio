@@ -32,6 +32,8 @@ from app.core.models import (
     SepulturaDifunto,
     TasaMantenimientoTicket,
     TicketEstado,
+    WorkOrder,
+    WorkOrderStatus,
 )
 
 GENERIC_DEMO_NAME_PATTERNS = (
@@ -61,7 +63,7 @@ def test_navigation_main_menu_routes_no_404(app, client, login_admin):
     paths = [
         "/cementerio/panel",
         "/cementerio/sepulturas/buscar",
-        "/cementerio/expedientes",
+        "/cementerio/ot",
         "/cementerio/titularidad",
         "/cementerio/personas",
         "/cementerio/lapidas",
@@ -216,55 +218,46 @@ def test_ownership_case_document_download(app, client, login_admin):
     assert response.data == b"doc-content"
 
 
-def test_expediente_create_transition_ot_and_pdf(app, client, login_admin):
+def test_work_order_create_transition_and_pdf(app, client, login_admin):
     login_admin()
     with app.app_context():
         sep = Sepultura.query.filter_by(bloque="B-12", numero=127).first()
 
     create = client.post(
-        "/cementerio/expedientes",
-        data={"tipo": "INHUMACION", "sepultura_id": sep.id, "notas": "demo"},
+        "/cementerio/ot/nueva",
+        data={
+            "title": "OT demo",
+            "description": "demo",
+            "category": "FUNERARIA",
+            "priority": "MEDIA",
+            "status": "BORRADOR",
+            "sepultura_id": str(sep.id),
+        },
         follow_redirects=True,
     )
     assert create.status_code == 200
-    assert b"Expediente" in create.data
+    assert b"OT-" in create.data
 
     with app.app_context():
-        expediente = Expediente.query.filter_by(sepultura_id=sep.id, tipo="INHUMACION").order_by(Expediente.id.desc()).first()
+        row = (
+            WorkOrder.query.filter_by(sepultura_id=sep.id, title="OT demo")
+            .order_by(WorkOrder.id.desc())
+            .first()
+        )
+        assert row is not None
 
     ok_transition = client.post(
-        f"/cementerio/expedientes/{expediente.id}/estado",
-        data={"estado": "EN_TRAMITE"},
+        f"/cementerio/ot/{row.id}/estado",
+        data={"status": "PENDIENTE_PLANIFICACION"},
         follow_redirects=True,
     )
     assert ok_transition.status_code == 200
 
-    bad_transition = client.post(
-        f"/cementerio/expedientes/{expediente.id}/estado",
-        data={"estado": "ABIERTO"},
-        follow_redirects=True,
-    )
-    assert bad_transition.status_code == 200
-    assert b"Transicion invalida" in bad_transition.data
-
-    create_ot = client.post(
-        f"/cementerio/expedientes/{expediente.id}/ot",
-        data={"titulo": "OT demo"},
-        follow_redirects=True,
-    )
-    assert create_ot.status_code == 200
-
     with app.app_context():
-        ot = OrdenTrabajo.query.filter_by(expediente_id=expediente.id).order_by(OrdenTrabajo.id.desc()).first()
+        row = db.session.get(WorkOrder, row.id)
+        assert row.status == WorkOrderStatus.PENDIENTE_PLANIFICACION
 
-    complete_ot = client.post(
-        f"/cementerio/expedientes/{expediente.id}/ot/{ot.id}/completar",
-        data={"notes": "done"},
-        follow_redirects=True,
-    )
-    assert complete_ot.status_code == 200
-
-    pdf = client.get(f"/cementerio/expedientes/{expediente.id}/ot/{ot.id}/orden.pdf")
+    pdf = client.get(f"/cementerio/ot/{row.id}/orden.pdf")
     assert pdf.status_code == 200
     assert pdf.headers["Content-Type"].startswith("application/pdf")
 
@@ -347,7 +340,7 @@ def test_reporting_csv_filters_and_pagination_tenant_isolation(app, client, logi
     assert b"Pagina:" in paged.data or "P\u00e1gina:".encode() in paged.data
 
 
-def test_operator_rbac_readonly_titularidad_and_config_but_expedientes_allowed(app, client, login_operator):
+def test_operator_rbac_readonly_titularidad_and_config_and_ot_scope(app, client, login_operator):
     login_operator()
 
     with app.app_context():
@@ -372,12 +365,11 @@ def test_operator_rbac_readonly_titularidad_and_config_but_expedientes_allowed(a
     config_read = client.get("/config")
     assert config_read.status_code == 200
 
-    expediente_flow = client.post(
-        "/cementerio/expedientes",
-        data={"tipo": "INHUMACION", "sepultura_id": str(sep.id), "notas": "operator"},
-        follow_redirects=True,
-    )
-    assert expediente_flow.status_code == 200
+    ot_list = client.get("/cementerio/ot")
+    assert ot_list.status_code == 200
+
+    ot_new = client.get("/cementerio/ot/nueva", follow_redirects=False)
+    assert ot_new.status_code == 403
 
 
 def test_sidebar_menu_contains_only_expected_links_and_no_top_tabs(app, client, login_admin):
@@ -395,7 +387,7 @@ def test_sidebar_menu_contains_only_expected_links_and_no_top_tabs(app, client, 
     expected_hrefs = [
         b'href="/dashboard"',
         b'href="/cementerio/sepulturas/buscar"',
-        b'href="/cementerio/expedientes"',
+        b'href="/cementerio/ordenes-trabajo"',
         b'href="/cementerio/tasas"',
         b'href="/cementerio/titularidad"',
         b'href="/cementerio/reporting"',

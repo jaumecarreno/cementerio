@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% set active_cem = 'ordenes_trabajo' %}
+{% block title %}Configuración OT - Reglas{% endblock %}
+{% block content %}
+<h1 class="page-title">Configuración OT - Reglas por evento</h1>
+
+<div class="actions-row">
+  <a class="btn" href="{{ url_for('cemetery.ot_list') }}">Volver OT</a>
+  <a class="btn" href="{{ url_for('cemetery.ot_config_types') }}">Tipos</a>
+  <a class="btn" href="{{ url_for('cemetery.ot_config_templates') }}">Plantillas</a>
+</div>
+
+<div class="box">
+  <h3>Nueva regla</h3>
+  <form method="post" action="{{ url_for('cemetery.ot_config_rules') }}">
+    <div class="form-grid">
+      <div>
+        <label>Evento</label>
+        <select name="event_type" required>
+          {% for value in event_types %}
+          <option value="{{ value }}">{{ value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Plantilla</label>
+        <select name="template_id" required>
+          <option value="">Selecciona plantilla</option>
+          {% for item in templates %}
+          <option value="{{ item.id }}">{{ item.code }} - {{ item.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div><label>Prioridad regla</label><input type="number" name="priority" value="100"></div>
+      <div><label><input type="checkbox" name="active" value="1" checked> Activa</label></div>
+      <div style="grid-column: 1 / -1;">
+        <label>Condiciones JSON</label>
+        <textarea name="conditions_json" rows="4">{}</textarea>
+      </div>
+    </div>
+    <button class="btn primary" type="submit">Guardar regla</button>
+  </form>
+</div>
+
+<div class="box">
+  <h3>Reglas OT</h3>
+  <table>
+    <thead><tr><th>Evento</th><th>Plantilla</th><th>Prioridad</th><th>Activa</th><th>Condiciones</th></tr></thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.event_type }}</td>
+        <td>{{ row.template.code if row.template else '-' }}</td>
+        <td>{{ row.priority }}</td>
+        <td>{{ 'Si' if row.active else 'No' }}</td>
+        <td><code>{{ row.conditions_json }}</code></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">Sin reglas OT</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

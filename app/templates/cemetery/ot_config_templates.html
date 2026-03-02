@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% set active_cem = 'ordenes_trabajo' %}
+{% block title %}Configuración OT - Plantillas{% endblock %}
+{% block content %}
+<h1 class="page-title">Configuración OT - Plantillas</h1>
+
+<div class="actions-row">
+  <a class="btn" href="{{ url_for('cemetery.ot_list') }}">Volver OT</a>
+  <a class="btn" href="{{ url_for('cemetery.ot_config_types') }}">Tipos</a>
+  <a class="btn" href="{{ url_for('cemetery.ot_config_rules') }}">Reglas</a>
+</div>
+
+<div class="box">
+  <h3>Nueva plantilla</h3>
+  <form method="post" action="{{ url_for('cemetery.ot_config_templates') }}">
+    <div class="form-grid">
+      <div><label>Código</label><input type="text" name="code" required></div>
+      <div><label>Nombre</label><input type="text" name="name" required></div>
+      <div>
+        <label>Tipo OT</label>
+        <select name="type_id">
+          <option value="">Sin tipo</option>
+          {% for type in types %}
+          <option value="{{ type.id }}">{{ type.code }} - {{ type.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Prioridad por defecto</label>
+        <select name="default_priority">
+          {% for value in priorities %}
+          <option value="{{ value }}" {% if value == 'MEDIA' %}selected{% endif %}>{{ value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div><label>SLA (horas)</label><input type="number" min="0" name="sla_hours"></div>
+      <div><label><input type="checkbox" name="auto_create" value="1"> Auto crear</label></div>
+      <div><label><input type="checkbox" name="requires_sepultura" value="1"> Requiere sepultura</label></div>
+      <div><label><input type="checkbox" name="allows_area" value="1" checked> Permite área</label></div>
+      <div><label><input type="checkbox" name="active" value="1" checked> Activa</label></div>
+      <div style="grid-column: 1 / -1;">
+        <label>Checklist (una línea por item, usar * al inicio para obligatorio)</label>
+        <textarea name="checklist" rows="5" placeholder="*Confirmar documentación&#10;Programar ejecución"></textarea>
+      </div>
+    </div>
+    <button class="btn primary" type="submit">Guardar plantilla</button>
+  </form>
+</div>
+
+<div class="box">
+  <h3>Plantillas</h3>
+  <table>
+    <thead><tr><th>Código</th><th>Nombre</th><th>Tipo</th><th>Prioridad</th><th>SLA</th><th>Auto</th><th>Activa</th></tr></thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.code }}</td>
+        <td>{{ row.name }}</td>
+        <td>{{ row.type.code if row.type else '-' }}</td>
+        <td>{{ row.default_priority.value }}</td>
+        <td>{{ row.sla_hours if row.sla_hours is not none else '-' }}</td>
+        <td>{{ 'Si' if row.auto_create else 'No' }}</td>
+        <td>{{ 'Si' if row.active else 'No' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7">Sin plantillas OT</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

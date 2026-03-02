@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% set active_cem = 'ordenes_trabajo' %}
+{% block title %}Configuración OT - Tipos{% endblock %}
+{% block content %}
+<h1 class="page-title">Configuración OT - Tipos</h1>
+
+<div class="actions-row">
+  <a class="btn" href="{{ url_for('cemetery.ot_list') }}">Volver OT</a>
+  <a class="btn" href="{{ url_for('cemetery.ot_config_templates') }}">Plantillas</a>
+  <a class="btn" href="{{ url_for('cemetery.ot_config_rules') }}">Reglas</a>
+</div>
+
+<div class="box">
+  <h3>Nuevo tipo</h3>
+  <form method="post" action="{{ url_for('cemetery.ot_config_types') }}">
+    <div class="form-grid">
+      <div><label>Código</label><input type="text" name="code" required></div>
+      <div><label>Nombre</label><input type="text" name="name" required></div>
+      <div>
+        <label>Categoría</label>
+        <select name="category">
+          {% for value in categories %}
+          <option value="{{ value }}">{{ value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div><label><input type="checkbox" name="is_critical" value="1"> Crítico</label></div>
+      <div><label><input type="checkbox" name="active" value="1" checked> Activo</label></div>
+    </div>
+    <button class="btn primary" type="submit">Guardar tipo</button>
+  </form>
+</div>
+
+<div class="box">
+  <h3>Tipos activos</h3>
+  <table>
+    <thead><tr><th>Código</th><th>Nombre</th><th>Categoría</th><th>Crítico</th><th>Activo</th></tr></thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.code }}</td>
+        <td>{{ row.name }}</td>
+        <td>{{ row.category.value }}</td>
+        <td>{{ 'Si' if row.is_critical else 'No' }}</td>
+        <td>{{ 'Si' if row.active else 'No' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">Sin tipos OT</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
