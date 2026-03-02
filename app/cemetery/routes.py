@@ -41,6 +41,7 @@ from app.cemetery.services import (
     lapida_stock_entry,
     lapida_stock_exit,
     list_expediente_ots,
+    list_work_orders,
     list_expedientes,
     list_inscripciones,
     list_lapida_stock,
@@ -325,6 +326,37 @@ def expediente_ot_order_pdf(expediente_id: int, ot_id: int):
     )
     return response
 
+
+
+
+@cemetery_bp.route("/ordenes-trabajo", methods=["GET", "POST"])
+@login_required
+@require_membership
+def work_orders():
+    if request.method == "POST":
+        expediente_id = request.form.get("expediente_id", type=int)
+        if not expediente_id:
+            flash("Debes indicar un expediente valido", "error")
+            return redirect(url_for("cemetery.work_orders"))
+        payload = {k: v for k, v in request.form.items()}
+        try:
+            ot = create_expediente_ot(expediente_id, payload, current_user.id)
+            flash(f"OT #{ot.id} creada", "success")
+        except ValueError as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("cemetery.work_orders"))
+
+    filters = {
+        "estado": request.args.get("estado", "").strip(),
+        "expediente": request.args.get("expediente", "").strip(),
+    }
+    rows = list_work_orders(filters)
+    return render_template(
+        "cemetery/work_orders.html",
+        rows=rows,
+        filters=filters,
+        states=["PENDIENTE", "EN_CURSO", "COMPLETADA"],
+    )
 
 @cemetery_bp.get("/lapidas")
 @login_required

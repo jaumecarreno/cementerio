@@ -1863,6 +1863,25 @@ def list_expediente_ots(expediente_id: int) -> list[OrdenTrabajo]:
     )
 
 
+def list_work_orders(
+    filters: dict[str, str] | None = None,
+) -> list[tuple[OrdenTrabajo, Expediente | None]]:
+    filters = filters or {}
+    state = (filters.get("estado") or "").strip().upper()
+    case_number = (filters.get("expediente") or "").strip()
+
+    query = (
+        db.session.query(OrdenTrabajo, Expediente)
+        .outerjoin(Expediente, OrdenTrabajo.expediente_id == Expediente.id)
+        .filter(OrdenTrabajo.org_id == org_id())
+    )
+    if state:
+        query = query.filter(OrdenTrabajo.estado == state)
+    if case_number:
+        query = query.filter(Expediente.numero.ilike(f"%{case_number}%"))
+    return query.order_by(OrdenTrabajo.created_at.desc(), OrdenTrabajo.id.desc()).all()
+
+
 def create_expediente_ot(
     expediente_id: int, payload: dict[str, str], user_id: int | None
 ) -> OrdenTrabajo:
