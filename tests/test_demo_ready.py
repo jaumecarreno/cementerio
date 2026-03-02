@@ -14,13 +14,11 @@ from app.core.models import (
     CaseDocument,
     CaseDocumentStatus,
     DerechoFunerarioContrato,
-    Expediente,
     Invoice,
     InscripcionLateral,
     LapidaStock,
     MovimientoSepultura,
     MovimientoTipo,
-    OrdenTrabajo,
     OwnershipRecord,
     OwnershipTransferCase,
     OwnershipTransferStatus,
@@ -445,17 +443,13 @@ def test_demo_admin_can_load_initial_dataset_and_reset_to_zero(app, client, logi
         assert Beneficiario.query.filter(Beneficiario.activo_hasta.is_(None)).count() == 180
         assert Beneficiario.query.filter(Beneficiario.activo_hasta.is_not(None)).count() == 30
         assert SepulturaDifunto.query.count() == 180
-        assert Expediente.query.count() == 140
-        assert OrdenTrabajo.query.count() == 220
+        assert WorkOrder.query.count() == 220
         assert OwnershipTransferCase.query.count() == 90
         assert TasaMantenimientoTicket.query.count() == 360
         assert Invoice.query.count() > 0
         assert Payment.query.count() > 0
         assert CaseDocument.query.count() > 0
         assert Publication.query.count() > 0
-        assert (
-            Expediente.query.filter(Expediente.declarante_id.is_not(None)).count() > 0
-        )
         names = Person.query.with_entities(Person.first_name, Person.last_name).all()
         generic_names = [
             f"{first_name} {last_name}".strip()
@@ -488,8 +482,7 @@ def test_demo_admin_can_load_initial_dataset_and_reset_to_zero(app, client, logi
         assert OwnershipRecord.query.count() == 0
         assert Beneficiario.query.count() == 0
         assert SepulturaDifunto.query.count() == 0
-        assert Expediente.query.count() == 0
-        assert OrdenTrabajo.query.count() == 0
+        assert WorkOrder.query.count() == 0
         assert OwnershipTransferCase.query.count() == 0
         assert CaseDocument.query.count() == 0
         assert Publication.query.count() == 0

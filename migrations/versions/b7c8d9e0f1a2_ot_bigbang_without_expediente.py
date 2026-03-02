@@ -26,6 +26,20 @@ def _column_exists(bind, table_name: str, column_name: str) -> bool:
     return any(col.get("name") == column_name for col in cols)
 
 
+def _index_exists(bind, table_name: str, index_name: str) -> bool:
+    indexes = inspect(bind).get_indexes(table_name)
+    return any(idx.get("name") == index_name for idx in indexes)
+
+
+def _drop_index_if_exists(bind, table_name: str, index_name: str) -> None:
+    if not _table_exists(bind, table_name):
+        return
+    if not _index_exists(bind, table_name, index_name):
+        return
+    with op.batch_alter_table(table_name, schema=None) as batch_op:
+        batch_op.drop_index(index_name)
+
+
 def _create_legacy_tables_if_needed(bind) -> None:
     if not _table_exists(bind, "legacy_expediente"):
         op.create_table(
@@ -248,9 +262,11 @@ def _create_work_order_tables(bind) -> None:
 
 def _drop_expediente_operational_tables(bind) -> None:
     if _table_exists(bind, "lapida_stock_movimiento") and _column_exists(bind, "lapida_stock_movimiento", "expediente_id"):
+        _drop_index_if_exists(bind, "lapida_stock_movimiento", "ix_lapida_stock_movimiento_expediente_id")
         with op.batch_alter_table("lapida_stock_movimiento", schema=None) as batch_op:
             batch_op.drop_column("expediente_id")
     if _table_exists(bind, "inscripcion_lateral") and _column_exists(bind, "inscripcion_lateral", "expediente_id"):
+        _drop_index_if_exists(bind, "inscripcion_lateral", "ix_inscripcion_lateral_expediente_id")
         with op.batch_alter_table("inscripcion_lateral", schema=None) as batch_op:
             batch_op.drop_column("expediente_id")
     if _table_exists(bind, "orden_trabajo"):

@@ -1078,7 +1078,6 @@ class InscripcionLateral(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
     org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
     sepultura_id: Mapped[int] = mapped_column(ForeignKey("sepultura.id"), nullable=False)
-    expediente_id: Mapped[int | None] = mapped_column(ForeignKey("expediente.id"), nullable=True)
     texto: Mapped[str] = mapped_column(db.String(255), nullable=False)
     estado: Mapped[str] = mapped_column(db.String(40), nullable=False, default="PENDIENTE_GRABAR")
     created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
@@ -1093,7 +1092,6 @@ class LapidaStockMovimiento(db.Model):
     movimiento: Mapped[str] = mapped_column(db.String(20), nullable=False)
     quantity: Mapped[int] = mapped_column(nullable=False)
     sepultura_id: Mapped[int | None] = mapped_column(ForeignKey("sepultura.id"), nullable=True)
-    expediente_id: Mapped[int | None] = mapped_column(ForeignKey("expediente.id"), nullable=True)
     notes: Mapped[str] = mapped_column(db.String(255), nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
 

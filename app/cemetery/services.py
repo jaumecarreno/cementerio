@@ -55,10 +55,19 @@ from app.core.models import (
     TicketDescuentoTipo,
     TicketEstado,
     WorkOrder,
+    WorkOrderChecklistItem,
+    WorkOrderDependency,
+    WorkOrderEvidence,
+    WorkOrderEventLog,
+    WorkOrderEventRule,
     WorkOrderAreaType,
     WorkOrderCategory,
     WorkOrderPriority,
     WorkOrderStatus,
+    WorkOrderStatusLog,
+    WorkOrderTemplate,
+    WorkOrderTemplateChecklistItem,
+    WorkOrderType,
 )
 from app.cemetery.work_order_service import emit_work_order_event
 
@@ -2210,7 +2219,6 @@ def lapida_stock_exit(payload: dict[str, str], user_id: int | None) -> LapidaSto
             movimiento="SALIDA",
             quantity=quantity,
             sepultura_id=sepultura_id,
-            expediente_id=None,
             notes=(payload.get("notes") or "").strip(),
         )
     )
@@ -2270,7 +2278,6 @@ def create_inscripcion_lateral(
     item = InscripcionLateral(
         org_id=org_id(),
         sepultura_id=sepultura.id,
-        expediente_id=None,
         texto=text,
         estado="PENDIENTE_GRABAR",
     )
@@ -2553,8 +2560,8 @@ def _demo_operational_counts(oid: int) -> dict[str, int]:
         .filter(Beneficiario.activo_hasta.is_not(None))
         .count(),
         "difuntos": SepulturaDifunto.query.filter_by(org_id=oid).count(),
-        "expedientes": Expediente.query.filter_by(org_id=oid).count(),
-        "ots": OrdenTrabajo.query.filter_by(org_id=oid).count(),
+        "expedientes": 0,
+        "ots": WorkOrder.query.filter_by(org_id=oid).count(),
         "casos": OwnershipTransferCase.query.filter_by(org_id=oid).count(),
         "documents": CaseDocument.query.filter_by(org_id=oid).count(),
         "publications": Publication.query.filter_by(org_id=oid).count(),
@@ -2598,10 +2605,16 @@ def _purge_org_operational_data() -> None:
     db.session.query(InscripcionLateral).filter_by(org_id=oid).delete(
         synchronize_session=False
     )
-    db.session.query(OrdenTrabajo).filter_by(org_id=oid).delete(
-        synchronize_session=False
-    )
-    db.session.query(Expediente).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(WorkOrderStatusLog).delete(synchronize_session=False)
+    db.session.query(WorkOrderChecklistItem).delete(synchronize_session=False)
+    db.session.query(WorkOrderEvidence).delete(synchronize_session=False)
+    db.session.query(WorkOrderDependency).delete(synchronize_session=False)
+    db.session.query(WorkOrderEventLog).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(WorkOrderEventRule).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(WorkOrderTemplateChecklistItem).delete(synchronize_session=False)
+    db.session.query(WorkOrderTemplate).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(WorkOrderType).filter_by(org_id=oid).delete(synchronize_session=False)
+    db.session.query(WorkOrder).filter_by(org_id=oid).delete(synchronize_session=False)
     db.session.query(Payment).filter_by(org_id=oid).delete(synchronize_session=False)
     db.session.query(TasaMantenimientoTicket).filter_by(org_id=oid).delete(
         synchronize_session=False
@@ -2896,55 +2909,48 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
         )
     db.session.add_all(remains)
 
-    expediente_states = (
-        ["ABIERTO"] * 40
-        + ["EN_TRAMITE"] * 40
-        + ["FINALIZADO"] * 35
-        + ["CANCELADO"] * 25
+    work_order_states = (
+        [WorkOrderStatus.PENDIENTE_PLANIFICACION] * 90
+        + [WorkOrderStatus.ASIGNADA] * 60
+        + [WorkOrderStatus.EN_CURSO] * 40
+        + [WorkOrderStatus.COMPLETADA] * 30
     )
-    expediente_types = ("INHUMACION", "EXHUMACION", "RESCATE", "FINALIZACION")
-    expedientes: list[Expediente] = []
-    for idx in range(1, 141):
-        expedientes.append(
-            Expediente(
-                org_id=oid,
-                numero=f"C-2026-{idx:04d}",
-                tipo=expediente_types[(idx - 1) % len(expediente_types)],
-                estado=expediente_states[idx - 1],
-                sepultura_id=sepulturas[(idx - 1) % 300].id,
-                difunto_id=extras[(idx - 1) % len(extras)].id if idx % 2 == 0 else None,
-                declarante_id=(
-                    holders[(idx + 37) % len(holders)].id
-                    if idx % 3 == 0
-                    else extras[(idx + 23) % len(extras)].id
-                ),
-                fecha_prevista=date(2026, ((idx - 1) % 12) + 1, ((idx - 1) % 28) + 1),
-                notas=f"Expediente demo {idx:04d}",
-            )
-        )
-    db.session.add_all(expedientes)
-    db.session.flush()
-
-    ot_states = ["PENDIENTE"] * 100 + ["EN_CURSO"] * 70 + ["COMPLETADA"] * 50
-    ots: list[OrdenTrabajo] = []
+    work_orders: list[WorkOrder] = []
     for idx in range(1, 221):
-        state = ot_states[idx - 1]
-        completed_at = (
-            datetime(2026, 1, 1, tzinfo=timezone.utc) + timedelta(days=idx)
-            if state == "COMPLETADA"
-            else None
-        )
-        ots.append(
-            OrdenTrabajo(
+        status = work_order_states[idx - 1]
+        created_at = datetime(2026, 1, 1, tzinfo=timezone.utc) + timedelta(days=idx)
+        completed_at = created_at + timedelta(days=2) if status == WorkOrderStatus.COMPLETADA else None
+        work_orders.append(
+            WorkOrder(
                 org_id=oid,
-                expediente_id=expedientes[(idx - 1) % len(expedientes)].id,
-                titulo=f"OT DEMO {idx:04d}",
-                estado=state,
+                code=f"OT-2026-{idx:06d}",
+                title=f"OT DEMO {idx:04d}",
+                description="Orden de trabajo demo",
+                category=WorkOrderCategory.FUNERARIA if idx % 3 else WorkOrderCategory.MANTENIMIENTO,
+                type_code=None,
+                priority=WorkOrderPriority.MEDIA if idx % 4 else WorkOrderPriority.ALTA,
+                status=status,
+                sepultura_id=sepulturas[(idx - 1) % 300].id,
+                area_type=None,
+                area_code=None,
+                location_text=None,
+                assigned_user_id=user_id if idx % 2 == 0 else None,
+                planned_start_at=created_at + timedelta(days=1),
+                planned_end_at=created_at + timedelta(days=2),
+                due_at=created_at + timedelta(days=5),
+                started_at=created_at + timedelta(days=1) if status in {WorkOrderStatus.EN_CURSO, WorkOrderStatus.COMPLETADA} else None,
                 completed_at=completed_at,
-                notes="Orden de trabajo demo",
+                cancelled_at=None,
+                block_reason="",
+                cancel_reason="",
+                close_notes="",
+                created_by_user_id=user_id,
+                updated_by_user_id=user_id,
+                created_at=created_at,
+                updated_at=created_at,
             )
         )
-    db.session.add_all(ots)
+    db.session.add_all(work_orders)
 
     case_types = (
         OwnershipTransferType.MORTIS_CAUSA_TESTAMENTO,
@@ -3320,11 +3326,6 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 movimiento="SALIDA",
                 quantity=quantity,
                 sepultura_id=sepulturas[(idx * 3) % 300].id,
-                expediente_id=(
-                    expedientes[(idx * 2) % len(expedientes)].id
-                    if idx % 2 == 0
-                    else None
-                ),
                 notes=f"Salida demo {idx:03d}",
             )
         )
@@ -3342,11 +3343,6 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
             InscripcionLateral(
                 org_id=oid,
                 sepultura_id=sepulturas[(idx - 1) % 300].id,
-                expediente_id=(
-                    expedientes[(idx - 1) % len(expedientes)].id
-                    if idx % 2 == 0
-                    else None
-                ),
                 texto=f"Inscripcion demo {idx:03d}",
                 estado=inscripcion_states[idx - 1],
             )
