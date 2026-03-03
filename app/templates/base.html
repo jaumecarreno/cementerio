@@ -161,10 +161,12 @@
         },
         setField: function (fieldId, value, labelFieldId, labelText) {
           const input = document.getElementById(fieldId);
+          let updated = false;
           if (input) {
             input.value = String(value || "");
             input.dispatchEvent(new Event("input", { bubbles: true }));
             input.dispatchEvent(new Event("change", { bubbles: true }));
+            updated = true;
           }
           if (labelFieldId) {
             const label = document.getElementById(labelFieldId);
@@ -172,6 +174,7 @@
               label.textContent = labelText ? String(labelText) : "";
             }
           }
+          return updated;
         },
       };
 

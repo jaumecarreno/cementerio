@@ -13,24 +13,24 @@
       <form method="get" action="{{ url_for('cemetery.expediente_person_picker') }}">
         <input type="hidden" name="target_field" value="{{ target_field }}">
         <input type="hidden" name="label_field" value="{{ label_field }}">
-        <div class="form-grid">
-          <div>
+        <div class="picker-filters-row">
+          <div class="picker-filter-item">
             <label>Busqueda libre</label>
             <input type="text" name="q" value="{{ filters.q }}" placeholder="ID, nombre, apellidos o DNI/NIF">
           </div>
-          <div>
+          <div class="picker-filter-item">
             <label>ID persona</label>
             <input type="text" name="person_id" value="{{ filters.person_id }}">
           </div>
-          <div>
+          <div class="picker-filter-item">
             <label>Nombre</label>
             <input type="text" name="first_name" value="{{ filters.first_name }}">
           </div>
-          <div>
+          <div class="picker-filter-item">
             <label>Apellidos</label>
             <input type="text" name="last_name" value="{{ filters.last_name }}">
           </div>
-          <div>
+          <div class="picker-filter-item">
             <label>DNI/NIF</label>
             <input type="text" name="dni_nif" value="{{ filters.dni_nif }}">
           </div>
@@ -75,12 +75,20 @@
     </div>
   </main>
   <script>
-    function fallbackRedirect(fieldId, value) {
+    function fallbackRedirect(fieldId, value, preferOpener) {
       if (fieldId !== "deceased_person_id") {
         return false;
       }
       var base = "{{ url_for('cemetery.expedientes') }}";
       var next = base + "?prefill_deceased_person_id=" + encodeURIComponent(String(value || ""));
+      if (preferOpener && window.opener && !window.opener.closed) {
+        try {
+          window.opener.location.href = next;
+          window.close();
+          return true;
+        } catch (err) {
+        }
+      }
       window.location.href = next;
       return true;
     }
@@ -97,14 +105,12 @@
       if (window.opener && !window.opener.closed) {
         try {
           if (window.opener.CemPopupPicker && typeof window.opener.CemPopupPicker.setField === "function") {
-            window.opener.CemPopupPicker.setField(fieldId, value, labelFieldId, labelText);
-            delivered = true;
+            delivered = !!window.opener.CemPopupPicker.setField(fieldId, value, labelFieldId, labelText);
           }
         } catch (err) {
         }
         try {
           window.opener.postMessage(payload, window.location.origin);
-          delivered = true;
         } catch (err) {
         }
       }
@@ -112,7 +118,7 @@
         window.close();
         return false;
       }
-      return fallbackRedirect(fieldId, value);
+      return fallbackRedirect(fieldId, value, true);
     }
   </script>
 </body>

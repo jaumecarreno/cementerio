@@ -850,6 +850,22 @@ tr:last-child td {
   padding: 18px;
 }
 
+.picker-filters-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.picker-filter-item {
+  flex: 1 1 180px;
+  min-width: 160px;
+}
+
+.picker-filter-item input,
+.picker-filter-item select {
+  width: 100%;
+}
+
 .ticket-checkbox {
   width: 18px;
   min-height: 0;

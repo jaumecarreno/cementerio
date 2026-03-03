@@ -616,6 +616,7 @@ def expediente_sepultura_picker():
         filters=filters,
         target_field=target_field,
         label_field=label_field,
+        sepultura_blocks=list_sepultura_blocks(),
         sepultura_states=[state.value for state in SepulturaEstado],
     )
 

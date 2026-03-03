@@ -13,40 +13,45 @@
       <form method="get" action="{{ url_for('cemetery.expediente_sepultura_picker') }}">
         <input type="hidden" name="target_field" value="{{ target_field }}">
         <input type="hidden" name="label_field" value="{{ label_field }}">
-        <div class="form-grid">
-          <div>
+        <div class="picker-filters-row">
+          <div class="picker-filter-item">
             <label>Busqueda libre</label>
             <input type="text" name="q" value="{{ filters.q }}" placeholder="ID, bloque, via o numero">
           </div>
-          <div>
+          <div class="picker-filter-item">
             <label>ID sepultura</label>
             <input type="text" name="sepultura_id" value="{{ filters.sepultura_id }}">
           </div>
-          <div>
+          <div class="picker-filter-item">
             <label>Bloque</label>
-            <input type="text" name="bloque" value="{{ filters.bloque }}">
+            <select name="bloque">
+              <option value="">Todos</option>
+              {% for block in sepultura_blocks %}
+              <option value="{{ block }}" {% if filters.bloque == block %}selected{% endif %}>{{ block }}</option>
+              {% endfor %}
+            </select>
           </div>
-          <div>
+          <div class="picker-filter-item">
             <label>Fila</label>
             <input type="text" name="fila" value="{{ filters.fila }}">
           </div>
-          <div>
+          <div class="picker-filter-item">
             <label>Columna</label>
             <input type="text" name="columna" value="{{ filters.columna }}">
           </div>
-          <div>
+          <div class="picker-filter-item">
             <label>Numero</label>
             <input type="text" name="numero" value="{{ filters.numero }}">
           </div>
-          <div>
+          <div class="picker-filter-item">
             <label>Via</label>
             <input type="text" name="via" value="{{ filters.via }}">
           </div>
-          <div>
+          <div class="picker-filter-item">
             <label>Modalidad</label>
             <input type="text" name="modalidad" value="{{ filters.modalidad }}">
           </div>
-          <div>
+          <div class="picker-filter-item">
             <label>Estado</label>
             <select name="estado">
               <option value="">Todos</option>
@@ -98,7 +103,7 @@
     </div>
   </main>
   <script>
-    function fallbackRedirect(fieldId, value) {
+    function fallbackRedirect(fieldId, value, preferOpener) {
       var base = "{{ url_for('cemetery.expedientes') }}";
       var map = {
         source_sepultura_id: "prefill_source_sepultura_id",
@@ -109,6 +114,14 @@
         return false;
       }
       var next = base + "?" + key + "=" + encodeURIComponent(String(value || ""));
+      if (preferOpener && window.opener && !window.opener.closed) {
+        try {
+          window.opener.location.href = next;
+          window.close();
+          return true;
+        } catch (err) {
+        }
+      }
       window.location.href = next;
       return true;
     }
@@ -125,14 +138,12 @@
       if (window.opener && !window.opener.closed) {
         try {
           if (window.opener.CemPopupPicker && typeof window.opener.CemPopupPicker.setField === "function") {
-            window.opener.CemPopupPicker.setField(fieldId, value, labelFieldId, labelText);
-            delivered = true;
+            delivered = !!window.opener.CemPopupPicker.setField(fieldId, value, labelFieldId, labelText);
           }
         } catch (err) {
         }
         try {
           window.opener.postMessage(payload, window.location.origin);
-          delivered = true;
         } catch (err) {
         }
       }
@@ -140,7 +151,7 @@
         window.close();
         return false;
       }
-      return fallbackRedirect(fieldId, value);
+      return fallbackRedirect(fieldId, value, true);
     }
   </script>
 </body>
