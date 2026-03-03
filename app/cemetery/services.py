@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
+from enum import Enum
 from io import BytesIO, StringIO
 from pathlib import Path
 import csv
@@ -4193,6 +4194,27 @@ DEMO_OPERATION_PERMITS: dict[OperationType, tuple[str, ...]] = {
     OperationType.RESCATE: ("AUTORIZACION_RETIRO_RESTOS", "PERMISO_SANITARIO"),
 }
 
+POSTGRES_ENUM_TYPES: tuple[tuple[str, type[Enum]], ...] = (
+    ("sepultura_estado", SepulturaEstado),
+    ("derecho_tipo", DerechoTipo),
+    ("ownership_transfer_type", OwnershipTransferType),
+    ("ownership_transfer_status", OwnershipTransferStatus),
+    ("beneficiary_close_decision", BeneficiaryCloseDecision),
+    ("ownership_party_role", OwnershipPartyRole),
+    ("case_document_status", CaseDocumentStatus),
+    ("operation_type", OperationType),
+    ("operation_status", OperationStatus),
+    ("operation_permit_status", OperationPermitStatus),
+    ("work_order_category", WorkOrderCategory),
+    ("work_order_priority", WorkOrderPriority),
+    ("work_order_status", WorkOrderStatus),
+    ("work_order_area_type", WorkOrderAreaType),
+    ("movimiento_tipo", MovimientoTipo),
+    ("invoice_estado", InvoiceEstado),
+    ("ticket_descuento_tipo", TicketDescuentoTipo),
+    ("ticket_estado", TicketEstado),
+)
+
 
 def _demo_spanish_dni(seed: int) -> str:
     numeric = 10_000_000 + (seed % 80_000_000)
@@ -4220,6 +4242,37 @@ def _demo_person_address(seed: int) -> dict[str, str]:
         "country": "ES",
         "legacy": f"{line}, {postal_code} {city}",
     }
+
+
+def _ensure_postgres_enum_types() -> None:
+    bind = db.session.get_bind()
+    if bind.dialect.name != "postgresql":
+        return
+    existing = {
+        row[0]
+        for row in db.session.execute(
+            text(
+                "SELECT typname "
+                "FROM pg_type "
+                "WHERE typtype = 'e'"
+            )
+        )
+    }
+    for enum_name, enum_cls in POSTGRES_ENUM_TYPES:
+        values = [str(member.value) for member in enum_cls]
+        if not values:
+            continue
+        if enum_name not in existing:
+            values_sql = ", ".join(
+                "'" + value.replace("'", "''") + "'" for value in values
+            )
+            db.session.execute(text(f"CREATE TYPE {enum_name} AS ENUM ({values_sql})"))
+            existing.add(enum_name)
+        for value in values:
+            escaped_value = value.replace("'", "''")
+            db.session.execute(
+                text(f"ALTER TYPE {enum_name} ADD VALUE IF NOT EXISTS '{escaped_value}'")
+            )
 
 
 def _seed_demo_work_order_catalog(oid: int) -> dict[str, WorkOrderType]:
@@ -4312,6 +4365,7 @@ def _seed_demo_work_order_catalog(oid: int) -> dict[str, WorkOrderType]:
 
 def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
     _purge_org_operational_data()
+    _ensure_postgres_enum_types()
     oid = org_id()
     cemetery = _ensure_demo_cemetery(oid)
     wo_types = _seed_demo_work_order_catalog(oid)

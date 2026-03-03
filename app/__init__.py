@@ -110,7 +110,16 @@ def register_routes(app: Flask) -> None:
         if not _demo_actions_enabled(app):
             flash("Acciones DEMO bloqueadas por configuracion del entorno", "error")
             return redirect(url_for("demo_page")), 403
-        summary = load_demo_org_initial_dataset(current_user.id)
+        try:
+            summary = load_demo_org_initial_dataset(current_user.id)
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception("Error cargando datos DEMO iniciales")
+            flash(
+                f"Error cargando DEMO inicial: {exc}. Ejecuta 'flask db upgrade' y reinicia.",
+                "error",
+            )
+            return redirect(url_for("demo_page"))
         flash(
             f"DEMO inicial cargada para org {g.org.code}: sepulturas={summary['sepulturas']} titulares_activos={summary['titulares_activos']} personas={summary['persons']} contratos={summary['contracts']} expedientes={summary['expedientes']} casos={summary['casos']}",
             "success",
