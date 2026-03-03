@@ -3743,202 +3743,309 @@ def _demo_storage_roots(oid: int) -> list[Path]:
 
 
 def _demo_operational_counts(oid: int) -> dict[str, int]:
+    inspector = inspect(db.session.get_bind())
+    existing_tables = set(inspector.get_table_names())
+
+    def _has(*tables: str) -> bool:
+        return all(table in existing_tables for table in tables)
+
+    def _safe_count(fn) -> int:
+        try:
+            return int(fn())
+        except Exception:
+            db.session.rollback()
+            return 0
+
     return {
-        "persons": Person.query.filter_by(org_id=oid).count(),
-        "sepulturas": Sepultura.query.filter_by(org_id=oid).count(),
-        "contracts": DerechoFunerarioContrato.query.filter_by(org_id=oid).count(),
-        "titulares_activos": OwnershipRecord.query.filter_by(org_id=oid)
-        .filter(OwnershipRecord.end_date.is_(None))
-        .count(),
-        "beneficiarios_activos": Beneficiario.query.filter_by(org_id=oid)
-        .filter(Beneficiario.activo_hasta.is_(None))
-        .count(),
-        "beneficiarios_historicos": Beneficiario.query.filter_by(org_id=oid)
-        .filter(Beneficiario.activo_hasta.is_not(None))
-        .count(),
-        "difuntos": SepulturaDifunto.query.filter_by(org_id=oid).count(),
-        "expedientes": OperationCase.query.filter_by(org_id=oid).count(),
-        "ots": WorkOrder.query.filter_by(org_id=oid).count(),
-        "casos": OwnershipTransferCase.query.filter_by(org_id=oid).count(),
-        "operation_docs": OperationDocument.query.join(
-            OperationCase, OperationCase.id == OperationDocument.operation_case_id
+        "persons": _safe_count(lambda: Person.query.filter_by(org_id=oid).count())
+        if _has("person")
+        else 0,
+        "sepulturas": _safe_count(
+            lambda: Sepultura.query.filter_by(org_id=oid).count()
         )
-        .filter(OperationCase.org_id == oid)
-        .count(),
-        "operation_permits": OperationPermit.query.join(
-            OperationCase, OperationCase.id == OperationPermit.operation_case_id
+        if _has("sepultura")
+        else 0,
+        "contracts": _safe_count(
+            lambda: DerechoFunerarioContrato.query.filter_by(org_id=oid).count()
         )
-        .filter(OperationCase.org_id == oid)
-        .count(),
-        "documents": CaseDocument.query.filter_by(org_id=oid).count(),
-        "publications": Publication.query.filter_by(org_id=oid).count(),
-        "tickets": TasaMantenimientoTicket.query.filter_by(org_id=oid).count(),
-        "invoices": Invoice.query.filter_by(org_id=oid).count(),
-        "payments": Payment.query.filter_by(org_id=oid).count(),
-        "lapida_stock": LapidaStock.query.filter_by(org_id=oid).count(),
-        "lapida_movements": LapidaStockMovimiento.query.filter_by(org_id=oid).count(),
-        "inscripciones": InscripcionLateral.query.filter_by(org_id=oid).count(),
-        "activity_logs": ActivityLog.query.filter_by(org_id=oid).count(),
-        "report_schedules": ReportSchedule.query.filter_by(org_id=oid).count(),
-        "report_deliveries": ReportDeliveryLog.query.filter_by(org_id=oid).count(),
+        if _has("derecho_funerario_contrato")
+        else 0,
+        "titulares_activos": _safe_count(
+            lambda: OwnershipRecord.query.filter_by(org_id=oid)
+            .filter(OwnershipRecord.end_date.is_(None))
+            .count()
+        )
+        if _has("ownership_record")
+        else 0,
+        "beneficiarios_activos": _safe_count(
+            lambda: Beneficiario.query.filter_by(org_id=oid)
+            .filter(Beneficiario.activo_hasta.is_(None))
+            .count()
+        )
+        if _has("beneficiario")
+        else 0,
+        "beneficiarios_historicos": _safe_count(
+            lambda: Beneficiario.query.filter_by(org_id=oid)
+            .filter(Beneficiario.activo_hasta.is_not(None))
+            .count()
+        )
+        if _has("beneficiario")
+        else 0,
+        "difuntos": _safe_count(lambda: SepulturaDifunto.query.filter_by(org_id=oid).count())
+        if _has("sepultura_difunto")
+        else 0,
+        "expedientes": _safe_count(lambda: OperationCase.query.filter_by(org_id=oid).count())
+        if _has("operation_case")
+        else 0,
+        "ots": _safe_count(lambda: WorkOrder.query.filter_by(org_id=oid).count())
+        if _has("work_order")
+        else 0,
+        "casos": _safe_count(
+            lambda: OwnershipTransferCase.query.filter_by(org_id=oid).count()
+        )
+        if _has("ownership_transfer_case")
+        else 0,
+        "operation_docs": _safe_count(
+            lambda: OperationDocument.query.join(
+                OperationCase, OperationCase.id == OperationDocument.operation_case_id
+            )
+            .filter(OperationCase.org_id == oid)
+            .count()
+        )
+        if _has("operation_document", "operation_case")
+        else 0,
+        "operation_permits": _safe_count(
+            lambda: OperationPermit.query.join(
+                OperationCase, OperationCase.id == OperationPermit.operation_case_id
+            )
+            .filter(OperationCase.org_id == oid)
+            .count()
+        )
+        if _has("operation_permit", "operation_case")
+        else 0,
+        "documents": _safe_count(lambda: CaseDocument.query.filter_by(org_id=oid).count())
+        if _has("case_document")
+        else 0,
+        "publications": _safe_count(lambda: Publication.query.filter_by(org_id=oid).count())
+        if _has("publication")
+        else 0,
+        "tickets": _safe_count(
+            lambda: TasaMantenimientoTicket.query.filter_by(org_id=oid).count()
+        )
+        if _has("tasa_mantenimiento_ticket")
+        else 0,
+        "invoices": _safe_count(lambda: Invoice.query.filter_by(org_id=oid).count())
+        if _has("invoice")
+        else 0,
+        "payments": _safe_count(lambda: Payment.query.filter_by(org_id=oid).count())
+        if _has("payment")
+        else 0,
+        "lapida_stock": _safe_count(lambda: LapidaStock.query.filter_by(org_id=oid).count())
+        if _has("lapida_stock")
+        else 0,
+        "lapida_movements": _safe_count(
+            lambda: LapidaStockMovimiento.query.filter_by(org_id=oid).count()
+        )
+        if _has("lapida_stock_movimiento")
+        else 0,
+        "inscripciones": _safe_count(
+            lambda: InscripcionLateral.query.filter_by(org_id=oid).count()
+        )
+        if _has("inscripcion_lateral")
+        else 0,
+        "activity_logs": _safe_count(lambda: ActivityLog.query.filter_by(org_id=oid).count())
+        if _has("activity_log")
+        else 0,
+        "report_schedules": _safe_count(
+            lambda: ReportSchedule.query.filter_by(org_id=oid).count()
+        )
+        if _has("report_schedule")
+        else 0,
+        "report_deliveries": _safe_count(
+            lambda: ReportDeliveryLog.query.filter_by(org_id=oid).count()
+        )
+        if _has("report_delivery_log")
+        else 0,
     }
 
 
 def _purge_org_operational_data() -> None:
     oid = org_id()
+    inspector = inspect(db.session.get_bind())
+    existing_tables = set(inspector.get_table_names())
+
+    def _has(*tables: str) -> bool:
+        return all(table in existing_tables for table in tables)
 
     for storage_root in _demo_storage_roots(oid):
         if storage_root.exists():
             shutil.rmtree(storage_root, ignore_errors=True)
 
-    try:
+    if _has("report_delivery_log"):
         db.session.query(ReportDeliveryLog).filter_by(org_id=oid).delete(
             synchronize_session=False
         )
-    except Exception:
-        pass
-    try:
+    if _has("report_schedule"):
         db.session.query(ReportSchedule).filter_by(org_id=oid).delete(
             synchronize_session=False
         )
-    except Exception:
-        pass
 
     operation_ids: list[int] = []
-    try:
+    if _has("operation_case"):
         operation_ids = [
             row[0]
             for row in db.session.query(OperationCase.id)
             .filter_by(org_id=oid)
             .all()
         ]
-    except Exception:
-        operation_ids = []
     if operation_ids:
-        try:
+        if _has("operation_status_log"):
             db.session.query(OperationStatusLog).filter(
                 OperationStatusLog.operation_case_id.in_(operation_ids)
             ).delete(synchronize_session=False)
-        except Exception:
-            pass
-        try:
+        if _has("operation_document"):
             db.session.query(OperationDocument).filter(
                 OperationDocument.operation_case_id.in_(operation_ids)
             ).delete(synchronize_session=False)
-        except Exception:
-            pass
-        try:
+        if _has("operation_permit"):
             db.session.query(OperationPermit).filter(
                 OperationPermit.operation_case_id.in_(operation_ids)
             ).delete(synchronize_session=False)
-        except Exception:
-            pass
         db.session.query(OperationCase).filter(
             OperationCase.id.in_(operation_ids)
         ).delete(synchronize_session=False)
 
-    try:
+    if _has("orden_trabajo"):
         db.session.query(OrdenTrabajo).filter_by(org_id=oid).delete(
             synchronize_session=False
         )
-    except Exception:
-        pass
-    try:
+    if _has("expediente"):
         db.session.query(Expediente).filter_by(org_id=oid).delete(
             synchronize_session=False
         )
-    except Exception:
-        pass
 
-    db.session.query(ContractEvent).filter_by(org_id=oid).delete(
-        synchronize_session=False
-    )
-    db.session.query(ActivityLog).filter_by(org_id=oid).delete(
-        synchronize_session=False
-    )
-    db.session.query(Publication).filter_by(org_id=oid).delete(
-        synchronize_session=False
-    )
-    db.session.query(CaseDocument).filter_by(org_id=oid).delete(
-        synchronize_session=False
-    )
-    db.session.query(OwnershipTransferParty).filter_by(org_id=oid).delete(
-        synchronize_session=False
-    )
-    db.session.query(OwnershipTransferCase).filter_by(org_id=oid).delete(
-        synchronize_session=False
-    )
-    db.session.query(LapidaStockMovimiento).filter_by(org_id=oid).delete(
-        synchronize_session=False
-    )
-    db.session.query(InscripcionLateral).filter_by(org_id=oid).delete(
-        synchronize_session=False
-    )
+    if _has("contract_event"):
+        db.session.query(ContractEvent).filter_by(org_id=oid).delete(
+            synchronize_session=False
+        )
+    if _has("activity_log"):
+        db.session.query(ActivityLog).filter_by(org_id=oid).delete(
+            synchronize_session=False
+        )
+    if _has("publication"):
+        db.session.query(Publication).filter_by(org_id=oid).delete(
+            synchronize_session=False
+        )
+    if _has("case_document"):
+        db.session.query(CaseDocument).filter_by(org_id=oid).delete(
+            synchronize_session=False
+        )
+    if _has("ownership_transfer_party"):
+        db.session.query(OwnershipTransferParty).filter_by(org_id=oid).delete(
+            synchronize_session=False
+        )
+    if _has("ownership_transfer_case"):
+        db.session.query(OwnershipTransferCase).filter_by(org_id=oid).delete(
+            synchronize_session=False
+        )
+    if _has("lapida_stock_movimiento"):
+        db.session.query(LapidaStockMovimiento).filter_by(org_id=oid).delete(
+            synchronize_session=False
+        )
+    if _has("inscripcion_lateral"):
+        db.session.query(InscripcionLateral).filter_by(org_id=oid).delete(
+            synchronize_session=False
+        )
     work_order_ids = [
         row[0]
         for row in db.session.query(WorkOrder.id).filter_by(org_id=oid).all()
-    ]
+    ] if _has("work_order") else []
     if work_order_ids:
-        db.session.query(WorkOrderStatusLog).filter(
-            WorkOrderStatusLog.work_order_id.in_(work_order_ids)
-        ).delete(synchronize_session=False)
-        db.session.query(WorkOrderChecklistItem).filter(
-            WorkOrderChecklistItem.work_order_id.in_(work_order_ids)
-        ).delete(synchronize_session=False)
-        db.session.query(WorkOrderEvidence).filter(
-            WorkOrderEvidence.work_order_id.in_(work_order_ids)
-        ).delete(synchronize_session=False)
-        db.session.query(WorkOrderDependency).filter(
-            or_(
-                WorkOrderDependency.work_order_id.in_(work_order_ids),
-                WorkOrderDependency.depends_on_work_order_id.in_(work_order_ids),
-            )
-        ).delete(synchronize_session=False)
+        if _has("work_order_status_log"):
+            db.session.query(WorkOrderStatusLog).filter(
+                WorkOrderStatusLog.work_order_id.in_(work_order_ids)
+            ).delete(synchronize_session=False)
+        if _has("work_order_checklist_item"):
+            db.session.query(WorkOrderChecklistItem).filter(
+                WorkOrderChecklistItem.work_order_id.in_(work_order_ids)
+            ).delete(synchronize_session=False)
+        if _has("work_order_evidence"):
+            db.session.query(WorkOrderEvidence).filter(
+                WorkOrderEvidence.work_order_id.in_(work_order_ids)
+            ).delete(synchronize_session=False)
+        if _has("work_order_dependency"):
+            db.session.query(WorkOrderDependency).filter(
+                or_(
+                    WorkOrderDependency.work_order_id.in_(work_order_ids),
+                    WorkOrderDependency.depends_on_work_order_id.in_(work_order_ids),
+                )
+            ).delete(synchronize_session=False)
 
-    db.session.query(WorkOrderEventLog).filter_by(org_id=oid).delete(synchronize_session=False)
-    db.session.query(WorkOrderEventRule).filter_by(org_id=oid).delete(synchronize_session=False)
+    if _has("work_order_event_log"):
+        db.session.query(WorkOrderEventLog).filter_by(org_id=oid).delete(synchronize_session=False)
+    if _has("work_order_event_rule"):
+        db.session.query(WorkOrderEventRule).filter_by(org_id=oid).delete(synchronize_session=False)
     template_ids = [
         row[0]
         for row in db.session.query(WorkOrderTemplate.id)
         .filter_by(org_id=oid)
         .all()
-    ]
-    if template_ids:
+    ] if _has("work_order_template") else []
+    if template_ids and _has("work_order_template_checklist_item"):
         db.session.query(WorkOrderTemplateChecklistItem).filter(
             WorkOrderTemplateChecklistItem.template_id.in_(template_ids)
         ).delete(synchronize_session=False)
-    db.session.query(WorkOrderTemplate).filter_by(org_id=oid).delete(synchronize_session=False)
-    db.session.query(WorkOrderType).filter_by(org_id=oid).delete(synchronize_session=False)
-    db.session.query(WorkOrder).filter_by(org_id=oid).delete(synchronize_session=False)
-    db.session.query(Payment).filter_by(org_id=oid).delete(synchronize_session=False)
-    db.session.query(TasaMantenimientoTicket).filter_by(org_id=oid).delete(
-        synchronize_session=False
-    )
-    db.session.query(Invoice).filter_by(org_id=oid).delete(synchronize_session=False)
-    db.session.query(Beneficiario).filter_by(org_id=oid).delete(
-        synchronize_session=False
-    )
-    db.session.query(OwnershipRecord).filter_by(org_id=oid).delete(
-        synchronize_session=False
-    )
-    db.session.query(DerechoFunerarioContrato).filter_by(org_id=oid).delete(
-        synchronize_session=False
-    )
-    db.session.query(SepulturaUbicacion).filter_by(org_id=oid).delete(
-        synchronize_session=False
-    )
-    db.session.query(SepulturaDifunto).filter_by(org_id=oid).delete(
-        synchronize_session=False
-    )
-    db.session.query(MovimientoSepultura).filter_by(org_id=oid).delete(
-        synchronize_session=False
-    )
-    db.session.query(LapidaStock).filter_by(org_id=oid).delete(
-        synchronize_session=False
-    )
-    db.session.query(Sepultura).filter_by(org_id=oid).delete(synchronize_session=False)
-    db.session.query(Person).filter_by(org_id=oid).delete(synchronize_session=False)
-    try:
+    if _has("work_order_template"):
+        db.session.query(WorkOrderTemplate).filter_by(org_id=oid).delete(synchronize_session=False)
+    if _has("work_order_type"):
+        db.session.query(WorkOrderType).filter_by(org_id=oid).delete(synchronize_session=False)
+    if _has("work_order"):
+        db.session.query(WorkOrder).filter_by(org_id=oid).delete(synchronize_session=False)
+    if _has("payment"):
+        db.session.query(Payment).filter_by(org_id=oid).delete(synchronize_session=False)
+    if _has("tasa_mantenimiento_ticket"):
+        db.session.query(TasaMantenimientoTicket).filter_by(org_id=oid).delete(
+            synchronize_session=False
+        )
+    if _has("invoice"):
+        db.session.query(Invoice).filter_by(org_id=oid).delete(synchronize_session=False)
+    if _has("beneficiario"):
+        db.session.query(Beneficiario).filter_by(org_id=oid).delete(
+            synchronize_session=False
+        )
+    if _has("ownership_record"):
+        db.session.query(OwnershipRecord).filter_by(org_id=oid).delete(
+            synchronize_session=False
+        )
+    if _has("derecho_funerario_contrato"):
+        db.session.query(DerechoFunerarioContrato).filter_by(org_id=oid).delete(
+            synchronize_session=False
+        )
+    if _has("sepultura_ubicacion"):
+        db.session.query(SepulturaUbicacion).filter_by(org_id=oid).delete(
+            synchronize_session=False
+        )
+    if _has("sepultura_difunto"):
+        db.session.query(SepulturaDifunto).filter_by(org_id=oid).delete(
+            synchronize_session=False
+        )
+    if _has("movimiento_sepultura"):
+        db.session.query(MovimientoSepultura).filter_by(org_id=oid).delete(
+            synchronize_session=False
+        )
+    if _has("lapida_stock"):
+        db.session.query(LapidaStock).filter_by(org_id=oid).delete(
+            synchronize_session=False
+        )
+    if _has("sepultura"):
+        db.session.query(Sepultura).filter_by(org_id=oid).delete(
+            synchronize_session=False
+        )
+    if _has("person"):
+        db.session.query(Person).filter_by(org_id=oid).delete(
+            synchronize_session=False
+        )
+    if _has("operation_status_log", "operation_case"):
         db.session.execute(
             text(
                 "DELETE FROM operation_status_log "
@@ -3946,9 +4053,7 @@ def _purge_org_operational_data() -> None:
             ),
             {"oid": oid},
         )
-    except Exception:
-        pass
-    try:
+    if _has("operation_document", "operation_case"):
         db.session.execute(
             text(
                 "DELETE FROM operation_document "
@@ -3956,9 +4061,7 @@ def _purge_org_operational_data() -> None:
             ),
             {"oid": oid},
         )
-    except Exception:
-        pass
-    try:
+    if _has("operation_permit", "operation_case"):
         db.session.execute(
             text(
                 "DELETE FROM operation_permit "
@@ -3966,15 +4069,11 @@ def _purge_org_operational_data() -> None:
             ),
             {"oid": oid},
         )
-    except Exception:
-        pass
-    try:
+    if _has("operation_case"):
         db.session.execute(
             text("DELETE FROM operation_case WHERE org_id = :oid"),
             {"oid": oid},
         )
-    except Exception:
-        pass
     db.session.commit()
 
 
