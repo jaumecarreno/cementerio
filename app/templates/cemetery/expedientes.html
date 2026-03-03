@@ -32,7 +32,7 @@
             type="button"
             title="Seleccionar sepultura origen"
             aria-label="Seleccionar sepultura origen"
-            onclick="window.CemPopupPicker.open({{ url_for('cemetery.expediente_sepultura_picker', target_field='source_sepultura_id', label_field='source_sepultura_selected')|tojson }})"
+            onclick="(function(){var u='{{ url_for('cemetery.expediente_sepultura_picker', target_field='source_sepultura_id', label_field='source_sepultura_selected') }}';var w=window.open(u,'cem-picker','width=980,height=720,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes');if(w){w.focus();}else{window.location.href=u;}})();"
           >{{ action_icon('folder') }}</button>
         </div>
         <div class="small muted field-picker-helper" id="source_sepultura_selected"></div>
@@ -46,7 +46,7 @@
             type="button"
             title="Seleccionar sepultura destino"
             aria-label="Seleccionar sepultura destino"
-            onclick="window.CemPopupPicker.open({{ url_for('cemetery.expediente_sepultura_picker', target_field='target_sepultura_id', label_field='target_sepultura_selected')|tojson }})"
+            onclick="(function(){var u='{{ url_for('cemetery.expediente_sepultura_picker', target_field='target_sepultura_id', label_field='target_sepultura_selected') }}';var w=window.open(u,'cem-picker','width=980,height=720,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes');if(w){w.focus();}else{window.location.href=u;}})();"
           >{{ action_icon('folder') }}</button>
         </div>
         <div class="small muted field-picker-helper" id="target_sepultura_selected"></div>
@@ -60,7 +60,7 @@
             type="button"
             title="Seleccionar difunto"
             aria-label="Seleccionar difunto"
-            onclick="window.CemPopupPicker.open({{ url_for('cemetery.expediente_person_picker', target_field='deceased_person_id', label_field='deceased_person_selected')|tojson }})"
+            onclick="(function(){var u='{{ url_for('cemetery.expediente_person_picker', target_field='deceased_person_id', label_field='deceased_person_selected') }}';var w=window.open(u,'cem-picker','width=980,height=720,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes');if(w){w.focus();}else{window.location.href=u;}})();"
           >{{ action_icon('folder') }}</button>
         </div>
         <div class="small muted field-picker-helper" id="deceased_person_selected"></div>

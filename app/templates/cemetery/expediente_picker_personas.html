@@ -39,7 +39,7 @@
               <button
                 class="btn"
                 type="button"
-                onclick="window.opener && window.opener.CemPopupPicker && window.opener.CemPopupPicker.setField({{ target_field|tojson }}, {{ row.id|tojson }}, {{ label_field|tojson }}, {{ row.full_name|tojson }}); window.close();"
+                onclick="return choosePersona({{ target_field|tojson }}, {{ row.id|tojson }}, {{ label_field|tojson }}, {{ row.full_name|tojson }});"
               >Seleccionar</button>
             </td>
           </tr>
@@ -50,5 +50,27 @@
       </table>
     </div>
   </main>
+  <script>
+    function choosePersona(fieldId, value, labelFieldId, labelText) {
+      if (!window.opener || window.opener.closed) {
+        return false;
+      }
+      var doc = window.opener.document;
+      var input = doc.getElementById(fieldId);
+      if (input) {
+        input.value = String(value || "");
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      if (labelFieldId) {
+        var helper = doc.getElementById(labelFieldId);
+        if (helper) {
+          helper.textContent = labelText ? String(labelText) : "";
+        }
+      }
+      window.close();
+      return false;
+    }
+  </script>
 </body>
 </html>
