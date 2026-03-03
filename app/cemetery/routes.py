@@ -14,6 +14,7 @@ from flask import (
     url_for,
 )
 from flask_login import current_user, login_required
+from sqlalchemy import or_
 
 from app.cemetery import cemetery_bp
 from app.cemetery.work_order_service import (
@@ -114,6 +115,8 @@ from app.cemetery.services import (
 from app.core.models import (
     OperationStatus,
     OperationType,
+    Person,
+    Sepultura,
     WorkOrderAreaType,
     WorkOrderCategory,
     WorkOrderPriority,
@@ -133,6 +136,59 @@ def _is_htmx() -> bool:
 def _actor_role() -> str:
     membership = getattr(g, "membership", None)
     return (membership.role or "").lower() if membership else ""
+
+
+def _normalize_operation_payload(payload: dict[str, str]) -> dict[str, str]:
+    normalized = dict(payload)
+    if "type" not in normalized and normalized.get("tipo"):
+        normalized["type"] = normalized["tipo"]
+    if "source_sepultura_id" not in normalized and normalized.get("sepultura_id"):
+        normalized["source_sepultura_id"] = normalized["sepultura_id"]
+    if "deceased_person_id" not in normalized and normalized.get("difunto_id"):
+        normalized["deceased_person_id"] = normalized["difunto_id"]
+    if "declarant_person_id" not in normalized and normalized.get("declarante_id"):
+        normalized["declarant_person_id"] = normalized["declarante_id"]
+    if "scheduled_at" not in normalized and normalized.get("fecha_prevista"):
+        raw_date = (normalized.get("fecha_prevista") or "").strip()
+        if raw_date:
+            normalized["scheduled_at"] = f"{raw_date}T00:00"
+    if "notes" not in normalized and normalized.get("notas"):
+        normalized["notes"] = normalized["notas"]
+    return normalized
+
+
+def _operation_case_filters() -> dict[str, str]:
+    return {
+        "code": request.args.get("code", "").strip(),
+        "type": request.args.get("type", "").strip(),
+        "status": request.args.get("status", "").strip(),
+        "source_sepultura_id": request.args.get("source_sepultura_id", "").strip(),
+        "deceased_person_id": request.args.get("deceased_person_id", "").strip(),
+        "created_from": request.args.get("created_from", "").strip(),
+        "created_to": request.args.get("created_to", "").strip(),
+    }
+
+
+def _render_operation_cases_page():
+    if request.method == "POST":
+        payload = _normalize_operation_payload({k: v for k, v in request.form.items()})
+        try:
+            created = create_operation_case(payload, current_user.id)
+            flash(f"Expediente {created.code} creado", "success")
+            return redirect(url_for("cemetery.expediente_detail", expediente_id=created.id))
+        except ValueError as exc:
+            flash(str(exc), "error")
+
+    filters = _operation_case_filters()
+    rows = list_operation_cases(filters)
+    return render_template(
+        "cemetery/expedientes.html",
+        rows=rows,
+        filters=filters,
+        OperationType=OperationType,
+        OperationStatus=OperationStatus,
+        prefill_source_sepultura_id=request.args.get("prefill_source_sepultura_id", "").strip(),
+    )
 
 
 @cemetery_bp.get("/panel")
@@ -273,33 +329,7 @@ def person_picker_create():
 @login_required
 @require_membership
 def operations():
-    if request.method == "POST":
-        payload = {k: v for k, v in request.form.items()}
-        try:
-            created = create_operation_case(payload, current_user.id)
-            flash(f"Operacion {created.code} creada", "success")
-            return redirect(url_for("cemetery.operation_detail", case_id=created.id))
-        except ValueError as exc:
-            flash(str(exc), "error")
-
-    filters = {
-        "code": request.args.get("code", "").strip(),
-        "type": request.args.get("type", "").strip(),
-        "status": request.args.get("status", "").strip(),
-        "source_sepultura_id": request.args.get("source_sepultura_id", "").strip(),
-        "deceased_person_id": request.args.get("deceased_person_id", "").strip(),
-        "created_from": request.args.get("created_from", "").strip(),
-        "created_to": request.args.get("created_to", "").strip(),
-    }
-    rows = list_operation_cases(filters)
-    return render_template(
-        "cemetery/operations.html",
-        rows=rows,
-        filters=filters,
-        OperationType=OperationType,
-        OperationStatus=OperationStatus,
-        prefill_source_sepultura_id=request.args.get("prefill_source_sepultura_id", "").strip(),
-    )
+    return _render_operation_cases_page()
 
 
 @cemetery_bp.get("/operaciones/<int:case_id>")
@@ -311,7 +341,7 @@ def operation_detail(case_id: int):
     except ValueError:
         abort(404)
     return render_template(
-        "cemetery/operation_detail.html",
+        "cemetery/expediente_detail.html",
         case=case,
         OperationType=OperationType,
         OperationStatus=OperationStatus,
@@ -330,10 +360,10 @@ def operation_change_state(case_id: int):
             reason=request.form.get("reason", ""),
             user_id=current_user.id,
         )
-        flash("Estado de operacion actualizado", "success")
+        flash("Estado de expediente actualizado", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("cemetery.operation_detail", case_id=case_id))
+    return redirect(url_for("cemetery.expediente_detail", expediente_id=case_id))
 
 
 @cemetery_bp.post("/operaciones/<int:case_id>/permisos/<int:permit_id>/verify")
@@ -346,7 +376,7 @@ def operation_permit_verify(case_id: int, permit_id: int):
         flash("Permiso actualizado", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("cemetery.operation_detail", case_id=case_id))
+    return redirect(url_for("cemetery.expediente_detail", expediente_id=case_id))
 
 
 @cemetery_bp.post("/operaciones/<int:case_id>/documentos/upload")
@@ -360,7 +390,7 @@ def operation_document_upload(case_id: int):
         flash("Documento subido", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("cemetery.operation_detail", case_id=case_id))
+    return redirect(url_for("cemetery.expediente_detail", expediente_id=case_id))
 
 
 @cemetery_bp.post("/operaciones/<int:case_id>/documentos/<int:doc_id>/verify")
@@ -373,7 +403,7 @@ def operation_document_verify(case_id: int, doc_id: int):
         flash("Documento actualizado", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("cemetery.operation_detail", case_id=case_id))
+    return redirect(url_for("cemetery.expediente_detail", expediente_id=case_id))
 
 
 @cemetery_bp.post("/operaciones/<int:case_id>/ot")
@@ -383,10 +413,10 @@ def operation_create_ot(case_id: int):
     payload = {k: v for k, v in request.form.items()}
     try:
         row = create_operation_work_order(case_id, payload, current_user.id)
-        flash(f"OT {row.code} creada para la operacion", "success")
+        flash(f"OT {row.code} creada para el expediente", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("cemetery.operation_detail", case_id=case_id))
+    return redirect(url_for("cemetery.expediente_detail", expediente_id=case_id))
 
 
 @cemetery_bp.post("/operaciones/<int:case_id>/cerrar")
@@ -396,10 +426,10 @@ def operation_close(case_id: int):
     payload = {k: v for k, v in request.form.items()}
     try:
         close_operation_case(case_id, payload, current_user.id)
-        flash("Operacion cerrada", "success")
+        flash("Expediente cerrado", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("cemetery.operation_detail", case_id=case_id))
+    return redirect(url_for("cemetery.expediente_detail", expediente_id=case_id))
 
 
 @cemetery_bp.get("/operaciones/<int:case_id>/acta.pdf")
@@ -420,28 +450,28 @@ def operation_acta(case_id: int):
 @login_required
 @require_membership
 def expedientes():
-    abort(404)
+    return _render_operation_cases_page()
 
 
 @cemetery_bp.get("/expedientes/<int:expediente_id>")
 @login_required
 @require_membership
 def expediente_detail(expediente_id: int):
-    abort(404)
+    return operation_detail(expediente_id)
 
 
 @cemetery_bp.post("/expedientes/<int:expediente_id>/estado")
 @login_required
 @require_membership
 def expediente_change_state(expediente_id: int):
-    abort(404)
+    return operation_change_state(expediente_id)
 
 
 @cemetery_bp.post("/expedientes/<int:expediente_id>/ot")
 @login_required
 @require_membership
 def expediente_create_ot(expediente_id: int):
-    abort(404)
+    return operation_create_ot(expediente_id)
 
 
 @cemetery_bp.post("/expedientes/<int:expediente_id>/ot/<int:ot_id>/completar")
@@ -456,6 +486,121 @@ def expediente_complete_ot(expediente_id: int, ot_id: int):
 @require_membership
 def expediente_ot_order_pdf(expediente_id: int, ot_id: int):
     abort(404)
+
+
+@cemetery_bp.post("/expedientes/<int:expediente_id>/permisos/<int:permit_id>/verify")
+@login_required
+@require_membership
+def expediente_permit_verify(expediente_id: int, permit_id: int):
+    return operation_permit_verify(expediente_id, permit_id)
+
+
+@cemetery_bp.post("/expedientes/<int:expediente_id>/documentos/upload")
+@login_required
+@require_membership
+def expediente_document_upload(expediente_id: int):
+    return operation_document_upload(expediente_id)
+
+
+@cemetery_bp.post("/expedientes/<int:expediente_id>/documentos/<int:doc_id>/verify")
+@login_required
+@require_membership
+def expediente_document_verify(expediente_id: int, doc_id: int):
+    return operation_document_verify(expediente_id, doc_id)
+
+
+@cemetery_bp.post("/expedientes/<int:expediente_id>/cerrar")
+@login_required
+@require_membership
+def expediente_close(expediente_id: int):
+    return operation_close(expediente_id)
+
+
+@cemetery_bp.get("/expedientes/<int:expediente_id>/acta.pdf")
+@login_required
+@require_membership
+def expediente_acta(expediente_id: int):
+    return operation_acta(expediente_id)
+
+
+@cemetery_bp.get("/expedientes/picker/sepulturas")
+@login_required
+@require_membership
+def expediente_sepultura_picker():
+    target_field = (request.args.get("target_field") or "source_sepultura_id").strip()
+    label_field = (request.args.get("label_field") or "").strip()
+    q = request.args.get("q", "").strip()
+
+    query = Sepultura.query.filter_by(org_id=org_record().id)
+    if q:
+        pattern = f"%{q}%"
+        conditions = [
+            Sepultura.bloque.ilike(pattern),
+            Sepultura.via.ilike(pattern),
+            Sepultura.modalidad.ilike(pattern),
+        ]
+        if q.isdigit():
+            value = int(q)
+            conditions.extend(
+                [
+                    Sepultura.id == value,
+                    Sepultura.numero == value,
+                    Sepultura.fila == value,
+                    Sepultura.columna == value,
+                ]
+            )
+        query = query.filter(or_(*conditions))
+    rows = (
+        query.order_by(Sepultura.bloque.asc(), Sepultura.fila.asc(), Sepultura.columna.asc(), Sepultura.numero.asc())
+        .limit(50)
+        .all()
+    )
+    return render_template(
+        "cemetery/expediente_picker_sepulturas.html",
+        rows=rows,
+        q=q,
+        target_field=target_field,
+        label_field=label_field,
+    )
+
+
+@cemetery_bp.get("/expedientes/picker/personas")
+@login_required
+@require_membership
+def expediente_person_picker():
+    target_field = (request.args.get("target_field") or "deceased_person_id").strip()
+    label_field = (request.args.get("label_field") or "").strip()
+    q = request.args.get("q", "").strip()
+
+    query = Person.query.filter_by(org_id=org_record().id)
+    if q:
+        pattern = f"%{q}%"
+        conditions = [
+            Person.first_name.ilike(pattern),
+            Person.last_name.ilike(pattern),
+            Person.dni_nif.ilike(pattern),
+            Person.telefono.ilike(pattern),
+            Person.telefono2.ilike(pattern),
+            Person.email.ilike(pattern),
+            Person.email2.ilike(pattern),
+            Person.direccion_linea.ilike(pattern),
+            Person.poblacion.ilike(pattern),
+        ]
+        if q.isdigit():
+            conditions.append(Person.id == int(q))
+        query = query.filter(or_(*conditions))
+    rows = (
+        query.order_by(Person.last_name.asc(), Person.first_name.asc(), Person.id.asc())
+        .limit(50)
+        .all()
+    )
+    return render_template(
+        "cemetery/expediente_picker_personas.html",
+        rows=rows,
+        q=q,
+        target_field=target_field,
+        label_field=label_field,
+    )
 
 
 

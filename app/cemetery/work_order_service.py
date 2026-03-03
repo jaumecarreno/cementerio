@@ -416,7 +416,7 @@ def create_work_order(payload: dict[str, str], user_id: int | None, auto_commit:
     if operation_case_id is not None:
         operation_case = OperationCase.query.filter_by(org_id=_org_id(), id=operation_case_id).first()
         if not operation_case:
-            raise ValueError("Operacion asociada no encontrada")
+            raise ValueError("Expediente asociado no encontrado")
     sepultura_id = _parse_optional_int(payload.get("sepultura_id"))
     area_type = _parse_area_type(payload.get("area_type"))
     area_code = (payload.get("area_code") or "").strip()

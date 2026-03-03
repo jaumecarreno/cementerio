@@ -827,6 +827,29 @@ tr:last-child td {
   width: auto;
 }
 
+.field-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.field-picker-row input {
+  flex: 1;
+}
+
+.field-picker-helper {
+  margin-top: 6px;
+}
+
+.picker-popup-body {
+  margin: 0;
+  background: var(--shell-bg);
+}
+
+.picker-popup-main {
+  padding: 18px;
+}
+
 .ticket-checkbox {
   width: 18px;
   min-height: 0;

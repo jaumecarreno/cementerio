@@ -101,7 +101,7 @@ def _parse_operation_type(raw: str) -> OperationType:
     try:
         return OperationType[value]
     except KeyError as exc:
-        raise ValueError("Tipo de operacion invalido") from exc
+        raise ValueError("Tipo de expediente invalido") from exc
 
 
 def _parse_operation_status(raw: str) -> OperationStatus:
@@ -109,7 +109,7 @@ def _parse_operation_status(raw: str) -> OperationStatus:
     try:
         return OperationStatus[value]
     except KeyError as exc:
-        raise ValueError("Estado de operacion invalido") from exc
+        raise ValueError("Estado de expediente invalido") from exc
 
 
 def _sepultura_by_id(sepultura_id: int) -> Sepultura:
@@ -330,7 +330,7 @@ def operation_case_by_id(case_id: int) -> OperationCase:
         .first()
     )
     if not row:
-        raise ValueError("Operacion no encontrada")
+        raise ValueError("Expediente no encontrado")
     return row
 
 
@@ -410,12 +410,12 @@ def create_operation_case(payload: dict[str, str], user_id: int | None) -> Opera
         from_status=None,
         to_status=OperationStatus.BORRADOR,
         user_id=user_id,
-        reason="Alta operacion",
+        reason="Alta expediente",
     )
     _log_activity(
         case,
         "OPERATION_CASE_CREATED",
-        f"Operacion {case.code} ({case.type.value}) creada",
+        f"Expediente {case.code} ({case.type.value}) creado",
         user_id,
     )
     db.session.commit()
@@ -426,7 +426,7 @@ def create_operation_case(payload: dict[str, str], user_id: int | None) -> Opera
             "sepultura_id": case.source_sepultura_id,
             "category": WorkOrderCategory.FUNERARIA.value,
             "title": f"{case.type.value} {case.code}",
-            "description": case.notes or f"Operacion {case.code}",
+            "description": case.notes or f"Expediente {case.code}",
         },
         user_id=user_id,
     )
@@ -531,7 +531,7 @@ def upload_operation_document(
         Path(current_app.instance_path)
         / "storage"
         / "cemetery"
-        / "operations"
+        / "expedientes"
         / str(case.org_id)
         / str(case.id)
         / "documents"
@@ -643,8 +643,8 @@ def _simple_pdf(lines: list[str]) -> bytes:
 
 def _ensure_acta_document(case: OperationCase, user_id: int | None) -> tuple[OperationDocument, bytes, str]:
     lines = [
-        "GSF - Acta de operacion",
-        f"Operacion: {case.code}",
+        "GSF - Acta de expediente",
+        f"Expediente: {case.code}",
         f"Tipo: {case.type.value}",
         f"Estado: {case.status.value}",
         f"Sepultura origen: {case.source_sepultura.location_label if case.source_sepultura else '-'}",
@@ -660,7 +660,7 @@ def _ensure_acta_document(case: OperationCase, user_id: int | None) -> tuple[Ope
         Path(current_app.instance_path)
         / "storage"
         / "cemetery"
-        / "operations"
+        / "expedientes"
         / str(case.org_id)
         / str(case.id)
         / "acta"
@@ -751,7 +751,7 @@ def _move_remains(case: OperationCase) -> None:
                     org_id=_org_id(),
                     sepultura_id=case.target_sepultura_id,
                     person_id=person_id,
-                    notes=f"Traslado desde operacion {case.code}",
+                    notes=f"Traslado desde expediente {case.code}",
                 )
             )
 
@@ -771,7 +771,7 @@ def close_operation_case(case_id: int, payload: dict[str, str], user_id: int | N
         from_status=previous,
         to_status=OperationStatus.CERRADA,
         user_id=user_id,
-        reason=(payload.get("reason") or "Cierre operacion").strip(),
+        reason=(payload.get("reason") or "Cierre expediente").strip(),
     )
 
     movement_map = {
@@ -787,7 +787,7 @@ def close_operation_case(case_id: int, payload: dict[str, str], user_id: int | N
             org_id=_org_id(),
             sepultura_id=case.source_sepultura_id,
             tipo=movement_type,
-            detalle=f"Operacion {case.code} cerrada",
+            detalle=f"Expediente {case.code} cerrado",
             user_id=user_id,
         )
     )
@@ -797,11 +797,11 @@ def close_operation_case(case_id: int, payload: dict[str, str], user_id: int | N
                 org_id=_org_id(),
                 sepultura_id=case.target_sepultura_id,
                 tipo=movement_type,
-                detalle=f"Operacion {case.code} recibida desde sepultura origen",
+                detalle=f"Expediente {case.code} recibido desde sepultura origen",
                 user_id=user_id,
             )
         )
-    _log_activity(case, "OPERATION_CASE_CLOSED", f"Operacion {case.code} cerrada", user_id)
+    _log_activity(case, "OPERATION_CASE_CLOSED", f"Expediente {case.code} cerrado", user_id)
     db.session.commit()
     return case
 
@@ -820,4 +820,3 @@ def operation_acta_pdf(case_id: int, user_id: int | None = None) -> tuple[bytes,
     _doc, content, filename = _ensure_acta_document(case, user_id)
     db.session.commit()
     return content, filename
-

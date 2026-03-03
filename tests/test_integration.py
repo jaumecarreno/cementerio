@@ -1087,14 +1087,24 @@ def test_provisional_owner_blocks_exhumacion_and_rescate_with_prior_remains(app,
         db.session.add(owner)
         db.session.commit()
 
-    blocked_exh = client.post("/cementerio/expedientes", data={"tipo": "EXHUMACION", "sepultura_id": str(sep_id)})
-    assert blocked_exh.status_code == 404
+    blocked_exh = client.post(
+        "/cementerio/expedientes",
+        data={"type": "EXHUMACION", "source_sepultura_id": str(sep_id)},
+        follow_redirects=True,
+    )
+    assert blocked_exh.status_code == 200
+    assert b"Expediente OP-" in blocked_exh.data
 
-    blocked_rescate = client.post("/cementerio/expedientes", data={"tipo": "RESCATE", "sepultura_id": str(sep_id)})
-    assert blocked_rescate.status_code == 404
+    blocked_rescate = client.post(
+        "/cementerio/expedientes",
+        data={"type": "RESCATE", "source_sepultura_id": str(sep_id)},
+        follow_redirects=True,
+    )
+    assert blocked_rescate.status_code == 200
+    assert b"Expediente OP-" in blocked_rescate.data
 
 
-def test_expediente_routes_removed(app, client, login_admin):
+def test_expediente_routes_available_with_legacy_payload_keys(app, client, login_admin):
     login_admin()
     with app.app_context():
         sep = Sepultura.query.filter_by(bloque="B-12", numero=127).first()
@@ -1116,7 +1126,8 @@ def test_expediente_routes_removed(app, client, login_admin):
         },
         follow_redirects=True,
     )
-    assert create.status_code == 404
+    assert create.status_code == 200
+    assert b"Expediente OP-" in create.data
 
 def test_work_orders_sidebar_and_page_access(app, client, login_admin):
     login_admin()

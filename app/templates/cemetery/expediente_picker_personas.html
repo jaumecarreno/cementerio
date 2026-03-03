@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="{{ current_lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Seleccionar persona</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="picker-popup-body">
+  <main class="picker-popup-main">
+    <h1 class="page-title">Seleccionar persona</h1>
+    <div class="box">
+      <form class="inline-form" method="get" action="{{ url_for('cemetery.expediente_person_picker') }}">
+        <input type="hidden" name="target_field" value="{{ target_field }}">
+        <input type="hidden" name="label_field" value="{{ label_field }}">
+        <input type="text" name="q" value="{{ q }}" placeholder="Buscar por ID, nombre o DNI/NIF">
+        <button class="btn" type="submit">Buscar</button>
+        <button class="btn" type="button" onclick="window.close()">Cerrar</button>
+      </form>
+    </div>
+
+    <div class="box">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nombre</th>
+            <th>DNI/NIF</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>{{ row.id }}</td>
+            <td>{{ row.full_name }}</td>
+            <td>{{ row.dni_nif or '-' }}</td>
+            <td>
+              <button
+                class="btn"
+                type="button"
+                onclick="window.opener && window.opener.CemPopupPicker && window.opener.CemPopupPicker.setField({{ target_field|tojson }}, {{ row.id|tojson }}, {{ label_field|tojson }}, {{ row.full_name|tojson }}); window.close();"
+              >Seleccionar</button>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4">Sin resultados</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </main>
+</body>
+</html>

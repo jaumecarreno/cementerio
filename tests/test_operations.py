@@ -41,17 +41,17 @@ def test_operations_page_and_create_case(app, client, login_admin):
         assert deceased is not None
 
     response = client.post(
-        "/cementerio/operaciones",
+        "/cementerio/expedientes",
         data={
             "type": "INHUMACION",
             "source_sepultura_id": str(sep.id),
             "deceased_person_id": str(deceased.id),
-            "notes": "Operacion de prueba",
+            "notes": "Expediente de prueba",
         },
         follow_redirects=True,
     )
     assert response.status_code == 200
-    assert b"Operacion OP-" in response.data
+    assert b"Expediente OP-" in response.data
 
     with app.app_context():
         created = OperationCase.query.order_by(OperationCase.id.desc()).first()
@@ -74,7 +74,7 @@ def test_traslado_type_mismatch_is_blocked(app, client, login_admin):
         assert sep is not None
 
     response = client.post(
-        "/cementerio/operaciones",
+        "/cementerio/expedientes",
         data={
             "type": "TRASLADO_LARGO",
             "source_sepultura_id": str(sep.id),
@@ -93,7 +93,7 @@ def test_programada_requires_verified_permits(app, client, login_admin):
         assert sep is not None
 
     create = client.post(
-        "/cementerio/operaciones",
+        "/cementerio/expedientes",
         data={
             "type": "TRASLADO_CORTO",
             "source_sepultura_id": str(sep.id),
@@ -109,14 +109,14 @@ def test_programada_requires_verified_permits(app, client, login_admin):
         case_id = case.id
 
     status_docs = client.post(
-        f"/cementerio/operaciones/{case_id}/estado",
+        f"/cementerio/expedientes/{case_id}/estado",
         data={"status": "DOCS_PENDIENTES"},
         follow_redirects=True,
     )
     assert status_docs.status_code == 200
 
     status_programada = client.post(
-        f"/cementerio/operaciones/{case_id}/estado",
+        f"/cementerio/expedientes/{case_id}/estado",
         data={"status": "PROGRAMADA"},
         follow_redirects=True,
     )
@@ -141,7 +141,7 @@ def test_close_traslado_flow_requires_completed_ot_and_generates_acta(
         target_before = SepulturaDifunto.query.filter_by(sepultura_id=target.id).count()
 
     create = client.post(
-        "/cementerio/operaciones",
+        "/cementerio/expedientes",
         data={
             "type": "TRASLADO_CORTO",
             "source_sepultura_id": str(source.id),
@@ -157,7 +157,7 @@ def test_close_traslado_flow_requires_completed_ot_and_generates_acta(
         case_id = case.id
 
     client.post(
-        f"/cementerio/operaciones/{case_id}/estado",
+        f"/cementerio/expedientes/{case_id}/estado",
         data={"status": "DOCS_PENDIENTES"},
         follow_redirects=True,
     )
@@ -165,30 +165,30 @@ def test_close_traslado_flow_requires_completed_ot_and_generates_acta(
         permits = OperationPermit.query.filter_by(operation_case_id=case_id).all()
     for permit in permits:
         response = client.post(
-            f"/cementerio/operaciones/{case_id}/permisos/{permit.id}/verify",
+            f"/cementerio/expedientes/{case_id}/permisos/{permit.id}/verify",
             data={"action": "verify"},
             follow_redirects=True,
         )
         assert response.status_code == 200
 
     client.post(
-        f"/cementerio/operaciones/{case_id}/estado",
+        f"/cementerio/expedientes/{case_id}/estado",
         data={"status": "PROGRAMADA"},
         follow_redirects=True,
     )
     client.post(
-        f"/cementerio/operaciones/{case_id}/estado",
+        f"/cementerio/expedientes/{case_id}/estado",
         data={"status": "EN_EJECUCION"},
         follow_redirects=True,
     )
     client.post(
-        f"/cementerio/operaciones/{case_id}/estado",
+        f"/cementerio/expedientes/{case_id}/estado",
         data={"status": "EN_VALIDACION"},
         follow_redirects=True,
     )
 
     close_without_ot = client.post(
-        f"/cementerio/operaciones/{case_id}/cerrar",
+        f"/cementerio/expedientes/{case_id}/cerrar",
         data={"reason": "intento sin ot"},
         follow_redirects=True,
     )
@@ -202,12 +202,12 @@ def test_close_traslado_flow_requires_completed_ot_and_generates_acta(
     _move_ot_to_completed(client, ot_id)
 
     close_ok = client.post(
-        f"/cementerio/operaciones/{case_id}/cerrar",
+        f"/cementerio/expedientes/{case_id}/cerrar",
         data={"reason": "cierre operativo"},
         follow_redirects=True,
     )
     assert close_ok.status_code == 200
-    assert b"Operacion cerrada" in close_ok.data
+    assert b"Expediente cerrado" in close_ok.data
 
     with app.app_context():
         refreshed = db.session.get(OperationCase, case_id)
@@ -234,7 +234,7 @@ def test_rescate_close_is_blocked_without_remains(app, client, login_admin):
         assert SepulturaDifunto.query.filter_by(sepultura_id=source.id).count() == 0
 
     create = client.post(
-        "/cementerio/operaciones",
+        "/cementerio/expedientes",
         data={
             "type": "RESCATE",
             "source_sepultura_id": str(source.id),
@@ -248,7 +248,7 @@ def test_rescate_close_is_blocked_without_remains(app, client, login_admin):
         case_id = case.id
 
     client.post(
-        f"/cementerio/operaciones/{case_id}/estado",
+        f"/cementerio/expedientes/{case_id}/estado",
         data={"status": "DOCS_PENDIENTES"},
         follow_redirects=True,
     )
@@ -256,23 +256,23 @@ def test_rescate_close_is_blocked_without_remains(app, client, login_admin):
         permits = OperationPermit.query.filter_by(operation_case_id=case_id).all()
     for permit in permits:
         client.post(
-            f"/cementerio/operaciones/{case_id}/permisos/{permit.id}/verify",
+            f"/cementerio/expedientes/{case_id}/permisos/{permit.id}/verify",
             data={"action": "verify"},
             follow_redirects=True,
         )
 
     client.post(
-        f"/cementerio/operaciones/{case_id}/estado",
+        f"/cementerio/expedientes/{case_id}/estado",
         data={"status": "PROGRAMADA"},
         follow_redirects=True,
     )
     client.post(
-        f"/cementerio/operaciones/{case_id}/estado",
+        f"/cementerio/expedientes/{case_id}/estado",
         data={"status": "EN_EJECUCION"},
         follow_redirects=True,
     )
     client.post(
-        f"/cementerio/operaciones/{case_id}/estado",
+        f"/cementerio/expedientes/{case_id}/estado",
         data={"status": "EN_VALIDACION"},
         follow_redirects=True,
     )
@@ -284,7 +284,7 @@ def test_rescate_close_is_blocked_without_remains(app, client, login_admin):
     _move_ot_to_completed(client, ot_id)
 
     close_response = client.post(
-        f"/cementerio/operaciones/{case_id}/cerrar",
+        f"/cementerio/expedientes/{case_id}/cerrar",
         data={"reason": "cierre rescate"},
         follow_redirects=True,
     )

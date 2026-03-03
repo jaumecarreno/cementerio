@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="{{ current_lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Seleccionar sepultura</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="picker-popup-body">
+  <main class="picker-popup-main">
+    <h1 class="page-title">Seleccionar sepultura</h1>
+    <div class="box">
+      <form class="inline-form" method="get" action="{{ url_for('cemetery.expediente_sepultura_picker') }}">
+        <input type="hidden" name="target_field" value="{{ target_field }}">
+        <input type="hidden" name="label_field" value="{{ label_field }}">
+        <input type="text" name="q" value="{{ q }}" placeholder="Buscar por ID, bloque, via o numero">
+        <button class="btn" type="submit">Buscar</button>
+        <button class="btn" type="button" onclick="window.close()">Cerrar</button>
+      </form>
+    </div>
+
+    <div class="box">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Ubicacion</th>
+            <th>Estado</th>
+            <th>Modalidad</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>{{ row.id }}</td>
+            <td>{{ row.location_label }}</td>
+            <td>{{ row.estado.value }}</td>
+            <td>{{ row.modalidad }}</td>
+            <td>
+              <button
+                class="btn"
+                type="button"
+                onclick="window.opener && window.opener.CemPopupPicker && window.opener.CemPopupPicker.setField({{ target_field|tojson }}, {{ row.id|tojson }}, {{ label_field|tojson }}, {{ row.location_label|tojson }}); window.close();"
+              >Seleccionar</button>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5">Sin resultados</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </main>
+</body>
+</html>

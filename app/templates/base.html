@@ -62,9 +62,9 @@
             <span class="menu-icon">{{ sidebar_icon('inventory') }}</span>
             <span class="menu-label">{{ t('cem.graves') }}</span>
           </a>
-          <a class="menu-link {% if active_cem == 'operaciones' %}active{% endif %}" href="{{ url_for('cemetery.operations') }}">
+          <a class="menu-link {% if active_cem == 'expedientes' %}active{% endif %}" href="{{ url_for('cemetery.expedientes') }}">
             <span class="menu-icon">{{ sidebar_icon('work_orders') }}</span>
-            <span class="menu-label">{{ t('cem.operations') }}</span>
+            <span class="menu-label">{{ t('cases.title') }}</span>
           </a>
           <a class="menu-link {% if active_cem == 'ordenes_trabajo' %}active{% endif %}" href="{{ url_for('cemetery.work_orders') }}">
             <span class="menu-icon">{{ sidebar_icon('work_orders') }}</span>
@@ -149,6 +149,29 @@
         },
         clear: function (pickerId) {
           this.select(pickerId, "", "", "");
+        },
+      };
+
+      window.CemPopupPicker = {
+        open: function (url) {
+          const popup = window.open(url, "cem-picker", "width=980,height=720,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes");
+          if (popup) {
+            popup.focus();
+          }
+        },
+        setField: function (fieldId, value, labelFieldId, labelText) {
+          const input = document.getElementById(fieldId);
+          if (input) {
+            input.value = String(value || "");
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+          if (labelFieldId) {
+            const label = document.getElementById(labelFieldId);
+            if (label) {
+              label.textContent = labelText ? String(labelText) : "";
+            }
+          }
         },
       };
 
