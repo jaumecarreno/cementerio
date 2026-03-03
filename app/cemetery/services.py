@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from io import BytesIO, StringIO
 from pathlib import Path
 import csv
+import json
+import os
+import smtplib
+import statistics
 import shutil
+from email.message import EmailMessage
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from flask import current_app, g
 from sqlalchemy import func, or_
@@ -39,6 +45,7 @@ from app.core.models import (
     CaseDocument,
     CaseDocumentStatus,
     ContractEvent,
+    Membership,
     MovimientoSepultura,
     MovimientoTipo,
     OrdenTrabajo,
@@ -54,6 +61,9 @@ from app.core.models import (
     TasaMantenimientoTicket,
     TicketDescuentoTipo,
     TicketEstado,
+    ReportDeliveryLog,
+    ReportSchedule,
+    User,
     WorkOrder,
     WorkOrderChecklistItem,
     WorkOrderDependency,
@@ -2402,6 +2412,204 @@ def transition_inscripcion_estado(
     return item
 
 
+REPORTING_SCREEN_KEYS = {
+    "sepulturas",
+    "contratos",
+    "deuda",
+    "ot_carga_equipos",
+    "ot_sla_cumplimiento",
+    "ot_calendario_faenas",
+    "deuda_aging",
+    "deuda_recaudacion",
+}
+REPORTING_PDF_ONLY_KEYS = {"directivo_operacion_pdf", "directivo_finanzas_pdf"}
+REPORTING_ALL_KEYS = REPORTING_SCREEN_KEYS | REPORTING_PDF_ONLY_KEYS
+REPORTING_SCHEDULE_CADENCES = {"WEEKLY", "MONTHLY"}
+REPORTING_SCHEDULE_FORMATS = {"CSV", "PDF"}
+REPORTING_OT_OPEN_STATUSES = {
+    WorkOrderStatus.BORRADOR,
+    WorkOrderStatus.PENDIENTE_PLANIFICACION,
+    WorkOrderStatus.PLANIFICADA,
+    WorkOrderStatus.ASIGNADA,
+    WorkOrderStatus.EN_CURSO,
+    WorkOrderStatus.EN_VALIDACION,
+}
+REPORTING_OT_TERMINAL_STATUSES = {
+    WorkOrderStatus.COMPLETADA,
+    WorkOrderStatus.CANCELADA,
+}
+
+
+def _to_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    return (
+        value.replace(tzinfo=timezone.utc)
+        if value.tzinfo is None
+        else value.astimezone(timezone.utc)
+    )
+
+
+def _parse_filter_date(value: str | None) -> date | None:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
+def _resolve_reporting_range(filters: dict[str, str]) -> tuple[date, date]:
+    today = date.today()
+    preset = (filters.get("cadence_preset") or "").strip().lower()
+    default_from = today - timedelta(days=6)
+    default_to = today
+    if preset in {"diario", "daily"}:
+        default_from = today
+        default_to = today
+    elif preset in {"semanal", "weekly"}:
+        default_from = today - timedelta(days=6)
+        default_to = today
+    elif preset in {"mensual", "monthly"}:
+        default_from = today.replace(day=1)
+        default_to = today
+    date_from = _parse_filter_date(filters.get("date_from")) or default_from
+    date_to = _parse_filter_date(filters.get("date_to")) or default_to
+    if date_from > date_to:
+        date_from, date_to = date_to, date_from
+    return date_from, date_to
+
+
+def _in_date_range(value: datetime | None, from_day: date, to_day: date) -> bool:
+    stamp = _to_utc(value)
+    if stamp is None:
+        return False
+    day = stamp.date()
+    return from_day <= day <= to_day
+
+
+def _safe_decimal(value: object) -> Decimal:
+    if value is None:
+        return Decimal("0.00")
+    if isinstance(value, Decimal):
+        return value
+    try:
+        return Decimal(str(value))
+    except Exception:
+        return Decimal("0.00")
+
+
+def _reporting_contracts_query(filters: dict[str, str]):
+    query = (
+        DerechoFunerarioContrato.query.filter_by(org_id=org_id())
+        .join(Sepultura, Sepultura.id == DerechoFunerarioContrato.sepultura_id)
+    )
+    contrato_id = (filters.get("contrato_id") or "").strip()
+    if contrato_id:
+        if not contrato_id.isdigit():
+            return None
+        query = query.filter(DerechoFunerarioContrato.id == int(contrato_id))
+    sepultura_id = (filters.get("sepultura_id") or "").strip()
+    if sepultura_id:
+        if not sepultura_id.isdigit():
+            return None
+        query = query.filter(DerechoFunerarioContrato.sepultura_id == int(sepultura_id))
+    bloque = (filters.get("bloque") or "").strip()
+    if bloque:
+        query = query.filter(Sepultura.bloque.ilike(f"%{bloque}%"))
+    return query
+
+
+def _reporting_work_orders_base_query(filters: dict[str, str]):
+    query = (
+        WorkOrder.query.options(
+            joinedload(WorkOrder.sepultura),
+            joinedload(WorkOrder.assigned_user),
+        )
+        .filter(WorkOrder.org_id == org_id())
+        .outerjoin(Sepultura, Sepultura.id == WorkOrder.sepultura_id)
+    )
+
+    assigned_user_id = (filters.get("assigned_user_id") or "").strip()
+    if assigned_user_id:
+        if not assigned_user_id.isdigit():
+            return None
+        query = query.filter(WorkOrder.assigned_user_id == int(assigned_user_id))
+    type_code = (filters.get("type_code") or "").strip().upper()
+    if type_code:
+        query = query.filter(WorkOrder.type_code == type_code)
+    category = (filters.get("category") or "").strip().upper()
+    if category:
+        try:
+            query = query.filter(WorkOrder.category == WorkOrderCategory[category])
+        except KeyError:
+            return None
+    status = (filters.get("status") or "").strip().upper()
+    if status:
+        try:
+            query = query.filter(WorkOrder.status == WorkOrderStatus[status])
+        except KeyError:
+            return None
+    sepultura_id = (filters.get("sepultura_id") or "").strip()
+    if sepultura_id:
+        if not sepultura_id.isdigit():
+            return None
+        query = query.filter(WorkOrder.sepultura_id == int(sepultura_id))
+    bloque = (filters.get("bloque") or "").strip()
+    if bloque:
+        query = query.filter(Sepultura.bloque.ilike(f"%{bloque}%"))
+    return query
+
+
+def _work_order_sla_hours_map() -> dict[str, int]:
+    rows = WorkOrderType.query.filter_by(org_id=org_id(), active=True).all()
+    mapping: dict[str, int] = {}
+    for row in rows:
+        mapping[row.code.upper()] = 48
+    templates = (
+        WorkOrderTemplate.query.filter_by(org_id=org_id(), active=True)
+        .filter(WorkOrderTemplate.type_id.is_not(None))
+        .filter(WorkOrderTemplate.sla_hours.is_not(None))
+        .all()
+    )
+    type_by_id = {row.id: row for row in rows}
+    for template in templates:
+        type_row = type_by_id.get(template.type_id or -1)
+        if not type_row:
+            continue
+        try:
+            mapping[type_row.code.upper()] = max(1, int(template.sla_hours or 48))
+        except Exception:
+            mapping[type_row.code.upper()] = 48
+    return mapping
+
+
+def _work_order_deadline(row: WorkOrder, sla_hours_by_type: dict[str, int]) -> datetime:
+    due = _to_utc(row.due_at)
+    if due:
+        return due
+    created = _to_utc(row.created_at) or datetime.now(timezone.utc)
+    code = (row.type_code or "").strip().upper()
+    hours = sla_hours_by_type.get(code, 48)
+    return created + timedelta(hours=hours)
+
+
+def _work_order_location(row: WorkOrder) -> str:
+    if row.sepultura:
+        return row.sepultura.location_label
+    area = row.area_type.value if row.area_type else ""
+    code = (row.area_code or "").strip()
+    text = (row.location_text or "").strip()
+    if area and code and text:
+        return f"{area} {code} - {text}"
+    if area and code:
+        return f"{area} {code}"
+    if area and text:
+        return f"{area} - {text}"
+    return code or text or "-"
+
+
 def reporting_sepulturas_rows(filters: dict[str, str]) -> list[dict[str, object]]:
     query = Sepultura.query.filter_by(org_id=org_id()).order_by(
         Sepultura.bloque.asc(),
@@ -2437,11 +2645,10 @@ def reporting_sepulturas_rows(filters: dict[str, str]) -> list[dict[str, object]
 
 def reporting_contratos_rows(filters: dict[str, str]) -> list[dict[str, object]]:
     today = date.today()
-    query = (
-        DerechoFunerarioContrato.query.filter_by(org_id=org_id())
-        .join(Sepultura, Sepultura.id == DerechoFunerarioContrato.sepultura_id)
-        .order_by(DerechoFunerarioContrato.id.desc())
-    )
+    query = _reporting_contracts_query(filters)
+    if query is None:
+        return []
+    query = query.order_by(DerechoFunerarioContrato.id.desc())
     tipo = (filters.get("tipo") or "").strip().upper()
     if tipo:
         try:
@@ -2489,16 +2696,10 @@ def reporting_contratos_rows(filters: dict[str, str]) -> list[dict[str, object]]
 
 def reporting_deuda_rows(filters: dict[str, str]) -> list[dict[str, object]]:
     # Deuda consolidada por contrato: tiquets pendientes + facturas impagadas.
-    query = (
-        DerechoFunerarioContrato.query.filter_by(org_id=org_id())
-        .join(Sepultura, Sepultura.id == DerechoFunerarioContrato.sepultura_id)
-        .order_by(DerechoFunerarioContrato.id.desc())
-    )
-    contrato_id = (filters.get("contrato_id") or "").strip()
-    if contrato_id:
-        if not contrato_id.isdigit():
-            return []
-        query = query.filter(DerechoFunerarioContrato.id == int(contrato_id))
+    query = _reporting_contracts_query(filters)
+    if query is None:
+        return []
+    query = query.order_by(DerechoFunerarioContrato.id.desc())
     rows = []
     for contract in query.all():
         pending_tickets = (
@@ -2516,10 +2717,10 @@ def reporting_deuda_rows(filters: dict[str, str]) -> list[dict[str, object]]:
         if not pending_tickets and not unpaid_invoices:
             continue
         ticket_amount = sum(
-            (Decimal(t.importe) for t in pending_tickets), Decimal("0.00")
+            (_safe_decimal(t.importe) for t in pending_tickets), Decimal("0.00")
         )
         invoice_amount = sum(
-            (Decimal(i.total_amount) for i in unpaid_invoices), Decimal("0.00")
+            (_safe_decimal(i.total_amount) for i in unpaid_invoices), Decimal("0.00")
         )
         rows.append(
             {
@@ -2537,6 +2738,446 @@ def reporting_deuda_rows(filters: dict[str, str]) -> list[dict[str, object]]:
     return rows
 
 
+def reporting_ot_carga_equipos_rows(filters: dict[str, str]) -> list[dict[str, object]]:
+    query = _reporting_work_orders_base_query(filters)
+    if query is None:
+        return []
+    rows = query.all()
+    date_from, date_to = _resolve_reporting_range(filters)
+    grouped: dict[tuple[str, str, str], dict[str, object]] = {}
+    open_by_type: dict[str, int] = {}
+    for row in rows:
+        assigned_name = row.assigned_user.full_name if row.assigned_user else "Sin asignar"
+        type_code = (row.type_code or "SIN_TIPO").strip().upper()
+        category = row.category.value
+        key = (assigned_name, type_code, category)
+        bucket = grouped.setdefault(
+            key,
+            {
+                "assigned_user": assigned_name,
+                "type_code": type_code,
+                "category": category,
+                "status_scope": (filters.get("status") or "").strip().upper() or "TODOS",
+                "ot_abiertas": 0,
+                "ot_nuevas": 0,
+                "ot_completadas": 0,
+                "backlog_neto": 0,
+                "pct_carga_tipo": 0.0,
+            },
+        )
+        if row.status in REPORTING_OT_OPEN_STATUSES:
+            bucket["ot_abiertas"] = int(bucket["ot_abiertas"]) + 1
+            open_by_type[type_code] = open_by_type.get(type_code, 0) + 1
+        if _in_date_range(row.created_at, date_from, date_to):
+            bucket["ot_nuevas"] = int(bucket["ot_nuevas"]) + 1
+        if row.status == WorkOrderStatus.COMPLETADA and _in_date_range(
+            row.completed_at, date_from, date_to
+        ):
+            bucket["ot_completadas"] = int(bucket["ot_completadas"]) + 1
+    result: list[dict[str, object]] = []
+    for bucket in grouped.values():
+        type_total = max(1, open_by_type.get(str(bucket["type_code"]), 0))
+        abiertas = int(bucket["ot_abiertas"])
+        nuevas = int(bucket["ot_nuevas"])
+        completadas = int(bucket["ot_completadas"])
+        bucket["backlog_neto"] = abiertas + nuevas - completadas
+        bucket["pct_carga_tipo"] = round((abiertas / type_total) * 100.0, 2)
+        result.append(bucket)
+    result.sort(
+        key=lambda item: (
+            -int(item["ot_abiertas"]),
+            -int(item["ot_nuevas"]),
+            str(item["assigned_user"]),
+            str(item["type_code"]),
+        )
+    )
+    return result
+
+
+def reporting_ot_sla_cumplimiento_rows(filters: dict[str, str]) -> list[dict[str, object]]:
+    query = _reporting_work_orders_base_query(filters)
+    if query is None:
+        return []
+    rows = query.all()
+    date_from, date_to = _resolve_reporting_range(filters)
+    sla_hours_by_type = _work_order_sla_hours_map()
+    now_utc = datetime.now(timezone.utc)
+    grouped: dict[str, dict[str, object]] = {}
+    total: dict[str, object] = {
+        "type_code": "TOTAL",
+        "total_con_sla": 0,
+        "cumplidas": 0,
+        "vencidas": 0,
+        "pct_cumplimiento": 0.0,
+        "lead_time_media_h": 0.0,
+        "lead_time_mediana_h": 0.0,
+        "_lead_times": [],
+    }
+
+    def _bucket_for(code: str) -> dict[str, object]:
+        key = (code or "SIN_TIPO").upper()
+        return grouped.setdefault(
+            key,
+            {
+                "type_code": key,
+                "total_con_sla": 0,
+                "cumplidas": 0,
+                "vencidas": 0,
+                "pct_cumplimiento": 0.0,
+                "lead_time_media_h": 0.0,
+                "lead_time_mediana_h": 0.0,
+                "_lead_times": [],
+            },
+        )
+
+    for row in rows:
+        if not (
+            _in_date_range(row.created_at, date_from, date_to)
+            or _in_date_range(row.completed_at, date_from, date_to)
+        ):
+            continue
+        bucket = _bucket_for(row.type_code or "SIN_TIPO")
+        deadline = _work_order_deadline(row, sla_hours_by_type)
+        for item in (bucket, total):
+            item["total_con_sla"] = int(item["total_con_sla"]) + 1
+
+        completed_at = _to_utc(row.completed_at)
+        created_at = _to_utc(row.created_at) or now_utc
+        if row.status == WorkOrderStatus.COMPLETADA and completed_at is not None:
+            lead_time_hours = round(
+                max(0.0, (completed_at - created_at).total_seconds() / 3600.0), 2
+            )
+            bucket_leads = bucket["_lead_times"]
+            total_leads = total["_lead_times"]
+            if isinstance(bucket_leads, list):
+                bucket_leads.append(lead_time_hours)
+            if isinstance(total_leads, list):
+                total_leads.append(lead_time_hours)
+            if completed_at <= deadline:
+                bucket["cumplidas"] = int(bucket["cumplidas"]) + 1
+                total["cumplidas"] = int(total["cumplidas"]) + 1
+            else:
+                bucket["vencidas"] = int(bucket["vencidas"]) + 1
+                total["vencidas"] = int(total["vencidas"]) + 1
+        elif row.status not in REPORTING_OT_TERMINAL_STATUSES and deadline < now_utc:
+            bucket["vencidas"] = int(bucket["vencidas"]) + 1
+            total["vencidas"] = int(total["vencidas"]) + 1
+
+    result: list[dict[str, object]] = []
+    for data in [total, *grouped.values()]:
+        total_con_sla = max(0, int(data["total_con_sla"]))
+        cumplidas = max(0, int(data["cumplidas"]))
+        lead_times = data.pop("_lead_times", [])
+        if total_con_sla > 0:
+            data["pct_cumplimiento"] = round((cumplidas / total_con_sla) * 100.0, 2)
+        if isinstance(lead_times, list) and lead_times:
+            data["lead_time_media_h"] = round(sum(lead_times) / len(lead_times), 2)
+            data["lead_time_mediana_h"] = round(float(statistics.median(lead_times)), 2)
+        result.append(data)
+    return result
+
+
+def reporting_ot_calendario_faenas_rows(filters: dict[str, str]) -> list[dict[str, object]]:
+    query = _reporting_work_orders_base_query(filters)
+    if query is None:
+        return []
+    rows = query.all()
+    date_from, date_to = _resolve_reporting_range(filters)
+    result: list[dict[str, object]] = []
+    for row in rows:
+        planned = _to_utc(row.planned_start_at)
+        planned_end = _to_utc(row.planned_end_at)
+        due = _to_utc(row.due_at)
+        anchor = planned or due
+        if anchor is None:
+            continue
+        anchor_day = anchor.date()
+        if anchor_day < date_from or anchor_day > date_to:
+            continue
+        assigned = row.assigned_user.full_name if row.assigned_user else "Sin asignar"
+        result.append(
+            {
+                "fecha": anchor_day.isoformat(),
+                "assigned_user": assigned,
+                "ot_code": row.code,
+                "title": row.title,
+                "priority": row.priority.value,
+                "status": row.status.value,
+                "ubicacion": _work_order_location(row),
+                "planned_start_at": planned.isoformat() if planned else "",
+                "planned_end_at": planned_end.isoformat() if planned_end else "",
+                "due_at": due.isoformat() if due else "",
+                "type_code": (row.type_code or "SIN_TIPO").upper(),
+                "category": row.category.value,
+            }
+        )
+    result.sort(
+        key=lambda item: (
+            str(item["fecha"]),
+            str(item["assigned_user"]),
+            str(item["planned_start_at"]),
+            str(item["ot_code"]),
+        )
+    )
+    return result
+
+
+def reporting_deuda_aging_rows(filters: dict[str, str]) -> list[dict[str, object]]:
+    query = _reporting_contracts_query(filters)
+    if query is None:
+        return []
+    contract_ids = [row.id for row in query.with_entities(DerechoFunerarioContrato.id).all()]
+    if not contract_ids:
+        return []
+    _, date_to = _resolve_reporting_range(filters)
+    as_of = date_to
+
+    bucket_order = ["0-60", "61-120", "+120"]
+    buckets = {
+        key: {"bucket": key, "casos": 0, "importe": Decimal("0.00"), "contratos": set()}
+        for key in bucket_order
+    }
+
+    def _bucket_for_days(days: int) -> str:
+        if days <= 60:
+            return "0-60"
+        if days <= 120:
+            return "61-120"
+        return "+120"
+
+    invoices = (
+        Invoice.query.filter(Invoice.org_id == org_id())
+        .filter(Invoice.contrato_id.in_(contract_ids))
+        .filter(Invoice.estado == InvoiceEstado.IMPAGADA)
+        .all()
+    )
+    for inv in invoices:
+        anchor = (_to_utc(inv.issued_at) or _to_utc(inv.created_at) or datetime.now(timezone.utc)).date()
+        days = max(0, (as_of - anchor).days)
+        bucket = buckets[_bucket_for_days(days)]
+        bucket["casos"] = int(bucket["casos"]) + 1
+        bucket["importe"] = _safe_decimal(bucket["importe"]) + _safe_decimal(inv.total_amount)
+        casted_contracts = bucket["contratos"]
+        if isinstance(casted_contracts, set):
+            casted_contracts.add(inv.contrato_id)
+
+    tickets = (
+        TasaMantenimientoTicket.query.filter(TasaMantenimientoTicket.org_id == org_id())
+        .filter(TasaMantenimientoTicket.contrato_id.in_(contract_ids))
+        .filter(TasaMantenimientoTicket.estado != TicketEstado.COBRADO)
+        .filter(TasaMantenimientoTicket.invoice_id.is_(None))
+        .all()
+    )
+    for ticket in tickets:
+        anchor = date(ticket.anio, 1, 1)
+        days = max(0, (as_of - anchor).days)
+        bucket = buckets[_bucket_for_days(days)]
+        bucket["casos"] = int(bucket["casos"]) + 1
+        bucket["importe"] = _safe_decimal(bucket["importe"]) + _safe_decimal(ticket.importe)
+        casted_contracts = bucket["contratos"]
+        if isinstance(casted_contracts, set):
+            casted_contracts.add(ticket.contrato_id)
+
+    total_importe = Decimal("0.00")
+    total_contracts: set[int] = set()
+    rows: list[dict[str, object]] = []
+    for key in bucket_order:
+        bucket = buckets[key]
+        amount = _safe_decimal(bucket["importe"])
+        contracts = bucket["contratos"] if isinstance(bucket["contratos"], set) else set()
+        total_importe += amount
+        total_contracts |= contracts
+        rows.append(
+            {
+                "bucket": key,
+                "casos": int(bucket["casos"]),
+                "importe": amount,
+                "contratos": len(contracts),
+            }
+        )
+    rows.append(
+        {
+            "bucket": "TOTAL",
+            "casos": sum(int(row["casos"]) for row in rows),
+            "importe": total_importe,
+            "contratos": len(total_contracts),
+        }
+    )
+    return rows
+
+
+def _recaudacion_period_metrics(
+    contract_ids: list[int],
+    date_from: date,
+    date_to: date,
+) -> dict[str, Decimal]:
+    emitted = Decimal("0.00")
+    paid = Decimal("0.00")
+    pending = Decimal("0.00")
+
+    invoices_emitted = (
+        Invoice.query.filter(Invoice.org_id == org_id())
+        .filter(Invoice.contrato_id.in_(contract_ids))
+        .filter(Invoice.issued_at.is_not(None))
+        .all()
+    )
+    for inv in invoices_emitted:
+        issued = _to_utc(inv.issued_at)
+        if issued and date_from <= issued.date() <= date_to:
+            emitted += _safe_decimal(inv.total_amount)
+
+    payments = (
+        Payment.query.join(Invoice, Invoice.id == Payment.invoice_id)
+        .filter(Payment.org_id == org_id())
+        .filter(Invoice.contrato_id.in_(contract_ids))
+        .all()
+    )
+    for payment in payments:
+        paid_at = _to_utc(payment.paid_at)
+        if paid_at and date_from <= paid_at.date() <= date_to:
+            paid += _safe_decimal(payment.amount)
+
+    close_dt = datetime.combine(date_to, time.max, tzinfo=timezone.utc)
+    invoices_to_close = (
+        Invoice.query.options(joinedload(Invoice.payments))
+        .filter(Invoice.org_id == org_id())
+        .filter(Invoice.contrato_id.in_(contract_ids))
+        .filter(Invoice.issued_at.is_not(None))
+        .all()
+    )
+    for inv in invoices_to_close:
+        issued = _to_utc(inv.issued_at)
+        if not issued or issued > close_dt:
+            continue
+        if inv.estado == InvoiceEstado.PAGADA:
+            continue
+        paid_until_close = Decimal("0.00")
+        for payment in inv.payments:
+            paid_at = _to_utc(payment.paid_at)
+            if paid_at and paid_at <= close_dt:
+                paid_until_close += _safe_decimal(payment.amount)
+        remaining = _safe_decimal(inv.total_amount) - paid_until_close
+        if remaining > 0:
+            pending += remaining
+
+    return {"emitido": emitted, "cobrado": paid, "pendiente": pending}
+
+
+def _pct_variation(current: Decimal, previous: Decimal) -> float:
+    if previous == 0:
+        return 100.0 if current > 0 else 0.0
+    return float(round(((current - previous) / previous) * 100, 2))
+
+
+def reporting_deuda_recaudacion_rows(filters: dict[str, str]) -> list[dict[str, object]]:
+    query = _reporting_contracts_query(filters)
+    if query is None:
+        return []
+    contract_ids = [row.id for row in query.with_entities(DerechoFunerarioContrato.id).all()]
+    if not contract_ids:
+        return []
+
+    date_from, date_to = _resolve_reporting_range(filters)
+    metrics = _recaudacion_period_metrics(contract_ids, date_from, date_to)
+    period_days = max(1, (date_to - date_from).days + 1)
+    prev_to = date_from - timedelta(days=1)
+    prev_from = prev_to - timedelta(days=period_days - 1)
+    prev_metrics = _recaudacion_period_metrics(contract_ids, prev_from, prev_to)
+
+    emitido = _safe_decimal(metrics["emitido"])
+    cobrado = _safe_decimal(metrics["cobrado"])
+    pendiente = _safe_decimal(metrics["pendiente"])
+    tasa_cobro = float(round((cobrado / emitido) * 100, 2)) if emitido > 0 else 0.0
+    return [
+        {
+            "periodo": f"{date_from.isoformat()}..{date_to.isoformat()}",
+            "emitido": emitido,
+            "cobrado": cobrado,
+            "pendiente": pendiente,
+            "tasa_cobro_pct": tasa_cobro,
+            "variacion_emitido_pct": _pct_variation(emitido, _safe_decimal(prev_metrics["emitido"])),
+            "variacion_cobrado_pct": _pct_variation(cobrado, _safe_decimal(prev_metrics["cobrado"])),
+            "periodo_anterior": f"{prev_from.isoformat()}..{prev_to.isoformat()}",
+        }
+    ]
+
+
+def reporting_directivo_operacion_rows(filters: dict[str, str]) -> list[dict[str, object]]:
+    carga = reporting_ot_carga_equipos_rows(filters)
+    sla = reporting_ot_sla_cumplimiento_rows(filters)
+    total_sla = next((row for row in sla if row.get("type_code") == "TOTAL"), None)
+    top_bottlenecks = sorted(carga, key=lambda row: int(row["ot_abiertas"]), reverse=True)[:5]
+    rows: list[dict[str, object]] = []
+    if total_sla:
+        rows.append(
+            {
+                "kpi": "Cumplimiento SLA global",
+                "valor": f"{total_sla.get('pct_cumplimiento', 0)}%",
+            }
+        )
+        rows.append(
+            {
+                "kpi": "OT vencidas (global)",
+                "valor": str(total_sla.get("vencidas", 0)),
+            }
+        )
+    for item in top_bottlenecks:
+        rows.append(
+            {
+                "kpi": f"Cuello: {item['assigned_user']} / {item['type_code']}",
+                "valor": f"abiertas={item['ot_abiertas']} backlog={item['backlog_neto']}",
+            }
+        )
+    return rows
+
+
+def reporting_directivo_finanzas_rows(filters: dict[str, str]) -> list[dict[str, object]]:
+    aging = reporting_deuda_aging_rows(filters)
+    recaudacion = reporting_deuda_recaudacion_rows(filters)
+    deuda = sorted(
+        reporting_deuda_rows(filters),
+        key=lambda row: _safe_decimal(row["deuda_total"]),
+        reverse=True,
+    )[:5]
+    rows: list[dict[str, object]] = []
+    total = next((row for row in aging if row.get("bucket") == "TOTAL"), None)
+    if total:
+        rows.append(
+            {
+                "kpi": "Deuda total",
+                "valor": str(_safe_decimal(total.get("importe"))),
+            }
+        )
+        rows.append(
+            {
+                "kpi": "Contratos con deuda",
+                "valor": str(total.get("contratos", 0)),
+            }
+        )
+    if recaudacion:
+        first = recaudacion[0]
+        rows.append(
+            {
+                "kpi": "Tasa de cobro",
+                "valor": f"{first.get('tasa_cobro_pct', 0)}%",
+            }
+        )
+        rows.append(
+            {
+                "kpi": "Variacion cobrado",
+                "valor": f"{first.get('variacion_cobrado_pct', 0)}%",
+            }
+        )
+    for item in deuda:
+        rows.append(
+            {
+                "kpi": f"Contrato #{item['contrato_id']} ({item['sepultura']})",
+                "valor": str(_safe_decimal(item["deuda_total"])),
+            }
+        )
+    return rows
+
+
 def reporting_rows(report_key: str, filters: dict[str, str]) -> list[dict[str, object]]:
     key = (report_key or "").strip().lower()
     if key == "sepulturas":
@@ -2545,6 +3186,20 @@ def reporting_rows(report_key: str, filters: dict[str, str]) -> list[dict[str, o
         return reporting_contratos_rows(filters)
     if key == "deuda":
         return reporting_deuda_rows(filters)
+    if key == "ot_carga_equipos":
+        return reporting_ot_carga_equipos_rows(filters)
+    if key == "ot_sla_cumplimiento":
+        return reporting_ot_sla_cumplimiento_rows(filters)
+    if key == "ot_calendario_faenas":
+        return reporting_ot_calendario_faenas_rows(filters)
+    if key == "deuda_aging":
+        return reporting_deuda_aging_rows(filters)
+    if key == "deuda_recaudacion":
+        return reporting_deuda_recaudacion_rows(filters)
+    if key == "directivo_operacion_pdf":
+        return reporting_directivo_operacion_rows(filters)
+    if key == "directivo_finanzas_pdf":
+        return reporting_directivo_finanzas_rows(filters)
     raise ValueError("Informe invalido")
 
 
@@ -2565,21 +3220,14 @@ def paginate_rows(
     }
 
 
-def reporting_csv_bytes(
-    report_key: str,
-    filters: dict[str, str],
-    export_limit: int = 1000,
-) -> bytes:
-    rows = reporting_rows(report_key, filters)
-    limited = rows[: max(1, min(export_limit, 5000))]
-    if not limited:
-        limited = []
-    if report_key == "sepulturas":
-        headers = ["id", "sepultura", "bloque", "modalidad", "estado"]
-    elif report_key == "contratos":
-        headers = ["id", "tipo", "vigencia", "titular", "sepultura"]
-    else:
-        headers = [
+def reporting_headers(report_key: str) -> list[str]:
+    key = (report_key or "").strip().lower()
+    if key == "sepulturas":
+        return ["id", "sepultura", "bloque", "modalidad", "estado"]
+    if key == "contratos":
+        return ["id", "tipo", "vigencia", "titular", "sepultura"]
+    if key == "deuda":
+        return [
             "contrato_id",
             "sepultura",
             "tickets_pendientes",
@@ -2588,6 +3236,69 @@ def reporting_csv_bytes(
             "importe_facturas",
             "deuda_total",
         ]
+    if key == "ot_carga_equipos":
+        return [
+            "assigned_user",
+            "type_code",
+            "category",
+            "status_scope",
+            "ot_abiertas",
+            "ot_nuevas",
+            "ot_completadas",
+            "backlog_neto",
+            "pct_carga_tipo",
+        ]
+    if key == "ot_sla_cumplimiento":
+        return [
+            "type_code",
+            "total_con_sla",
+            "cumplidas",
+            "vencidas",
+            "pct_cumplimiento",
+            "lead_time_media_h",
+            "lead_time_mediana_h",
+        ]
+    if key == "ot_calendario_faenas":
+        return [
+            "fecha",
+            "assigned_user",
+            "ot_code",
+            "title",
+            "priority",
+            "status",
+            "ubicacion",
+            "planned_start_at",
+            "planned_end_at",
+            "due_at",
+            "type_code",
+            "category",
+        ]
+    if key == "deuda_aging":
+        return ["bucket", "casos", "importe", "contratos"]
+    if key == "deuda_recaudacion":
+        return [
+            "periodo",
+            "emitido",
+            "cobrado",
+            "pendiente",
+            "tasa_cobro_pct",
+            "variacion_emitido_pct",
+            "variacion_cobrado_pct",
+            "periodo_anterior",
+        ]
+    if key in REPORTING_PDF_ONLY_KEYS:
+        return ["kpi", "valor"]
+    raise ValueError("Informe invalido")
+
+
+def reporting_csv_bytes(
+    report_key: str,
+    filters: dict[str, str],
+    export_limit: int = 1000,
+) -> bytes:
+    rows = reporting_rows(report_key, filters)
+    limited = rows[: max(1, min(export_limit, 5000))]
+    headers = reporting_headers(report_key)
     stream = StringIO()
     writer = csv.DictWriter(stream, fieldnames=headers)
     writer.writeheader()
@@ -2595,6 +3306,411 @@ def reporting_csv_bytes(
         normalized = {k: row.get(k, "") for k in headers}
         writer.writerow(normalized)
     return stream.getvalue().encode("utf-8")
+
+
+def reporting_pdf_bytes(
+    report_key: str,
+    filters: dict[str, str],
+    export_limit: int = 200,
+) -> bytes:
+    headers = reporting_headers(report_key)
+    rows = reporting_rows(report_key, filters)[: max(1, min(export_limit, 2000))]
+    lines = [
+        "GSF - Reporting Cementerio",
+        f"Informe: {report_key}",
+        f"Fecha: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+    ]
+    filters_desc = ", ".join(
+        f"{k}={v}" for k, v in sorted(filters.items()) if (v or "").strip()
+    )
+    if filters_desc:
+        lines.append(f"Filtros: {filters_desc}")
+    if not rows:
+        lines.append("Sin resultados")
+        return _simple_pdf(lines)
+    lines.append("----")
+    lines.append(" | ".join(headers))
+    lines.append("----")
+    for row in rows:
+        values = [str(row.get(key, "")) for key in headers]
+        lines.append(" | ".join(values))
+    return _simple_pdf(lines)
+
+
+def reporting_filter_users() -> list[dict[str, object]]:
+    rows = (
+        User.query.join(Membership, Membership.user_id == User.id)
+        .filter(Membership.org_id == org_id())
+        .order_by(User.full_name.asc(), User.email.asc())
+        .all()
+    )
+    return [{"id": row.id, "name": row.full_name} for row in rows]
+
+
+def reporting_filter_type_codes() -> list[str]:
+    rows = (
+        WorkOrder.query.filter(WorkOrder.org_id == org_id())
+        .with_entities(WorkOrder.type_code)
+        .filter(WorkOrder.type_code.is_not(None))
+        .distinct()
+        .order_by(WorkOrder.type_code.asc())
+        .all()
+    )
+    return [str(row[0]).upper() for row in rows if row[0]]
+
+
+def reporting_filter_blocks() -> list[str]:
+    rows = (
+        Sepultura.query.filter_by(org_id=org_id())
+        .with_entities(Sepultura.bloque)
+        .distinct()
+        .order_by(Sepultura.bloque.asc())
+        .all()
+    )
+    return [str(row[0]) for row in rows if row[0]]
+
+
+def _normalize_schedule_time(raw: str) -> str:
+    value = (raw or "").strip()
+    if not value:
+        return "07:00"
+    try:
+        parsed = time.fromisoformat(value if len(value) > 5 else f"{value}:00")
+        return f"{parsed.hour:02d}:{parsed.minute:02d}"
+    except ValueError as exc:
+        raise ValueError("Hora de ejecucion invalida (usa HH:MM)") from exc
+
+
+def _normalize_schedule_timezone(raw: str) -> str:
+    zone = (raw or "Europe/Madrid").strip() or "Europe/Madrid"
+    try:
+        ZoneInfo(zone)
+    except ZoneInfoNotFoundError as exc:
+        raise ValueError("Zona horaria invalida") from exc
+    return zone
+
+
+def _normalize_schedule_formats(raw: str) -> str:
+    pieces = [part.strip().upper() for part in (raw or "").replace(";", ",").split(",")]
+    values = [part for part in pieces if part in REPORTING_SCHEDULE_FORMATS]
+    if not values:
+        values = ["CSV"]
+    return ",".join(sorted(set(values)))
+
+
+def _normalize_schedule_filters_json(raw: str) -> str:
+    payload = (raw or "").strip()
+    if not payload:
+        return "{}"
+    try:
+        parsed = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        raise ValueError("Filtros JSON invalidos") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError("Filtros JSON invalidos")
+    normalized = {
+        str(k): str(v) for k, v in parsed.items() if v is not None and str(v).strip()
+    }
+    return json.dumps(normalized, ensure_ascii=True, sort_keys=True)
+
+
+def list_reporting_schedules() -> list[ReportSchedule]:
+    return (
+        ReportSchedule.query.filter_by(org_id=org_id())
+        .order_by(ReportSchedule.active.desc(), ReportSchedule.id.desc())
+        .all()
+    )
+
+
+def create_reporting_schedule(
+    payload: dict[str, str], user_id: int | None
+) -> ReportSchedule:
+    name = (payload.get("name") or "").strip()
+    if not name:
+        raise ValueError("Nombre obligatorio")
+    report_key = (payload.get("report_key") or "").strip().lower()
+    if report_key not in REPORTING_ALL_KEYS:
+        raise ValueError("Informe invalido")
+    cadence = (payload.get("cadence") or "").strip().upper()
+    if cadence not in REPORTING_SCHEDULE_CADENCES:
+        raise ValueError("Cadencia invalida")
+
+    day_of_week = None
+    day_of_month = None
+    if cadence == "WEEKLY":
+        raw = (payload.get("day_of_week") or "").strip()
+        if not raw.isdigit():
+            raise ValueError("Dia semana obligatorio (0-6)")
+        day_of_week = int(raw)
+        if day_of_week < 0 or day_of_week > 6:
+            raise ValueError("Dia semana invalido (0-6)")
+    if cadence == "MONTHLY":
+        raw = (payload.get("day_of_month") or "").strip()
+        if not raw.isdigit():
+            raise ValueError("Dia mes obligatorio (1-31)")
+        day_of_month = int(raw)
+        if day_of_month < 1 or day_of_month > 31:
+            raise ValueError("Dia mes invalido (1-31)")
+
+    schedule = ReportSchedule(
+        org_id=org_id(),
+        name=name,
+        report_key=report_key,
+        cadence=cadence,
+        day_of_week=day_of_week,
+        day_of_month=day_of_month,
+        run_time=_normalize_schedule_time(payload.get("run_time") or ""),
+        timezone=_normalize_schedule_timezone(payload.get("timezone") or ""),
+        recipients=(payload.get("recipients") or "").strip(),
+        filters_json=_normalize_schedule_filters_json(
+            payload.get("filters_json") or ""
+        ),
+        formats=_normalize_schedule_formats(payload.get("formats") or ""),
+        active=(payload.get("active") or "").strip().lower()
+        in {"1", "true", "on", "yes", "si"},
+        created_by_user_id=user_id,
+    )
+    db.session.add(schedule)
+    db.session.commit()
+    return schedule
+
+
+def toggle_reporting_schedule(schedule_id: int) -> ReportSchedule:
+    schedule = ReportSchedule.query.filter_by(org_id=org_id(), id=schedule_id).first()
+    if not schedule:
+        raise ValueError("Programacion no encontrada")
+    schedule.active = not schedule.active
+    db.session.add(schedule)
+    db.session.commit()
+    return schedule
+
+
+def _schedule_local_now(schedule: ReportSchedule, now_utc: datetime) -> datetime:
+    utc_now = _to_utc(now_utc) or datetime.now(timezone.utc)
+    try:
+        zone = ZoneInfo(schedule.timezone or "Europe/Madrid")
+    except ZoneInfoNotFoundError:
+        zone = ZoneInfo("Europe/Madrid")
+    return utc_now.astimezone(zone)
+
+
+def _schedule_last_run_local(schedule: ReportSchedule) -> datetime | None:
+    last = _to_utc(schedule.last_run_at)
+    if last is None:
+        return None
+    try:
+        zone = ZoneInfo(schedule.timezone or "Europe/Madrid")
+    except ZoneInfoNotFoundError:
+        zone = ZoneInfo("Europe/Madrid")
+    return last.astimezone(zone)
+
+
+def _is_schedule_due(schedule: ReportSchedule, now_utc: datetime) -> bool:
+    if not schedule.active:
+        return False
+    local_now = _schedule_local_now(schedule, now_utc)
+    run_parts = (schedule.run_time or "07:00").split(":", maxsplit=1)
+    hour = int(run_parts[0]) if run_parts and run_parts[0].isdigit() else 7
+    minute = int(run_parts[1]) if len(run_parts) == 2 and run_parts[1].isdigit() else 0
+    scheduled_clock = time(hour=hour, minute=minute)
+    if local_now.time() < scheduled_clock:
+        return False
+
+    cadence = (schedule.cadence or "").upper()
+    if cadence == "WEEKLY":
+        if schedule.day_of_week is None or local_now.weekday() != schedule.day_of_week:
+            return False
+    elif cadence == "MONTHLY":
+        if schedule.day_of_month is None or local_now.day != schedule.day_of_month:
+            return False
+    else:
+        return False
+
+    last_local = _schedule_last_run_local(schedule)
+    if last_local is None:
+        return True
+    if cadence == "WEEKLY":
+        last_iso = last_local.isocalendar()
+        now_iso = local_now.isocalendar()
+        return (last_iso.year, last_iso.week) != (now_iso.year, now_iso.week)
+    return (last_local.year, last_local.month) != (local_now.year, local_now.month)
+
+
+def _schedule_recipient_list(schedule: ReportSchedule) -> list[str]:
+    raw = (schedule.recipients or "").replace(";", ",")
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def _schedule_formats_list(schedule: ReportSchedule) -> list[str]:
+    pieces = [part.strip().upper() for part in (schedule.formats or "").split(",")]
+    values = [part for part in pieces if part in REPORTING_SCHEDULE_FORMATS]
+    return values or ["CSV"]
+
+
+def _schedule_filters(schedule: ReportSchedule) -> dict[str, str]:
+    raw = (schedule.filters_json or "").strip() or "{}"
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    return {str(key): str(value) for key, value in payload.items()}
+
+
+def _schedule_storage_root(schedule: ReportSchedule, run_at: datetime) -> Path:
+    ts = (_to_utc(run_at) or datetime.now(timezone.utc)).strftime("%Y%m%dT%H%M%SZ")
+    return (
+        Path(current_app.instance_path)
+        / "storage"
+        / "cemetery"
+        / "reporting"
+        / str(schedule.org_id)
+        / str(schedule.id)
+        / ts
+    )
+
+
+def _send_reporting_email(
+    recipients: list[str],
+    subject: str,
+    body: str,
+    attachments: list[Path],
+) -> str:
+    if not recipients:
+        return "Sin destinatarios: entrega solo almacenada"
+    host = current_app.config.get("SMTP_HOST") or os.getenv("SMTP_HOST", "").strip()
+    port_raw = current_app.config.get("SMTP_PORT") or os.getenv("SMTP_PORT", "25")
+    username = current_app.config.get("SMTP_USER") or os.getenv("SMTP_USER", "").strip()
+    password = (
+        current_app.config.get("SMTP_PASSWORD") or os.getenv("SMTP_PASSWORD", "").strip()
+    )
+    sender = (
+        current_app.config.get("SMTP_FROM")
+        or os.getenv("SMTP_FROM", "").strip()
+        or "no-reply@localhost"
+    )
+    if not host:
+        return "SMTP no configurado: entrega solo almacenada"
+    try:
+        port = int(str(port_raw))
+    except Exception:
+        port = 25
+    use_tls = str(
+        current_app.config.get("SMTP_USE_TLS") or os.getenv("SMTP_USE_TLS", "1")
+    ).strip().lower() in {"1", "true", "yes", "on"}
+
+    message = EmailMessage()
+    message["Subject"] = subject
+    message["From"] = sender
+    message["To"] = ", ".join(recipients)
+    message.set_content(body)
+    for item in attachments:
+        content = item.read_bytes()
+        subtype = "csv" if item.suffix.lower() == ".csv" else "pdf"
+        message.add_attachment(
+            content,
+            maintype="application",
+            subtype=subtype,
+            filename=item.name,
+        )
+    try:
+        with smtplib.SMTP(host, port, timeout=20) as smtp:
+            if use_tls:
+                smtp.starttls()
+            if username:
+                smtp.login(username, password)
+            smtp.send_message(message)
+    except Exception as exc:
+        return f"Error SMTP: {exc}"
+    return ""
+
+
+def run_reporting_schedule(
+    schedule_id: int, user_id: int | None = None
+) -> ReportDeliveryLog:
+    schedule = ReportSchedule.query.filter_by(org_id=org_id(), id=schedule_id).first()
+    if not schedule:
+        raise ValueError("Programacion no encontrada")
+    run_at = datetime.now(timezone.utc)
+    filters = _schedule_filters(schedule)
+    headers = reporting_headers(schedule.report_key)
+    rows = reporting_rows(schedule.report_key, filters)
+
+    storage = _schedule_storage_root(schedule, run_at)
+    storage.mkdir(parents=True, exist_ok=True)
+    artifacts: list[str] = []
+    attachment_paths: list[Path] = []
+    for fmt in _schedule_formats_list(schedule):
+        if fmt == "CSV":
+            content = reporting_csv_bytes(
+                schedule.report_key, filters, export_limit=5000
+            )
+            filename = f"{schedule.report_key}.csv"
+        else:
+            content = reporting_pdf_bytes(
+                schedule.report_key, filters, export_limit=1500
+            )
+            filename = f"{schedule.report_key}.pdf"
+        absolute = storage / filename
+        absolute.write_bytes(content)
+        rel = absolute.relative_to(Path(current_app.instance_path)).as_posix()
+        artifacts.append(rel)
+        attachment_paths.append(absolute)
+
+    email_error = _send_reporting_email(
+        recipients=_schedule_recipient_list(schedule),
+        subject=f"[GSF] Informe programado: {schedule.name}",
+        body=(
+            f"Informe: {schedule.report_key}\n"
+            f"Filas: {len(rows)}\n"
+            f"Cabeceras: {', '.join(headers)}\n"
+            f"Generado: {run_at.isoformat()}\n"
+        ),
+        attachments=attachment_paths,
+    )
+    status = (
+        "SUCCESS"
+        if not email_error or "solo almacenada" in email_error.lower()
+        else "ERROR"
+    )
+    log = ReportDeliveryLog(
+        org_id=org_id(),
+        schedule_id=schedule.id,
+        run_at=run_at,
+        status=status,
+        rows_count=len(rows),
+        artifacts_json=json.dumps(artifacts, ensure_ascii=True),
+        error=email_error,
+    )
+    db.session.add(log)
+    schedule.last_run_at = run_at
+    db.session.add(schedule)
+    db.session.commit()
+    return log
+
+
+def run_due_reporting_schedules(now_utc: datetime | None = None) -> dict[str, int]:
+    now_value = _to_utc(now_utc) or datetime.now(timezone.utc)
+    schedules = (
+        ReportSchedule.query.filter_by(org_id=org_id(), active=True)
+        .order_by(ReportSchedule.id.asc())
+        .all()
+    )
+    executed = 0
+    failed = 0
+    for schedule in schedules:
+        if not _is_schedule_due(schedule, now_value):
+            continue
+        try:
+            log = run_reporting_schedule(schedule.id)
+            if log.status == "ERROR":
+                failed += 1
+            else:
+                executed += 1
+        except Exception:
+            failed += 1
+    return {"executed": executed, "failed": failed}
 
 
 def reset_demo_org_data(user_id: int | None = None) -> dict[str, int]:

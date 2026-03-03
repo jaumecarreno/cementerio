@@ -6,6 +6,20 @@
   {'label': t('reporting.title'), 'href': None}
 ] %}
 {% block title %}{{ t('reporting.title') }}{% endblock %}
+{% macro report_label(key) -%}
+  {%- if key == 'sepulturas' -%}Sepulturas
+  {%- elif key == 'contratos' -%}Contratos
+  {%- elif key == 'deuda' -%}Deuda (legacy)
+  {%- elif key == 'ot_carga_equipos' -%}OT carga equipos
+  {%- elif key == 'ot_sla_cumplimiento' -%}OT SLA cumplimiento
+  {%- elif key == 'ot_calendario_faenas' -%}OT calendario faenas
+  {%- elif key == 'deuda_aging' -%}Deuda aging
+  {%- elif key == 'deuda_recaudacion' -%}Deuda y recaudacion
+  {%- elif key == 'directivo_operacion_pdf' -%}Directivo operacion (PDF)
+  {%- elif key == 'directivo_finanzas_pdf' -%}Directivo finanzas (PDF)
+  {%- else -%}{{ key }}
+  {%- endif -%}
+{%- endmacro %}
 {% block content %}
 <h1 class="page-title">{{ t('reporting.title') }}</h1>
 
@@ -14,11 +28,85 @@
   <form method="get" action="{{ url_for('cemetery.reporting') }}">
     <div class="form-grid">
       <div>
+        <label>Perfil</label>
+        <select name="profile">
+          {% for profile_key, profile_label in profiles %}
+          <option value="{{ profile_key }}" {% if filters.profile == profile_key %}selected{% endif %}>{{ profile_label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
         <label>{{ t('reporting.report_type') }}</label>
         <select name="report">
-          <option value="sepulturas" {% if report_key == 'sepulturas' %}selected{% endif %}>{{ t('reporting.graves') }}</option>
-          <option value="contratos" {% if report_key == 'contratos' %}selected{% endif %}>{{ t('reporting.contracts') }}</option>
-          <option value="deuda" {% if report_key == 'deuda' %}selected{% endif %}>{{ t('reporting.debt') }}</option>
+          {% for key in report_options %}
+          <option value="{{ key }}" {% if report_key == key %}selected{% endif %}>{{ report_label(key) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Preset</label>
+        <select name="cadence_preset">
+          <option value="" {% if not filters.cadence_preset %}selected{% endif %}>Manual</option>
+          <option value="daily" {% if filters.cadence_preset == 'daily' %}selected{% endif %}>Diario</option>
+          <option value="weekly" {% if filters.cadence_preset == 'weekly' %}selected{% endif %}>Semanal</option>
+          <option value="monthly" {% if filters.cadence_preset == 'monthly' %}selected{% endif %}>Mensual</option>
+        </select>
+      </div>
+      <div>
+        <label>Desde</label>
+        <input type="date" name="date_from" value="{{ filters.date_from }}">
+      </div>
+      <div>
+        <label>Hasta</label>
+        <input type="date" name="date_to" value="{{ filters.date_to }}">
+      </div>
+      <div>
+        <label>Usuario asignado</label>
+        <select name="assigned_user_id">
+          <option value="">Todos</option>
+          {% for user in report_users %}
+          <option value="{{ user.id }}" {% if filters.assigned_user_id == user.id|string %}selected{% endif %}>{{ user.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Tipo OT</label>
+        <select name="type_code">
+          <option value="">Todos</option>
+          {% for code in report_type_codes %}
+          <option value="{{ code }}" {% if filters.type_code == code %}selected{% endif %}>{{ code }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Categoria OT</label>
+        <select name="category">
+          <option value="">Todas</option>
+          {% for category in report_categories %}
+          <option value="{{ category }}" {% if filters.category == category %}selected{% endif %}>{{ category }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Estado OT</label>
+        <select name="status">
+          <option value="">Todos</option>
+          {% for status in report_statuses %}
+          <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Sepultura ID</label>
+        <input type="text" name="sepultura_id" value="{{ filters.sepultura_id }}">
+      </div>
+      <div>
+        <label>{{ t('reporting.block') }}</label>
+        <select name="bloque">
+          <option value="">Todos</option>
+          {% for block in report_blocks %}
+          <option value="{{ block }}" {% if filters.bloque == block %}selected{% endif %}>{{ block }}</option>
+          {% endfor %}
         </select>
       </div>
       <div>
@@ -28,10 +116,6 @@
       <div>
         <label>{{ t('reporting.modality') }}</label>
         <input type="text" name="modalidad" value="{{ filters.modalidad }}">
-      </div>
-      <div>
-        <label>{{ t('reporting.block') }}</label>
-        <input type="text" name="bloque" value="{{ filters.bloque }}">
       </div>
       <div>
         <label>{{ t('reporting.contract_type') }}</label>
@@ -64,7 +148,11 @@
     </div>
   </form>
   <div class="actions-row">
-    <a class="btn primary" href="{{ url_for('cemetery.reporting_export_csv', report=report_key, estado=filters.estado, modalidad=filters.modalidad, bloque=filters.bloque, tipo=filters.tipo, vigencia=filters.vigencia, titular=filters.titular, contrato_id=filters.contrato_id) }}">{{ t('reporting.export_csv') }}</a>
+    <a class="btn primary" href="{{ url_for('cemetery.reporting_export_csv', report=report_key, profile=filters.profile, date_from=filters.date_from, date_to=filters.date_to, cadence_preset=filters.cadence_preset, assigned_user_id=filters.assigned_user_id, type_code=filters.type_code, category=filters.category, status=filters.status, sepultura_id=filters.sepultura_id, bloque=filters.bloque, estado=filters.estado, modalidad=filters.modalidad, tipo=filters.tipo, vigencia=filters.vigencia, titular=filters.titular, contrato_id=filters.contrato_id) }}">Exportar CSV</a>
+    <a class="btn primary" href="{{ url_for('cemetery.reporting_export_pdf', report=report_key, profile=filters.profile, date_from=filters.date_from, date_to=filters.date_to, cadence_preset=filters.cadence_preset, assigned_user_id=filters.assigned_user_id, type_code=filters.type_code, category=filters.category, status=filters.status, sepultura_id=filters.sepultura_id, bloque=filters.bloque, estado=filters.estado, modalidad=filters.modalidad, tipo=filters.tipo, vigencia=filters.vigencia, titular=filters.titular, contrato_id=filters.contrato_id) }}">Exportar PDF</a>
+    {% if g.membership and g.membership.role == 'admin' %}
+    <a class="btn" href="{{ url_for('cemetery.reporting_schedules') }}">Programaciones</a>
+    {% endif %}
   </div>
 </div>
 
@@ -77,11 +165,23 @@
   <table>
     <thead>
       {% if report_key == 'sepulturas' %}
-      <tr><th>{{ t('common.id') }}</th><th>{{ t('reporting.graves') }}</th><th>{{ t('reporting.block') }}</th><th>{{ t('reporting.modality') }}</th><th>{{ t('dashboard.state') }}</th></tr>
+      <tr><th>ID</th><th>Sepultura</th><th>Bloque</th><th>Modalidad</th><th>Estado</th></tr>
       {% elif report_key == 'contratos' %}
-      <tr><th>{{ t('common.id') }}</th><th>{{ t('reporting.contract_type') }}</th><th>{{ t('reporting.contract_validity') }}</th><th>{{ t('reporting.holder') }}</th><th>{{ t('reporting.graves') }}</th></tr>
+      <tr><th>ID</th><th>Tipo</th><th>Vigencia</th><th>Titular</th><th>Sepultura</th></tr>
+      {% elif report_key == 'deuda' %}
+      <tr><th>Contrato</th><th>Sepultura</th><th>Tickets pendientes</th><th>Importe tickets</th><th>Facturas impagadas</th><th>Importe facturas</th><th>Deuda total</th></tr>
+      {% elif report_key == 'ot_carga_equipos' %}
+      <tr><th>Usuario</th><th>Tipo OT</th><th>Categoria</th><th>Abiertas</th><th>Nuevas</th><th>Completadas</th><th>Backlog neto</th><th>% carga tipo</th></tr>
+      {% elif report_key == 'ot_sla_cumplimiento' %}
+      <tr><th>Tipo OT</th><th>Total SLA</th><th>Cumplidas</th><th>Vencidas</th><th>% cumplimiento</th><th>Lead time medio (h)</th><th>Lead time mediana (h)</th></tr>
+      {% elif report_key == 'ot_calendario_faenas' %}
+      <tr><th>Fecha</th><th>Usuario</th><th>OT</th><th>Titulo</th><th>Prioridad</th><th>Estado</th><th>Ubicacion</th><th>Inicio</th><th>Fin</th><th>Due</th></tr>
+      {% elif report_key == 'deuda_aging' %}
+      <tr><th>Bucket</th><th>Casos</th><th>Contratos</th><th>Importe</th></tr>
+      {% elif report_key == 'deuda_recaudacion' %}
+      <tr><th>Periodo</th><th>Emitido</th><th>Cobrado</th><th>Pendiente</th><th>Tasa cobro %</th><th>Var emitido %</th><th>Var cobrado %</th><th>Periodo anterior</th></tr>
       {% else %}
-      <tr><th>{{ t('reporting.contracts') }}</th><th>{{ t('reporting.graves') }}</th><th>{{ t('reporting.pending_tickets') }}</th><th>{{ t('reporting.tickets_amount') }}</th><th>{{ t('reporting.unpaid_invoices') }}</th><th>{{ t('reporting.invoices_amount') }}</th><th>{{ t('reporting.total_debt') }}</th></tr>
+      <tr><th>KPI</th><th>Valor</th></tr>
       {% endif %}
     </thead>
     <tbody>
@@ -102,7 +202,7 @@
         <td>{{ row.titular }}</td>
         <td>{{ row.sepultura }}</td>
       </tr>
-      {% else %}
+      {% elif report_key == 'deuda' %}
       <tr>
         <td>{{ row.contrato_id }}</td>
         <td>{{ row.sepultura }}</td>
@@ -112,19 +212,76 @@
         <td>{{ money(row.importe_facturas) }}</td>
         <td>{{ money(row.deuda_total) }}</td>
       </tr>
+      {% elif report_key == 'ot_carga_equipos' %}
+      <tr>
+        <td>{{ row.assigned_user }}</td>
+        <td>{{ row.type_code }}</td>
+        <td>{{ row.category }}</td>
+        <td>{{ row.ot_abiertas }}</td>
+        <td>{{ row.ot_nuevas }}</td>
+        <td>{{ row.ot_completadas }}</td>
+        <td>{{ row.backlog_neto }}</td>
+        <td>{{ row.pct_carga_tipo }}%</td>
+      </tr>
+      {% elif report_key == 'ot_sla_cumplimiento' %}
+      <tr>
+        <td>{{ row.type_code }}</td>
+        <td>{{ row.total_con_sla }}</td>
+        <td>{{ row.cumplidas }}</td>
+        <td>{{ row.vencidas }}</td>
+        <td>{{ row.pct_cumplimiento }}%</td>
+        <td>{{ row.lead_time_media_h }}</td>
+        <td>{{ row.lead_time_mediana_h }}</td>
+      </tr>
+      {% elif report_key == 'ot_calendario_faenas' %}
+      <tr>
+        <td>{{ row.fecha }}</td>
+        <td>{{ row.assigned_user }}</td>
+        <td>{{ row.ot_code }}</td>
+        <td>{{ row.title }}</td>
+        <td>{{ row.priority }}</td>
+        <td>{{ row.status }}</td>
+        <td>{{ row.ubicacion }}</td>
+        <td>{{ row.planned_start_at or '-' }}</td>
+        <td>{{ row.planned_end_at or '-' }}</td>
+        <td>{{ row.due_at or '-' }}</td>
+      </tr>
+      {% elif report_key == 'deuda_aging' %}
+      <tr>
+        <td>{{ row.bucket }}</td>
+        <td>{{ row.casos }}</td>
+        <td>{{ row.contratos }}</td>
+        <td>{{ money(row.importe) }}</td>
+      </tr>
+      {% elif report_key == 'deuda_recaudacion' %}
+      <tr>
+        <td>{{ row.periodo }}</td>
+        <td>{{ money(row.emitido) }}</td>
+        <td>{{ money(row.cobrado) }}</td>
+        <td>{{ money(row.pendiente) }}</td>
+        <td>{{ row.tasa_cobro_pct }}%</td>
+        <td>{{ row.variacion_emitido_pct }}%</td>
+        <td>{{ row.variacion_cobrado_pct }}%</td>
+        <td>{{ row.periodo_anterior }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td>{{ row.kpi }}</td>
+        <td>{{ row.valor }}</td>
+      </tr>
       {% endif %}
       {% else %}
-      <tr><td colspan="7">{{ t('common.no_results') }}</td></tr>
+      <tr><td colspan="12">{{ t('common.no_results') }}</td></tr>
       {% endfor %}
     </tbody>
   </table>
 
   <div class="quick-actions">
     {% if paged.page > 1 %}
-    <a class="btn" href="{{ url_for('cemetery.reporting', report=report_key, page=paged.page-1, page_size=paged.page_size, estado=filters.estado, modalidad=filters.modalidad, bloque=filters.bloque, tipo=filters.tipo, vigencia=filters.vigencia, titular=filters.titular, contrato_id=filters.contrato_id) }}">{{ t('common.previous') }}</a>
+    <a class="btn" href="{{ url_for('cemetery.reporting', report=report_key, profile=filters.profile, page=paged.page-1, page_size=paged.page_size, date_from=filters.date_from, date_to=filters.date_to, cadence_preset=filters.cadence_preset, assigned_user_id=filters.assigned_user_id, type_code=filters.type_code, category=filters.category, status=filters.status, sepultura_id=filters.sepultura_id, bloque=filters.bloque, estado=filters.estado, modalidad=filters.modalidad, tipo=filters.tipo, vigencia=filters.vigencia, titular=filters.titular, contrato_id=filters.contrato_id) }}">{{ t('common.previous') }}</a>
     {% endif %}
     {% if paged.page < paged.pages %}
-    <a class="btn" href="{{ url_for('cemetery.reporting', report=report_key, page=paged.page+1, page_size=paged.page_size, estado=filters.estado, modalidad=filters.modalidad, bloque=filters.bloque, tipo=filters.tipo, vigencia=filters.vigencia, titular=filters.titular, contrato_id=filters.contrato_id) }}">{{ t('common.next') }}</a>
+    <a class="btn" href="{{ url_for('cemetery.reporting', report=report_key, profile=filters.profile, page=paged.page+1, page_size=paged.page_size, date_from=filters.date_from, date_to=filters.date_to, cadence_preset=filters.cadence_preset, assigned_user_id=filters.assigned_user_id, type_code=filters.type_code, category=filters.category, status=filters.status, sepultura_id=filters.sepultura_id, bloque=filters.bloque, estado=filters.estado, modalidad=filters.modalidad, tipo=filters.tipo, vigencia=filters.vigencia, titular=filters.titular, contrato_id=filters.contrato_id) }}">{{ t('common.next') }}</a>
     {% endif %}
   </div>
 </div>

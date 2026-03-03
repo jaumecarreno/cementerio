@@ -711,6 +711,52 @@ class ActivityLog(db.Model):
     user = relationship("User")
 
 
+class ReportSchedule(db.Model):
+    __tablename__ = "report_schedule"
+    __table_args__ = (
+        Index("ix_report_schedule_org_active_cadence", "org_id", "active", "cadence"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(db.String(120), nullable=False)
+    report_key: Mapped[str] = mapped_column(db.String(80), nullable=False)
+    cadence: Mapped[str] = mapped_column(db.String(20), nullable=False)
+    day_of_week: Mapped[int | None] = mapped_column(nullable=True)
+    day_of_month: Mapped[int | None] = mapped_column(nullable=True)
+    run_time: Mapped[str] = mapped_column(db.String(5), nullable=False, default="07:00")
+    timezone: Mapped[str] = mapped_column(db.String(64), nullable=False, default="Europe/Madrid")
+    recipients: Mapped[str] = mapped_column(db.Text(), nullable=False, default="")
+    filters_json: Mapped[str] = mapped_column(db.Text(), nullable=False, default="{}")
+    formats: Mapped[str] = mapped_column(db.String(40), nullable=False, default="CSV")
+    active: Mapped[bool] = mapped_column(nullable=False, default=True)
+    last_run_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
+
+    created_by = relationship("User")
+    deliveries = relationship("ReportDeliveryLog", back_populates="schedule", cascade="all, delete-orphan")
+
+
+class ReportDeliveryLog(db.Model):
+    __tablename__ = "report_delivery_log"
+    __table_args__ = (
+        Index("ix_report_delivery_schedule_run", "schedule_id", "run_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
+    schedule_id: Mapped[int] = mapped_column(ForeignKey("report_schedule.id"), nullable=False, index=True)
+    run_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
+    status: Mapped[str] = mapped_column(db.String(20), nullable=False, default="SUCCESS")
+    rows_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    artifacts_json: Mapped[str] = mapped_column(db.Text(), nullable=False, default="[]")
+    error: Mapped[str] = mapped_column(db.Text(), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
+
+    schedule = relationship("ReportSchedule", back_populates="deliveries")
+
+
 class OperationCase(db.Model):
     __tablename__ = "operation_case"
     __table_args__ = (

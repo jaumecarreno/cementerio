@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% set active_global = 'reports' %}
+{% set active_cem = 'reporting' %}
+{% set breadcrumbs = [
+  {'label': t('menu.cemetery'), 'href': url_for('cemetery.panel')},
+  {'label': t('reporting.title'), 'href': url_for('cemetery.reporting')},
+  {'label': 'Programaciones', 'href': None}
+] %}
+{% block title %}Programaciones de informes{% endblock %}
+{% block content %}
+<h1 class="page-title">Programaciones de informes</h1>
+
+<div class="box">
+  <h3>Nueva programacion</h3>
+  <form method="post" action="{{ url_for('cemetery.reporting_schedules') }}">
+    <div class="form-grid">
+      <div>
+        <label>Nombre</label>
+        <input type="text" name="name" required>
+      </div>
+      <div>
+        <label>Informe</label>
+        <select name="report_key" required>
+          {% for key in report_options %}
+          <option value="{{ key }}">{{ key }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Cadencia</label>
+        <select name="cadence" required>
+          <option value="WEEKLY">WEEKLY</option>
+          <option value="MONTHLY">MONTHLY</option>
+        </select>
+      </div>
+      <div>
+        <label>Dia semana (0=Lunes..6=Domingo)</label>
+        <input type="number" name="day_of_week" min="0" max="6" value="0">
+      </div>
+      <div>
+        <label>Dia mes</label>
+        <input type="number" name="day_of_month" min="1" max="31" value="1">
+      </div>
+      <div>
+        <label>Hora</label>
+        <input type="time" name="run_time" value="07:00">
+      </div>
+      <div>
+        <label>Zona horaria</label>
+        <input type="text" name="timezone" value="Europe/Madrid">
+      </div>
+      <div>
+        <label>Destinatarios (coma)</label>
+        <input type="text" name="recipients" placeholder="jefe@org.es, direccion@org.es">
+      </div>
+      <div>
+        <label>Formatos</label>
+        <label><input type="checkbox" name="formats" value="CSV" checked> CSV</label>
+        <label><input type="checkbox" name="formats" value="PDF" checked> PDF</label>
+      </div>
+      <div>
+        <label>Activa</label>
+        <label><input type="checkbox" name="active" value="1" checked> Si</label>
+      </div>
+      <div style="grid-column: 1 / -1;">
+        <label>Filtros JSON</label>
+        <textarea name="filters_json" rows="3" placeholder='{"cadence_preset":"weekly","type_code":"INHUMACION"}'></textarea>
+      </div>
+      <div style="display:flex;align-items:flex-end;">
+        <button class="btn primary" type="submit">Guardar programacion</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div class="box">
+  <h3>Programaciones</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Nombre</th>
+        <th>Informe</th>
+        <th>Cadencia</th>
+        <th>Dia</th>
+        <th>Hora</th>
+        <th>TZ</th>
+        <th>Formatos</th>
+        <th>Activa</th>
+        <th>Ultima ejecucion</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for schedule in schedules %}
+      <tr>
+        <td>{{ schedule.id }}</td>
+        <td>{{ schedule.name }}</td>
+        <td>{{ schedule.report_key }}</td>
+        <td>{{ schedule.cadence }}</td>
+        <td>{% if schedule.cadence == 'WEEKLY' %}{{ schedule.day_of_week }}{% else %}{{ schedule.day_of_month }}{% endif %}</td>
+        <td>{{ schedule.run_time }}</td>
+        <td>{{ schedule.timezone }}</td>
+        <td>{{ schedule.formats }}</td>
+        <td>{{ 'Si' if schedule.active else 'No' }}</td>
+        <td>{{ schedule.last_run_at or '-' }}</td>
+        <td>
+          <form method="post" action="{{ url_for('cemetery.reporting_schedule_toggle', schedule_id=schedule.id) }}" style="display:inline;">
+            <button class="btn" type="submit">{{ 'Pausar' if schedule.active else 'Activar' }}</button>
+          </form>
+          <form method="post" action="{{ url_for('cemetery.reporting_schedule_run_now', schedule_id=schedule.id) }}" style="display:inline;">
+            <button class="btn" type="submit">Run now</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="11">Sin programaciones</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="box">
+  <h3>Log de entregas</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Schedule</th>
+        <th>Estado</th>
+        <th>Filas</th>
+        <th>Artefactos</th>
+        <th>Error</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in delivery_logs %}
+      <tr>
+        <td>{{ log.run_at }}</td>
+        <td>{{ log.schedule_id }}</td>
+        <td>{{ log.status }}</td>
+        <td>{{ log.rows_count }}</td>
+        <td>{{ log.artifacts_json }}</td>
+        <td>{{ log.error or '-' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6">Sin ejecuciones</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

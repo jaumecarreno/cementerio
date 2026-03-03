@@ -161,6 +161,36 @@ def register_cli(app: Flask) -> None:
                 f"[{organization.code}] year={year} created={result.created} existing={result.existing}"
             )
 
+    @app.cli.group("reporting")
+    def reporting_cli() -> None:
+        """Reporting operations."""
+
+    @reporting_cli.command("run-due")
+    @click.option("--org-code", type=str, default=None, help="Optional organization code.")
+    def reporting_run_due(org_code: str | None) -> None:
+        """Run due report schedules for one or all organizations."""
+        from app.cemetery.services import run_due_reporting_schedules
+
+        query = Organization.query
+        if org_code:
+            query = query.filter_by(code=org_code)
+        organizations = query.order_by(Organization.id.asc()).all()
+        if not organizations:
+            click.echo("No organizations found for reporting runner.")
+            return
+
+        total_executed = 0
+        total_failed = 0
+        for organization in organizations:
+            g.org = organization
+            summary = run_due_reporting_schedules()
+            total_executed += int(summary.get("executed", 0))
+            total_failed += int(summary.get("failed", 0))
+            click.echo(
+                f"[{organization.code}] executed={summary.get('executed', 0)} failed={summary.get('failed', 0)}"
+            )
+        click.echo(f"run-due finished: executed={total_executed} failed={total_failed}")
+
 
 def _template_context() -> dict[str, object]:
     return {

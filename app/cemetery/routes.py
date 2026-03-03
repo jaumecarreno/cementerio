@@ -51,6 +51,8 @@ from app.cemetery.operation_service import (
     verify_operation_permit,
 )
 from app.cemetery.services import (
+    REPORTING_ALL_KEYS,
+    REPORTING_SCREEN_KEYS,
     active_contract_for_sepultura,
     add_case_party,
     add_case_publication,
@@ -99,7 +101,12 @@ from app.cemetery.services import (
     remove_deceased_from_sepultura,
     reject_ownership_case,
     reporting_csv_bytes,
+    reporting_filter_blocks,
+    reporting_filter_type_codes,
+    reporting_filter_users,
+    reporting_pdf_bytes,
     reporting_rows,
+    run_reporting_schedule,
     search_sepulturas_paged,
     set_contract_holder_pensioner,
     sepultura_by_id,
@@ -110,12 +117,16 @@ from app.cemetery.services import (
     update_sepultura_notes,
     update_person,
     upload_case_document,
+    create_reporting_schedule,
+    list_reporting_schedules,
+    toggle_reporting_schedule,
     verify_case_document,
 )
 from app.core.models import (
     OperationStatus,
     OperationType,
     Person,
+    ReportDeliveryLog,
     Sepultura,
     WorkOrderAreaType,
     WorkOrderCategory,
@@ -1026,6 +1037,15 @@ def lapidas_change_inscripcion_state(inscripcion_id: int):
 
 def _report_filters() -> dict[str, str]:
     return {
+        "profile": request.args.get("profile", "").strip(),
+        "date_from": request.args.get("date_from", "").strip(),
+        "date_to": request.args.get("date_to", "").strip(),
+        "cadence_preset": request.args.get("cadence_preset", "").strip(),
+        "assigned_user_id": request.args.get("assigned_user_id", "").strip(),
+        "type_code": request.args.get("type_code", "").strip(),
+        "category": request.args.get("category", "").strip(),
+        "status": request.args.get("status", "").strip(),
+        "sepultura_id": request.args.get("sepultura_id", "").strip(),
         "estado": request.args.get("estado", "").strip(),
         "modalidad": request.args.get("modalidad", "").strip(),
         "bloque": request.args.get("bloque", "").strip(),
@@ -1040,15 +1060,25 @@ def _report_filters() -> dict[str, str]:
 @login_required
 @require_membership
 def reporting():
+    profile = (request.args.get("profile", "").strip().lower() or "mandos")
+    default_report_by_profile = {
+        "mandos": "ot_carga_equipos",
+        "direccion": "deuda_recaudacion",
+        "equipos": "ot_calendario_faenas",
+    }
     report_key = (
-        request.args.get("report", "sepulturas").strip().lower() or "sepulturas"
+        request.args.get("report", "").strip().lower()
+        or default_report_by_profile.get(profile, "ot_carga_equipos")
     )
+    if report_key not in REPORTING_SCREEN_KEYS:
+        report_key = "ot_carga_equipos"
     filters = _report_filters()
+    filters["profile"] = profile
     try:
         rows = reporting_rows(report_key, filters)
     except ValueError as exc:
         flash(str(exc), "error")
-        report_key = "sepulturas"
+        report_key = "ot_carga_equipos"
         rows = reporting_rows(report_key, filters)
     page = request.args.get("page", type=int, default=1) or 1
     page_size = request.args.get("page_size", type=int, default=25) or 25
@@ -1057,6 +1087,17 @@ def reporting():
         "cemetery/reporting.html",
         report_key=report_key,
         filters=filters,
+        profiles=[
+            ("mandos", "Mandos"),
+            ("direccion", "Direccion"),
+            ("equipos", "Equipos"),
+        ],
+        report_users=reporting_filter_users(),
+        report_type_codes=reporting_filter_type_codes(),
+        report_blocks=reporting_filter_blocks(),
+        report_categories=[item.value for item in WorkOrderCategory],
+        report_statuses=[item.value for item in WorkOrderStatus],
+        report_options=sorted(REPORTING_SCREEN_KEYS),
         paged=paged,
         money=money,
     )
@@ -1067,8 +1108,11 @@ def reporting():
 @require_membership
 def reporting_export_csv():
     report_key = (
-        request.args.get("report", "sepulturas").strip().lower() or "sepulturas"
+        request.args.get("report", "ot_carga_equipos").strip().lower()
+        or "ot_carga_equipos"
     )
+    if report_key not in REPORTING_ALL_KEYS:
+        report_key = "ot_carga_equipos"
     filters = _report_filters()
     try:
         content = reporting_csv_bytes(report_key, filters, export_limit=1000)
@@ -1079,6 +1123,97 @@ def reporting_export_csv():
     response.headers["Content-Type"] = "text/csv; charset=utf-8"
     response.headers["Content-Disposition"] = f'attachment; filename="{report_key}.csv"'
     return response
+
+
+@cemetery_bp.get("/reporting/export.pdf")
+@login_required
+@require_membership
+def reporting_export_pdf():
+    report_key = (
+        request.args.get("report", "ot_carga_equipos").strip().lower()
+        or "ot_carga_equipos"
+    )
+    if report_key not in REPORTING_ALL_KEYS:
+        report_key = "ot_carga_equipos"
+    filters = _report_filters()
+    try:
+        content = reporting_pdf_bytes(report_key, filters, export_limit=400)
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("cemetery.reporting"))
+    response = make_response(content)
+    response.headers["Content-Type"] = "application/pdf"
+    response.headers["Content-Disposition"] = f'attachment; filename="{report_key}.pdf"'
+    return response
+
+
+@cemetery_bp.route("/reporting/schedules", methods=["GET", "POST"])
+@login_required
+@require_membership
+@require_role("admin")
+def reporting_schedules():
+    if request.method == "POST":
+        payload = {k: v for k, v in request.form.items()}
+        formats = request.form.getlist("formats")
+        if formats:
+            payload["formats"] = ",".join(formats)
+        try:
+            created = create_reporting_schedule(payload, current_user.id)
+            flash(f"Programacion '{created.name}' creada", "success")
+        except ValueError as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("cemetery.reporting_schedules"))
+
+    schedules = list_reporting_schedules()
+    schedule_ids = [item.id for item in schedules]
+    delivery_logs = []
+    if schedule_ids:
+        delivery_logs = (
+            ReportDeliveryLog.query.filter_by(org_id=g.org.id)
+            .filter(ReportDeliveryLog.schedule_id.in_(schedule_ids))
+            .order_by(ReportDeliveryLog.run_at.desc(), ReportDeliveryLog.id.desc())
+            .limit(100)
+            .all()
+        )
+    return render_template(
+        "cemetery/reporting_schedules.html",
+        schedules=schedules,
+        delivery_logs=delivery_logs,
+        report_options=sorted(REPORTING_ALL_KEYS),
+    )
+
+
+@cemetery_bp.post("/reporting/schedules/<int:schedule_id>/toggle")
+@login_required
+@require_membership
+@require_role("admin")
+def reporting_schedule_toggle(schedule_id: int):
+    try:
+        schedule = toggle_reporting_schedule(schedule_id)
+        state = "activa" if schedule.active else "pausada"
+        flash(f"Programacion {schedule.name}: {state}", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.reporting_schedules"))
+
+
+@cemetery_bp.post("/reporting/schedules/<int:schedule_id>/run-now")
+@login_required
+@require_membership
+@require_role("admin")
+def reporting_schedule_run_now(schedule_id: int):
+    try:
+        log = run_reporting_schedule(schedule_id, current_user.id)
+        if log.status == "ERROR":
+            flash(f"Ejecucion con error: {log.error}", "error")
+        else:
+            flash(
+                f"Ejecucion completada. Filas={log.rows_count} estado={log.status}",
+                "success",
+            )
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.reporting_schedules"))
 
 
 @cemetery_bp.route("/sepulturas/buscar", methods=["GET", "POST"])
