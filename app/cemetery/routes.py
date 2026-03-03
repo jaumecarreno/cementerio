@@ -37,6 +37,18 @@ from app.cemetery.work_order_service import (
     update_work_order_checklist_item,
     work_order_pdf_bytes,
 )
+from app.cemetery.operation_service import (
+    change_operation_status,
+    close_operation_case,
+    create_operation_case,
+    create_operation_work_order,
+    list_operation_cases,
+    operation_acta_pdf,
+    operation_case_by_id,
+    upload_operation_document,
+    verify_operation_document,
+    verify_operation_permit,
+)
 from app.cemetery.services import (
     active_contract_for_sepultura,
     add_case_party,
@@ -100,6 +112,8 @@ from app.cemetery.services import (
     verify_case_document,
 )
 from app.core.models import (
+    OperationStatus,
+    OperationType,
     WorkOrderAreaType,
     WorkOrderCategory,
     WorkOrderPriority,
@@ -253,6 +267,153 @@ def person_picker_create():
             person=None,
             error=str(exc),
         )
+
+
+@cemetery_bp.route("/operaciones", methods=["GET", "POST"])
+@login_required
+@require_membership
+def operations():
+    if request.method == "POST":
+        payload = {k: v for k, v in request.form.items()}
+        try:
+            created = create_operation_case(payload, current_user.id)
+            flash(f"Operacion {created.code} creada", "success")
+            return redirect(url_for("cemetery.operation_detail", case_id=created.id))
+        except ValueError as exc:
+            flash(str(exc), "error")
+
+    filters = {
+        "code": request.args.get("code", "").strip(),
+        "type": request.args.get("type", "").strip(),
+        "status": request.args.get("status", "").strip(),
+        "source_sepultura_id": request.args.get("source_sepultura_id", "").strip(),
+        "deceased_person_id": request.args.get("deceased_person_id", "").strip(),
+        "created_from": request.args.get("created_from", "").strip(),
+        "created_to": request.args.get("created_to", "").strip(),
+    }
+    rows = list_operation_cases(filters)
+    return render_template(
+        "cemetery/operations.html",
+        rows=rows,
+        filters=filters,
+        OperationType=OperationType,
+        OperationStatus=OperationStatus,
+        prefill_source_sepultura_id=request.args.get("prefill_source_sepultura_id", "").strip(),
+    )
+
+
+@cemetery_bp.get("/operaciones/<int:case_id>")
+@login_required
+@require_membership
+def operation_detail(case_id: int):
+    try:
+        case = operation_case_by_id(case_id)
+    except ValueError:
+        abort(404)
+    return render_template(
+        "cemetery/operation_detail.html",
+        case=case,
+        OperationType=OperationType,
+        OperationStatus=OperationStatus,
+        WorkOrderStatus=WorkOrderStatus,
+    )
+
+
+@cemetery_bp.post("/operaciones/<int:case_id>/estado")
+@login_required
+@require_membership
+def operation_change_state(case_id: int):
+    try:
+        change_operation_status(
+            case_id=case_id,
+            new_status_raw=request.form.get("status", ""),
+            reason=request.form.get("reason", ""),
+            user_id=current_user.id,
+        )
+        flash("Estado de operacion actualizado", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.operation_detail", case_id=case_id))
+
+
+@cemetery_bp.post("/operaciones/<int:case_id>/permisos/<int:permit_id>/verify")
+@login_required
+@require_membership
+def operation_permit_verify(case_id: int, permit_id: int):
+    payload = {k: v for k, v in request.form.items()}
+    try:
+        verify_operation_permit(case_id, permit_id, payload, current_user.id)
+        flash("Permiso actualizado", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.operation_detail", case_id=case_id))
+
+
+@cemetery_bp.post("/operaciones/<int:case_id>/documentos/upload")
+@login_required
+@require_membership
+def operation_document_upload(case_id: int):
+    payload = {k: v for k, v in request.form.items()}
+    file_obj = request.files.get("file")
+    try:
+        upload_operation_document(case_id, payload, file_obj, current_user.id)
+        flash("Documento subido", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.operation_detail", case_id=case_id))
+
+
+@cemetery_bp.post("/operaciones/<int:case_id>/documentos/<int:doc_id>/verify")
+@login_required
+@require_membership
+def operation_document_verify(case_id: int, doc_id: int):
+    payload = {k: v for k, v in request.form.items()}
+    try:
+        verify_operation_document(case_id, doc_id, payload, current_user.id)
+        flash("Documento actualizado", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.operation_detail", case_id=case_id))
+
+
+@cemetery_bp.post("/operaciones/<int:case_id>/ot")
+@login_required
+@require_membership
+def operation_create_ot(case_id: int):
+    payload = {k: v for k, v in request.form.items()}
+    try:
+        row = create_operation_work_order(case_id, payload, current_user.id)
+        flash(f"OT {row.code} creada para la operacion", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.operation_detail", case_id=case_id))
+
+
+@cemetery_bp.post("/operaciones/<int:case_id>/cerrar")
+@login_required
+@require_membership
+def operation_close(case_id: int):
+    payload = {k: v for k, v in request.form.items()}
+    try:
+        close_operation_case(case_id, payload, current_user.id)
+        flash("Operacion cerrada", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.operation_detail", case_id=case_id))
+
+
+@cemetery_bp.get("/operaciones/<int:case_id>/acta.pdf")
+@login_required
+@require_membership
+def operation_acta(case_id: int):
+    try:
+        content, filename = operation_acta_pdf(case_id, current_user.id)
+    except ValueError:
+        abort(404)
+    response = make_response(content)
+    response.headers["Content-Type"] = "application/pdf"
+    response.headers["Content-Disposition"] = f'inline; filename="{filename}"'
+    return response
 
 
 @cemetery_bp.route("/expedientes", methods=["GET", "POST"])

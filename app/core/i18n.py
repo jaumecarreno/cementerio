@@ -19,6 +19,7 @@ I18N: dict[str, dict[str, str]] = {
     "menu.logout": {"es": "Cerrar sesi\u00f3n", "ca": "Tancar sessi\u00f3"},
     "cem.panel": {"es": "Panel", "ca": "Panell"},
     "cem.graves": {"es": "Sepulturas", "ca": "Sepultures"},
+    "cem.operations": {"es": "Operaciones", "ca": "Operacions"},
     "cem.fees": {"es": "Tasas", "ca": "Taxes"},
     "cem.cases": {"es": "Expedientes", "ca": "Expedients"},
     "cem.work_orders": {"es": "Órdenes de trabajo", "ca": "Ordres de treball"},

@@ -2673,7 +2673,12 @@ def _ensure_demo_cemetery(oid: int) -> Cemetery:
     cemetery = Cemetery.query.filter_by(org_id=oid).order_by(Cemetery.id.asc()).first()
     if cemetery:
         return cemetery
-    cemetery = Cemetery(org_id=oid, name="Cementeri Demo", location="Terrassa")
+    cemetery = Cemetery(
+        org_id=oid,
+        name="Cementeri Demo",
+        location="Terrassa",
+        municipality="Terrassa",
+    )
     db.session.add(cemetery)
     db.session.flush()
     return cemetery

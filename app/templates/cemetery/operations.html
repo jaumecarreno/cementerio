@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% set active_cem = 'operaciones' %}
+{% set breadcrumbs = [
+  {'label': t('menu.cemetery'), 'href': url_for('cemetery.panel')},
+  {'label': 'Operaciones', 'href': None}
+] %}
+{% block title %}Operaciones{% endblock %}
+{% block content %}
+<h1 class="page-title">Operaciones</h1>
+
+<div class="box">
+  <h3>Nueva operacion</h3>
+  <form method="post" action="{{ url_for('cemetery.operations') }}">
+    <div class="form-grid">
+      <div>
+        <label>Tipo</label>
+        <select name="type" id="operation-type" required>
+          <option value="INHUMACION">INHUMACION</option>
+          <option value="EXHUMACION">EXHUMACION</option>
+          <option value="TRASLADO_CORTO">TRASLADO_CORTO</option>
+          <option value="TRASLADO_LARGO">TRASLADO_LARGO</option>
+          <option value="RESCATE">Retirada de restos (RESCATE)</option>
+        </select>
+      </div>
+      <div>
+        <label>Sepultura origen (ID)</label>
+        <input type="number" name="source_sepultura_id" min="1" value="{{ prefill_source_sepultura_id }}" required>
+      </div>
+      <div>
+        <label>Sepultura destino (ID)</label>
+        <input type="number" name="target_sepultura_id" min="1">
+      </div>
+      <div>
+        <label>Difunto (persona ID)</label>
+        <input type="number" name="deceased_person_id" min="1">
+      </div>
+      <div>
+        <label>Declarante (persona ID)</label>
+        <input type="number" name="declarant_person_id" min="1">
+      </div>
+      <div>
+        <label>Programada para</label>
+        <input type="datetime-local" name="scheduled_at">
+      </div>
+      <div>
+        <label>Cementerio destino interno (ID)</label>
+        <input type="number" name="destination_cemetery_id" min="1">
+      </div>
+      <div>
+        <label>Destino (nombre)</label>
+        <input type="text" name="destination_name" placeholder="Cementerio / centro destino">
+      </div>
+      <div>
+        <label>Destino municipio</label>
+        <input type="text" name="destination_municipality" placeholder="Municipio destino">
+      </div>
+      <div>
+        <label>Destino region</label>
+        <input type="text" name="destination_region">
+      </div>
+      <div>
+        <label>Destino pais</label>
+        <input type="text" name="destination_country">
+      </div>
+      <div>
+        <label><input type="checkbox" name="cross_border" value="1"> Traslado transfronterizo</label>
+      </div>
+      <div style="grid-column: 1 / -1;">
+        <label>Notas</label>
+        <input type="text" name="notes">
+      </div>
+    </div>
+    <div class="actions-row">
+      <button class="btn primary" type="submit">Crear operacion</button>
+    </div>
+  </form>
+</div>
+
+<div class="box">
+  <h3>Filtros</h3>
+  <form method="get" action="{{ url_for('cemetery.operations') }}">
+    <div class="form-grid">
+      <div>
+        <label>Codigo</label>
+        <input type="text" name="code" value="{{ filters.code }}">
+      </div>
+      <div>
+        <label>Tipo</label>
+        <select name="type">
+          <option value="">Todos</option>
+          {% for item in OperationType %}
+          <option value="{{ item.value }}" {% if filters.type == item.value %}selected{% endif %}>{{ item.value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Estado</label>
+        <select name="status">
+          <option value="">Todos</option>
+          {% for item in OperationStatus %}
+          <option value="{{ item.value }}" {% if filters.status == item.value %}selected{% endif %}>{{ item.value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Sepultura origen ID</label>
+        <input type="text" name="source_sepultura_id" value="{{ filters.source_sepultura_id }}">
+      </div>
+      <div>
+        <label>Difunto ID</label>
+        <input type="text" name="deceased_person_id" value="{{ filters.deceased_person_id }}">
+      </div>
+      <div>
+        <label>Desde</label>
+        <input type="date" name="created_from" value="{{ filters.created_from }}">
+      </div>
+      <div>
+        <label>Hasta</label>
+        <input type="date" name="created_to" value="{{ filters.created_to }}">
+      </div>
+    </div>
+    <div class="actions-row">
+      <button class="btn" type="submit">Aplicar</button>
+      <a class="btn" href="{{ url_for('cemetery.operations') }}">Limpiar</a>
+    </div>
+  </form>
+</div>
+
+<div class="box">
+  <h3>Listado</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Codigo</th>
+        <th>Tipo</th>
+        <th>Estado</th>
+        <th>Origen</th>
+        <th>Destino</th>
+        <th>Difunto</th>
+        <th>Fecha alta</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.code }}</td>
+        <td>{{ row.type.value }}</td>
+        <td>{{ row.status.value }}</td>
+        <td>{{ row.source_sepultura.location_label if row.source_sepultura else '-' }}</td>
+        <td>{{ row.target_sepultura.location_label if row.target_sepultura else (row.destination_name or row.destination_municipality or '-') }}</td>
+        <td>{{ row.deceased_person.full_name if row.deceased_person else '-' }}</td>
+        <td>{{ row.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td>
+          <a class="btn" href="{{ url_for('cemetery.operation_detail', case_id=row.id) }}">Abrir</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8">Sin operaciones</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

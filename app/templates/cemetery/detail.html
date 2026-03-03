@@ -30,6 +30,7 @@
       <button type="submit">Cambiar estado</button>
     </form>
     <a class="btn" href="{{ url_for('cemetery.fee_collection', sepultura_id=data.sepultura.id) }}">Cobrar tasas</a>
+    <a class="btn" href="{{ url_for('cemetery.operations', prefill_source_sepultura_id=data.sepultura.id) }}">Nueva operacion</a>
     {% if not data.contrato %}
     <a class="btn" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='derecho') }}">Crear derecho funerario</a>
     {% endif %}

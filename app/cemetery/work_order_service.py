@@ -15,6 +15,7 @@ from app.core.extensions import db
 from app.core.models import (
     ActivityLog,
     Membership,
+    OperationCase,
     Sepultura,
     User,
     WorkOrder,
@@ -83,6 +84,11 @@ OT_EVENT_TYPES = (
     "OWNERSHIP_CASE_APPROVED",
     "LAPIDA_ORDER_CREATED",
     "LOW_STOCK_DETECTED",
+    "OPERATION_CASE_CREATED_INHUMACION",
+    "OPERATION_CASE_CREATED_EXHUMACION",
+    "OPERATION_CASE_CREATED_TRASLADO_CORTO",
+    "OPERATION_CASE_CREATED_TRASLADO_LARGO",
+    "OPERATION_CASE_CREATED_RESCATE",
 )
 
 
@@ -405,6 +411,12 @@ def create_work_order(payload: dict[str, str], user_id: int | None, auto_commit:
     category = _parse_category(payload.get("category")) or (type_row.category if type_row else WorkOrderCategory.MANTENIMIENTO)
     priority = _parse_priority(payload.get("priority")) or (template.default_priority if template else WorkOrderPriority.MEDIA)
     status = _parse_status(payload.get("status")) or WorkOrderStatus.BORRADOR
+    operation_case_id = _parse_optional_int(payload.get("operation_case_id"))
+    operation_case = None
+    if operation_case_id is not None:
+        operation_case = OperationCase.query.filter_by(org_id=_org_id(), id=operation_case_id).first()
+        if not operation_case:
+            raise ValueError("Operacion asociada no encontrada")
     sepultura_id = _parse_optional_int(payload.get("sepultura_id"))
     area_type = _parse_area_type(payload.get("area_type"))
     area_code = (payload.get("area_code") or "").strip()
@@ -427,6 +439,7 @@ def create_work_order(payload: dict[str, str], user_id: int | None, auto_commit:
         type_code=type_row.code if type_row else (type_code_raw or None),
         priority=priority,
         status=status,
+        operation_case_id=operation_case.id if operation_case else None,
         sepultura_id=sepultura_id,
         area_type=area_type,
         area_code=area_code or None,

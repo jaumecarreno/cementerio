@@ -47,6 +47,9 @@ class TicketDescuentoTipo(str, Enum):
 class MovimientoTipo(str, Enum):
     INHUMACION = "INHUMACION"
     EXHUMACION = "EXHUMACION"
+    TRASLADO_CORTO = "TRASLADO_CORTO"
+    TRASLADO_LARGO = "TRASLADO_LARGO"
+    RESCATE = "RESCATE"
     TASAS = "TASAS"
     LAPIDA = "LAPIDA"
     CAMBIO_ESTADO = "CAMBIO_ESTADO"
@@ -88,6 +91,31 @@ class WorkOrderStatus(str, Enum):
     EN_VALIDACION = "EN_VALIDACION"
     COMPLETADA = "COMPLETADA"
     CANCELADA = "CANCELADA"
+
+
+class OperationType(str, Enum):
+    INHUMACION = "INHUMACION"
+    EXHUMACION = "EXHUMACION"
+    TRASLADO_CORTO = "TRASLADO_CORTO"
+    TRASLADO_LARGO = "TRASLADO_LARGO"
+    RESCATE = "RESCATE"
+
+
+class OperationStatus(str, Enum):
+    BORRADOR = "BORRADOR"
+    DOCS_PENDIENTES = "DOCS_PENDIENTES"
+    PROGRAMADA = "PROGRAMADA"
+    EN_EJECUCION = "EN_EJECUCION"
+    EN_VALIDACION = "EN_VALIDACION"
+    CERRADA = "CERRADA"
+    CANCELADA = "CANCELADA"
+
+
+class OperationPermitStatus(str, Enum):
+    MISSING = "MISSING"
+    PROVIDED = "PROVIDED"
+    VERIFIED = "VERIFIED"
+    REJECTED = "REJECTED"
 
 
 class WorkOrderAreaType(str, Enum):
@@ -248,6 +276,7 @@ class Cemetery(db.Model):
     org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(db.String(120), nullable=False)
     location: Mapped[str] = mapped_column(db.String(255), nullable=False, default="")
+    municipality: Mapped[str] = mapped_column(db.String(120), nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
 
 
@@ -682,6 +711,124 @@ class ActivityLog(db.Model):
     user = relationship("User")
 
 
+class OperationCase(db.Model):
+    __tablename__ = "operation_case"
+    __table_args__ = (
+        UniqueConstraint("org_id", "code", name="uq_operation_case_org_code"),
+        Index("ix_operation_case_org_status_scheduled", "org_id", "status", "scheduled_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
+    code: Mapped[str] = mapped_column(db.String(40), nullable=False)
+    type: Mapped[OperationType] = mapped_column(
+        SAEnum(OperationType, name="operation_type"),
+        nullable=False,
+    )
+    status: Mapped[OperationStatus] = mapped_column(
+        SAEnum(OperationStatus, name="operation_status"),
+        nullable=False,
+        default=OperationStatus.BORRADOR,
+    )
+    source_sepultura_id: Mapped[int] = mapped_column(ForeignKey("sepultura.id"), nullable=False, index=True)
+    target_sepultura_id: Mapped[int | None] = mapped_column(ForeignKey("sepultura.id"), nullable=True, index=True)
+    deceased_person_id: Mapped[int | None] = mapped_column(ForeignKey("person.id"), nullable=True, index=True)
+    declarant_person_id: Mapped[int | None] = mapped_column(ForeignKey("person.id"), nullable=True, index=True)
+    scheduled_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    executed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    destination_cemetery_id: Mapped[int | None] = mapped_column(ForeignKey("cemetery.id"), nullable=True, index=True)
+    destination_name: Mapped[str] = mapped_column(db.String(255), nullable=False, default="")
+    destination_municipality: Mapped[str] = mapped_column(db.String(120), nullable=False, default="")
+    destination_region: Mapped[str] = mapped_column(db.String(120), nullable=False, default="")
+    destination_country: Mapped[str] = mapped_column(db.String(120), nullable=False, default="")
+    cross_border: Mapped[bool] = mapped_column(nullable=False, default=False)
+    notes: Mapped[str] = mapped_column(db.Text(), nullable=False, default="")
+    created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"), nullable=True)
+    managed_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False, index=True)
+
+    source_sepultura = relationship("Sepultura", foreign_keys=[source_sepultura_id])
+    target_sepultura = relationship("Sepultura", foreign_keys=[target_sepultura_id])
+    deceased_person = relationship("Person", foreign_keys=[deceased_person_id])
+    declarant_person = relationship("Person", foreign_keys=[declarant_person_id])
+    destination_cemetery = relationship("Cemetery", foreign_keys=[destination_cemetery_id])
+    created_by = relationship("User", foreign_keys=[created_by_user_id])
+    managed_by = relationship("User", foreign_keys=[managed_by_user_id])
+    permits = relationship("OperationPermit", back_populates="operation_case", cascade="all, delete-orphan")
+    documents = relationship("OperationDocument", back_populates="operation_case", cascade="all, delete-orphan")
+    status_logs = relationship("OperationStatusLog", back_populates="operation_case", cascade="all, delete-orphan")
+    work_orders = relationship("WorkOrder", back_populates="operation_case")
+
+
+class OperationPermit(db.Model):
+    __tablename__ = "operation_permit"
+    __table_args__ = (
+        Index("ix_operation_permit_case_type", "operation_case_id", "permit_type"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    operation_case_id: Mapped[int] = mapped_column(ForeignKey("operation_case.id"), nullable=False, index=True)
+    permit_type: Mapped[str] = mapped_column(db.String(80), nullable=False)
+    required: Mapped[bool] = mapped_column(nullable=False, default=True)
+    status: Mapped[OperationPermitStatus] = mapped_column(
+        SAEnum(OperationPermitStatus, name="operation_permit_status"),
+        nullable=False,
+        default=OperationPermitStatus.MISSING,
+    )
+    reference_number: Mapped[str] = mapped_column(db.String(80), nullable=False, default="")
+    issued_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    verified_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    verified_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"), nullable=True)
+    notes: Mapped[str] = mapped_column(db.String(500), nullable=False, default="")
+
+    operation_case = relationship("OperationCase", back_populates="permits")
+    verified_by = relationship("User")
+
+
+class OperationDocument(db.Model):
+    __tablename__ = "operation_document"
+    __table_args__ = (
+        Index("ix_operation_document_case_type", "operation_case_id", "doc_type"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    operation_case_id: Mapped[int] = mapped_column(ForeignKey("operation_case.id"), nullable=False, index=True)
+    doc_type: Mapped[str] = mapped_column(db.String(80), nullable=False)
+    file_path: Mapped[str | None] = mapped_column(db.String(255), nullable=True)
+    required: Mapped[bool] = mapped_column(nullable=False, default=False)
+    status: Mapped[OperationPermitStatus] = mapped_column(
+        SAEnum(OperationPermitStatus, name="operation_permit_status"),
+        nullable=False,
+        default=OperationPermitStatus.MISSING,
+    )
+    uploaded_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    verified_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    verified_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"), nullable=True)
+    notes: Mapped[str] = mapped_column(db.String(500), nullable=False, default="")
+
+    operation_case = relationship("OperationCase", back_populates="documents")
+    verified_by = relationship("User")
+
+
+class OperationStatusLog(db.Model):
+    __tablename__ = "operation_status_log"
+    __table_args__ = (
+        Index("ix_operation_status_log_case_changed", "operation_case_id", "changed_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    operation_case_id: Mapped[int] = mapped_column(ForeignKey("operation_case.id"), nullable=False, index=True)
+    from_status: Mapped[str] = mapped_column(db.String(40), nullable=False, default="")
+    to_status: Mapped[str] = mapped_column(db.String(40), nullable=False)
+    changed_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False, index=True)
+    changed_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"), nullable=True)
+    reason: Mapped[str] = mapped_column(db.String(500), nullable=False, default="")
+
+    operation_case = relationship("OperationCase", back_populates="status_logs")
+    changed_by = relationship("User")
+
+
 class WorkOrderType(db.Model):
     __tablename__ = "work_order_type"
     __table_args__ = (
@@ -733,6 +880,7 @@ class WorkOrder(db.Model):
         nullable=False,
         default=WorkOrderStatus.BORRADOR,
     )
+    operation_case_id: Mapped[int | None] = mapped_column(ForeignKey("operation_case.id"), nullable=True, index=True)
     sepultura_id: Mapped[int | None] = mapped_column(ForeignKey("sepultura.id"), nullable=True, index=True)
     area_type: Mapped[WorkOrderAreaType | None] = mapped_column(
         SAEnum(WorkOrderAreaType, name="work_order_area_type"),
@@ -756,6 +904,7 @@ class WorkOrder(db.Model):
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow, nullable=False)
 
     sepultura = relationship("Sepultura")
+    operation_case = relationship("OperationCase", back_populates="work_orders")
     assigned_user = relationship("User", foreign_keys=[assigned_user_id])
     created_by = relationship("User", foreign_keys=[created_by_user_id])
     updated_by = relationship("User", foreign_keys=[updated_by_user_id])
@@ -1214,7 +1363,12 @@ def seed_demo_data(session) -> None:
         ]
     )
 
-    cemetery = Cemetery(org_id=org.id, name="Cementiri Municipal", location="Terrassa")
+    cemetery = Cemetery(
+        org_id=org.id,
+        name="Cementiri Municipal",
+        location="Terrassa",
+        municipality="Terrassa",
+    )
     session.add(cemetery)
     session.flush()
 
