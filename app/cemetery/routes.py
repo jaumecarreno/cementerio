@@ -181,12 +181,16 @@ def _render_operation_cases_page():
 
     filters = _operation_case_filters()
     rows = list_operation_cases(filters)
+    create_type = (request.args.get("create_type") or "").strip().upper()
+    if create_type not in {item.value for item in OperationType}:
+        create_type = "INHUMACION"
     return render_template(
         "cemetery/expedientes.html",
         rows=rows,
         filters=filters,
         OperationType=OperationType,
         OperationStatus=OperationStatus,
+        create_type=create_type,
         prefill_source_sepultura_id=request.args.get("prefill_source_sepultura_id", "").strip(),
         prefill_target_sepultura_id=request.args.get("prefill_target_sepultura_id", "").strip(),
         prefill_deceased_person_id=request.args.get("prefill_deceased_person_id", "").strip(),

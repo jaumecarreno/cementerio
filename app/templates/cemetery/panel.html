@@ -7,27 +7,41 @@
 <h1 class="page-title">{{ t('menu.cemetery') }}</h1>
 <div class="box">
   <h3>{{ t('panel.recent_activity') }}</h3>
-  {% if data.recent_activity_by_titular %}
+  {% if data.recent_activity_by_sepultura %}
   <div class="activity-groups">
-    {% for group in data.recent_activity_by_titular %}
+    {% for group in data.recent_activity_by_sepultura %}
     <div class="activity-group">
-      <h4>{{ group.titular }}</h4>
+      <h4>
+        {% if group.open_path %}
+        <a href="{{ group.open_path }}">{{ group.sepultura }}</a>
+        {% else %}
+        {{ group.sepultura }}
+        {% endif %}
+      </h4>
       <table>
         <thead>
           <tr>
             <th>{{ t('dashboard.date') }}</th>
+            <th>Usuari</th>
             <th>{{ t('dashboard.change') }}</th>
-            <th>{{ t('cem.graves') }}</th>
             <th>{{ t('dashboard.detail') }}</th>
+            <th>{{ t('common.actions') }}</th>
           </tr>
         </thead>
         <tbody>
-          {% for item in group.movements %}
+          {% for item in group['items'] %}
           <tr>
             <td>{{ item.fecha.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>{{ item.usuario }}</td>
             <td>{{ item.tipo }}</td>
-            <td>{{ item.sepultura }}</td>
             <td>{{ item.detalle }}</td>
+            <td>
+              {% if item.open_path %}
+              <a class="btn" href="{{ item.open_path }}">{{ t('common.open') }}</a>
+              {% else %}
+              -
+              {% endif %}
+            </td>
           </tr>
           {% endfor %}
         </tbody>

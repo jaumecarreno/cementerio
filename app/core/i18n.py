@@ -95,6 +95,7 @@ I18N: dict[str, dict[str, str]] = {
     "action.mass_create": {"es": "Alta masiva", "ca": "Alta massiva"},
     "dashboard.recent_activity": {"es": "Actividad reciente", "ca": "Activitat recent"},
     "dashboard.no_recent_activity": {"es": "Sin actividad reciente", "ca": "Sense activitat recent"},
+    "dashboard.no_grave": {"es": "Sin sepultura", "ca": "Sense sepultura"},
     "dashboard.change": {"es": "Cambio", "ca": "Canvi"},
     "dashboard.date": {"es": "Fecha", "ca": "Data"},
     "dashboard.detail": {"es": "Detalle", "ca": "Detall"},

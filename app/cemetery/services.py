@@ -130,6 +130,7 @@ INSCRIPCION_TRANSITIONS: dict[str, str] = {
     "PENDIENTE_NOTIFICAR": "NOTIFICADA",
 }
 MAX_ACTIVITY_ITEMS_PER_HOLDER = 5
+MAX_ACTIVITY_ITEMS_PER_GRAVE = 8
 
 
 def org_id() -> int:
@@ -244,6 +245,7 @@ def panel_data() -> dict[str, object]:
     recent_activity = _recent_activity_from_logs(recent_activity_logs)
     if not recent_activity:
         recent_activity = _recent_activity_companywide(recent_movements)
+    recent_activity_by_sepultura = _recent_activity_by_sepultura(recent_activity)
 
     lliures = Sepultura.query.filter_by(
         org_id=oid, estado=SepulturaEstado.LLIURE
@@ -280,6 +282,7 @@ def panel_data() -> dict[str, object]:
         },
         "recent_expedientes": [],
         "recent_work_orders": recent_work_orders,
+        "recent_activity_by_sepultura": recent_activity_by_sepultura,
         "recent_activity_by_titular": _recent_activity_by_titular(oid, recent_movements),
         "recent_activity": recent_activity,
         "alerts": alerts,
@@ -296,6 +299,7 @@ def _recent_activity_from_logs(logs: list[ActivityLog]) -> list[dict[str, object
                 "fecha": item.created_at,
                 "usuario": item.user.full_name if item.user else "Sistema",
                 "tipo": item.action_type,
+                "sepultura_id": item.sepultura_id,
                 "sepultura": sepultura_label,
                 "detalle": item.details,
                 "open_path": open_path,
@@ -324,12 +328,52 @@ def _recent_activity_companywide(
                 "fecha": movement.fecha,
                 "usuario": movement.user.full_name if movement.user else "Sistema",
                 "tipo": movement_type,
+                "sepultura_id": movement.sepultura_id,
                 "sepultura": sepultura_label,
                 "detalle": movement.detalle,
                 "open_path": _activity_open_path(movement_type, movement.sepultura_id),
             }
         )
     return rows
+
+
+def _recent_activity_by_sepultura(
+    rows: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    if not rows:
+        return []
+
+    grouped: dict[tuple[str, int], dict[str, object]] = {}
+    order: list[tuple[str, int]] = []
+
+    for item in rows:
+        sepultura_id = item.get("sepultura_id")
+        if isinstance(sepultura_id, int) and sepultura_id > 0:
+            key = ("sepultura", sepultura_id)
+            label = (item.get("sepultura") or "").strip() or translate(
+                "dashboard.grave_ref"
+            ).format(id=sepultura_id)
+            group_open_path = f"/cementerio/sepulturas/{sepultura_id}"
+        else:
+            key = ("sin_sepultura", 0)
+            label = translate("dashboard.no_grave")
+            group_open_path = None
+
+        if key not in grouped:
+            grouped[key] = {
+                "sepultura": label,
+                "sepultura_id": sepultura_id if isinstance(sepultura_id, int) else None,
+                "open_path": group_open_path,
+                "items": [],
+            }
+            order.append(key)
+
+        items = grouped[key]["items"]
+        if len(items) >= MAX_ACTIVITY_ITEMS_PER_GRAVE:
+            continue
+        items.append(item)
+
+    return [grouped[key] for key in order]
 
 
 def _activity_open_path(action_type: str | None, sepultura_id: int | None) -> str | None:

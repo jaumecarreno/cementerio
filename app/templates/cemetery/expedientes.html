@@ -16,11 +16,11 @@
       <div>
         <label>Tipo</label>
         <select name="type" id="operation-type" required>
-          <option value="INHUMACION">INHUMACION</option>
-          <option value="EXHUMACION">EXHUMACION</option>
-          <option value="TRASLADO_CORTO">TRASLADO_CORTO</option>
-          <option value="TRASLADO_LARGO">TRASLADO_LARGO</option>
-          <option value="RESCATE">Retirada de restos (RESCATE)</option>
+          <option value="INHUMACION" {% if create_type == 'INHUMACION' %}selected{% endif %}>INHUMACION</option>
+          <option value="EXHUMACION" {% if create_type == 'EXHUMACION' %}selected{% endif %}>EXHUMACION</option>
+          <option value="TRASLADO_CORTO" {% if create_type == 'TRASLADO_CORTO' %}selected{% endif %}>TRASLADO_CORTO</option>
+          <option value="TRASLADO_LARGO" {% if create_type == 'TRASLADO_LARGO' %}selected{% endif %}>TRASLADO_LARGO</option>
+          <option value="RESCATE" {% if create_type == 'RESCATE' %}selected{% endif %}>Retirada de restos (RESCATE)</option>
         </select>
       </div>
       <div>
