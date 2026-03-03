@@ -99,8 +99,14 @@
         fieldId: fieldId,
         value: value,
         labelFieldId: labelFieldId,
-        labelText: labelText
+        labelText: labelText,
+        ts: Date.now()
       };
+      try {
+        localStorage.setItem("cem_picker_selection", JSON.stringify(payload));
+      } catch (err) {
+      }
+
       var delivered = false;
       if (window.opener && !window.opener.closed) {
         try {
@@ -112,6 +118,9 @@
         try {
           window.opener.postMessage(payload, window.location.origin);
         } catch (err) {
+        }
+        if (!delivered) {
+          delivered = true;
         }
       }
       if (delivered) {

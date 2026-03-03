@@ -178,9 +178,7 @@
         },
       };
 
-      window.addEventListener("message", function (event) {
-        if (event.origin !== window.location.origin) return;
-        const data = event.data || {};
+      function applyPickerSelection(data) {
         if (!data || data.type !== "cem-picker-select") return;
         window.CemPopupPicker.setField(
           data.fieldId || "",
@@ -188,6 +186,22 @@
           data.labelFieldId || "",
           data.labelText || ""
         );
+      }
+
+      window.addEventListener("message", function (event) {
+        if (event.origin !== window.location.origin) return;
+        const data = event.data || {};
+        applyPickerSelection(data);
+      });
+
+      window.addEventListener("storage", function (event) {
+        if (event.key !== "cem_picker_selection") return;
+        if (!event.newValue) return;
+        try {
+          const data = JSON.parse(event.newValue);
+          applyPickerSelection(data);
+        } catch (err) {
+        }
       });
 
       document.addEventListener("submit", function (event) {
