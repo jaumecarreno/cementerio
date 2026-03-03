@@ -63,7 +63,9 @@
               <button
                 class="btn"
                 type="button"
-                onclick="return choosePersona({{ target_field|tojson }}, {{ row.id|tojson }}, {{ label_field|tojson }}, {{ row.full_name|tojson }});"
+                data-value="{{ row.id }}"
+                data-label="{{ row.full_name|e }}"
+                onclick="return choosePersonaFromButton(this);"
               >Seleccionar</button>
             </td>
           </tr>
@@ -75,6 +77,16 @@
     </div>
   </main>
   <script>
+    const PICKER_FIELD_ID = {{ target_field|tojson }};
+    const PICKER_LABEL_FIELD_ID = {{ label_field|tojson }};
+
+    function choosePersonaFromButton(button) {
+      if (!button) return false;
+      const value = button.getAttribute("data-value") || "";
+      const label = button.getAttribute("data-label") || "";
+      return choosePersona(PICKER_FIELD_ID, value, PICKER_LABEL_FIELD_ID, label);
+    }
+
     function fallbackRedirect(fieldId, value, preferOpener) {
       if (fieldId !== "deceased_person_id") {
         return false;
@@ -117,10 +129,8 @@
         }
         try {
           window.opener.postMessage(payload, window.location.origin);
-        } catch (err) {
-        }
-        if (!delivered) {
           delivered = true;
+        } catch (err) {
         }
       }
       if (delivered) {
