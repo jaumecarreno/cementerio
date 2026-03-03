@@ -10,12 +10,36 @@
   <main class="picker-popup-main">
     <h1 class="page-title">Seleccionar persona</h1>
     <div class="box">
-      <form class="inline-form" method="get" action="{{ url_for('cemetery.expediente_person_picker') }}">
+      <form method="get" action="{{ url_for('cemetery.expediente_person_picker') }}">
         <input type="hidden" name="target_field" value="{{ target_field }}">
         <input type="hidden" name="label_field" value="{{ label_field }}">
-        <input type="text" name="q" value="{{ q }}" placeholder="Buscar por ID, nombre o DNI/NIF">
-        <button class="btn" type="submit">Buscar</button>
-        <button class="btn" type="button" onclick="window.close()">Cerrar</button>
+        <div class="form-grid">
+          <div>
+            <label>Busqueda libre</label>
+            <input type="text" name="q" value="{{ filters.q }}" placeholder="ID, nombre, apellidos o DNI/NIF">
+          </div>
+          <div>
+            <label>ID persona</label>
+            <input type="text" name="person_id" value="{{ filters.person_id }}">
+          </div>
+          <div>
+            <label>Nombre</label>
+            <input type="text" name="first_name" value="{{ filters.first_name }}">
+          </div>
+          <div>
+            <label>Apellidos</label>
+            <input type="text" name="last_name" value="{{ filters.last_name }}">
+          </div>
+          <div>
+            <label>DNI/NIF</label>
+            <input type="text" name="dni_nif" value="{{ filters.dni_nif }}">
+          </div>
+        </div>
+        <div class="actions-row">
+          <button class="btn" type="submit">Buscar</button>
+          <a class="btn" href="{{ url_for('cemetery.expediente_person_picker', target_field=target_field, label_field=label_field) }}">Limpiar</a>
+          <button class="btn" type="button" onclick="window.close()">Cerrar</button>
+        </div>
       </form>
     </div>
 
@@ -51,25 +75,44 @@
     </div>
   </main>
   <script>
-    function choosePersona(fieldId, value, labelFieldId, labelText) {
-      if (!window.opener || window.opener.closed) {
+    function fallbackRedirect(fieldId, value) {
+      if (fieldId !== "deceased_person_id") {
         return false;
       }
-      var doc = window.opener.document;
-      var input = doc.getElementById(fieldId);
-      if (input) {
-        input.value = String(value || "");
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-        input.dispatchEvent(new Event("change", { bubbles: true }));
-      }
-      if (labelFieldId) {
-        var helper = doc.getElementById(labelFieldId);
-        if (helper) {
-          helper.textContent = labelText ? String(labelText) : "";
+      var base = "{{ url_for('cemetery.expedientes') }}";
+      var next = base + "?prefill_deceased_person_id=" + encodeURIComponent(String(value || ""));
+      window.location.href = next;
+      return true;
+    }
+
+    function choosePersona(fieldId, value, labelFieldId, labelText) {
+      var payload = {
+        type: "cem-picker-select",
+        fieldId: fieldId,
+        value: value,
+        labelFieldId: labelFieldId,
+        labelText: labelText
+      };
+      var delivered = false;
+      if (window.opener && !window.opener.closed) {
+        try {
+          if (window.opener.CemPopupPicker && typeof window.opener.CemPopupPicker.setField === "function") {
+            window.opener.CemPopupPicker.setField(fieldId, value, labelFieldId, labelText);
+            delivered = true;
+          }
+        } catch (err) {
+        }
+        try {
+          window.opener.postMessage(payload, window.location.origin);
+          delivered = true;
+        } catch (err) {
         }
       }
-      window.close();
-      return false;
+      if (delivered) {
+        window.close();
+        return false;
+      }
+      return fallbackRedirect(fieldId, value);
     }
   </script>
 </body>

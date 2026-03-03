@@ -10,12 +10,57 @@
   <main class="picker-popup-main">
     <h1 class="page-title">Seleccionar sepultura</h1>
     <div class="box">
-      <form class="inline-form" method="get" action="{{ url_for('cemetery.expediente_sepultura_picker') }}">
+      <form method="get" action="{{ url_for('cemetery.expediente_sepultura_picker') }}">
         <input type="hidden" name="target_field" value="{{ target_field }}">
         <input type="hidden" name="label_field" value="{{ label_field }}">
-        <input type="text" name="q" value="{{ q }}" placeholder="Buscar por ID, bloque, via o numero">
-        <button class="btn" type="submit">Buscar</button>
-        <button class="btn" type="button" onclick="window.close()">Cerrar</button>
+        <div class="form-grid">
+          <div>
+            <label>Busqueda libre</label>
+            <input type="text" name="q" value="{{ filters.q }}" placeholder="ID, bloque, via o numero">
+          </div>
+          <div>
+            <label>ID sepultura</label>
+            <input type="text" name="sepultura_id" value="{{ filters.sepultura_id }}">
+          </div>
+          <div>
+            <label>Bloque</label>
+            <input type="text" name="bloque" value="{{ filters.bloque }}">
+          </div>
+          <div>
+            <label>Fila</label>
+            <input type="text" name="fila" value="{{ filters.fila }}">
+          </div>
+          <div>
+            <label>Columna</label>
+            <input type="text" name="columna" value="{{ filters.columna }}">
+          </div>
+          <div>
+            <label>Numero</label>
+            <input type="text" name="numero" value="{{ filters.numero }}">
+          </div>
+          <div>
+            <label>Via</label>
+            <input type="text" name="via" value="{{ filters.via }}">
+          </div>
+          <div>
+            <label>Modalidad</label>
+            <input type="text" name="modalidad" value="{{ filters.modalidad }}">
+          </div>
+          <div>
+            <label>Estado</label>
+            <select name="estado">
+              <option value="">Todos</option>
+              {% for state in sepultura_states %}
+              <option value="{{ state }}" {% if filters.estado == state %}selected{% endif %}>{{ state }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="actions-row">
+          <button class="btn" type="submit">Buscar</button>
+          <a class="btn" href="{{ url_for('cemetery.expediente_sepultura_picker', target_field=target_field, label_field=label_field) }}">Limpiar</a>
+          <button class="btn" type="button" onclick="window.close()">Cerrar</button>
+        </div>
       </form>
     </div>
 
@@ -53,25 +98,49 @@
     </div>
   </main>
   <script>
-    function chooseSepultura(fieldId, value, labelFieldId, labelText) {
-      if (!window.opener || window.opener.closed) {
+    function fallbackRedirect(fieldId, value) {
+      var base = "{{ url_for('cemetery.expedientes') }}";
+      var map = {
+        source_sepultura_id: "prefill_source_sepultura_id",
+        target_sepultura_id: "prefill_target_sepultura_id"
+      };
+      var key = map[fieldId];
+      if (!key) {
         return false;
       }
-      var doc = window.opener.document;
-      var input = doc.getElementById(fieldId);
-      if (input) {
-        input.value = String(value || "");
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-        input.dispatchEvent(new Event("change", { bubbles: true }));
-      }
-      if (labelFieldId) {
-        var helper = doc.getElementById(labelFieldId);
-        if (helper) {
-          helper.textContent = labelText ? String(labelText) : "";
+      var next = base + "?" + key + "=" + encodeURIComponent(String(value || ""));
+      window.location.href = next;
+      return true;
+    }
+
+    function chooseSepultura(fieldId, value, labelFieldId, labelText) {
+      var payload = {
+        type: "cem-picker-select",
+        fieldId: fieldId,
+        value: value,
+        labelFieldId: labelFieldId,
+        labelText: labelText
+      };
+      var delivered = false;
+      if (window.opener && !window.opener.closed) {
+        try {
+          if (window.opener.CemPopupPicker && typeof window.opener.CemPopupPicker.setField === "function") {
+            window.opener.CemPopupPicker.setField(fieldId, value, labelFieldId, labelText);
+            delivered = true;
+          }
+        } catch (err) {
+        }
+        try {
+          window.opener.postMessage(payload, window.location.origin);
+          delivered = true;
+        } catch (err) {
         }
       }
-      window.close();
-      return false;
+      if (delivered) {
+        window.close();
+        return false;
+      }
+      return fallbackRedirect(fieldId, value);
     }
   </script>
 </body>

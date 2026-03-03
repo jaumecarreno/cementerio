@@ -175,6 +175,18 @@
         },
       };
 
+      window.addEventListener("message", function (event) {
+        if (event.origin !== window.location.origin) return;
+        const data = event.data || {};
+        if (!data || data.type !== "cem-picker-select") return;
+        window.CemPopupPicker.setField(
+          data.fieldId || "",
+          data.value || "",
+          data.labelFieldId || "",
+          data.labelText || ""
+        );
+      });
+
       document.addEventListener("submit", function (event) {
         const form = event.target;
         if (!(form instanceof HTMLFormElement)) return;

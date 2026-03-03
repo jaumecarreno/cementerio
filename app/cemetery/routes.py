@@ -188,6 +188,8 @@ def _render_operation_cases_page():
         OperationType=OperationType,
         OperationStatus=OperationStatus,
         prefill_source_sepultura_id=request.args.get("prefill_source_sepultura_id", "").strip(),
+        prefill_target_sepultura_id=request.args.get("prefill_target_sepultura_id", "").strip(),
+        prefill_deceased_person_id=request.args.get("prefill_deceased_person_id", "").strip(),
     )
 
 
@@ -529,18 +531,62 @@ def expediente_acta(expediente_id: int):
 def expediente_sepultura_picker():
     target_field = (request.args.get("target_field") or "source_sepultura_id").strip()
     label_field = (request.args.get("label_field") or "").strip()
-    q = request.args.get("q", "").strip()
+    filters = {
+        "q": request.args.get("q", "").strip(),
+        "sepultura_id": request.args.get("sepultura_id", "").strip(),
+        "bloque": request.args.get("bloque", "").strip(),
+        "fila": request.args.get("fila", "").strip(),
+        "columna": request.args.get("columna", "").strip(),
+        "numero": request.args.get("numero", "").strip(),
+        "via": request.args.get("via", "").strip(),
+        "modalidad": request.args.get("modalidad", "").strip(),
+        "estado": request.args.get("estado", "").strip(),
+    }
 
     query = Sepultura.query.filter_by(org_id=org_record().id)
-    if q:
-        pattern = f"%{q}%"
+    has_invalid_numeric = False
+
+    if filters["sepultura_id"]:
+        if filters["sepultura_id"].isdigit():
+            query = query.filter(Sepultura.id == int(filters["sepultura_id"]))
+        else:
+            has_invalid_numeric = True
+    if filters["bloque"]:
+        query = query.filter(Sepultura.bloque.ilike(f"%{filters['bloque']}%"))
+    if filters["fila"]:
+        if filters["fila"].isdigit():
+            query = query.filter(Sepultura.fila == int(filters["fila"]))
+        else:
+            has_invalid_numeric = True
+    if filters["columna"]:
+        if filters["columna"].isdigit():
+            query = query.filter(Sepultura.columna == int(filters["columna"]))
+        else:
+            has_invalid_numeric = True
+    if filters["numero"]:
+        if filters["numero"].isdigit():
+            query = query.filter(Sepultura.numero == int(filters["numero"]))
+        else:
+            has_invalid_numeric = True
+    if filters["via"]:
+        query = query.filter(Sepultura.via.ilike(f"%{filters['via']}%"))
+    if filters["modalidad"]:
+        query = query.filter(Sepultura.modalidad.ilike(f"%{filters['modalidad']}%"))
+    if filters["estado"]:
+        try:
+            query = query.filter(Sepultura.estado == SepulturaEstado[filters["estado"].upper()])
+        except KeyError:
+            query = query.filter(Sepultura.id == -1)
+
+    if filters["q"]:
+        pattern = f"%{filters['q']}%"
         conditions = [
             Sepultura.bloque.ilike(pattern),
             Sepultura.via.ilike(pattern),
             Sepultura.modalidad.ilike(pattern),
         ]
-        if q.isdigit():
-            value = int(q)
+        if filters["q"].isdigit():
+            value = int(filters["q"])
             conditions.extend(
                 [
                     Sepultura.id == value,
@@ -550,17 +596,27 @@ def expediente_sepultura_picker():
                 ]
             )
         query = query.filter(or_(*conditions))
-    rows = (
-        query.order_by(Sepultura.bloque.asc(), Sepultura.fila.asc(), Sepultura.columna.asc(), Sepultura.numero.asc())
-        .limit(50)
-        .all()
-    )
+
+    if has_invalid_numeric:
+        rows = []
+    else:
+        rows = (
+            query.order_by(
+                Sepultura.bloque.asc(),
+                Sepultura.fila.asc(),
+                Sepultura.columna.asc(),
+                Sepultura.numero.asc(),
+            )
+            .limit(100)
+            .all()
+        )
     return render_template(
         "cemetery/expediente_picker_sepulturas.html",
         rows=rows,
-        q=q,
+        filters=filters,
         target_field=target_field,
         label_field=label_field,
+        sepultura_states=[state.value for state in SepulturaEstado],
     )
 
 
@@ -570,11 +626,28 @@ def expediente_sepultura_picker():
 def expediente_person_picker():
     target_field = (request.args.get("target_field") or "deceased_person_id").strip()
     label_field = (request.args.get("label_field") or "").strip()
-    q = request.args.get("q", "").strip()
+    filters = {
+        "q": request.args.get("q", "").strip(),
+        "person_id": request.args.get("person_id", "").strip(),
+        "first_name": request.args.get("first_name", "").strip(),
+        "last_name": request.args.get("last_name", "").strip(),
+        "dni_nif": request.args.get("dni_nif", "").strip(),
+    }
 
     query = Person.query.filter_by(org_id=org_record().id)
-    if q:
-        pattern = f"%{q}%"
+    if filters["person_id"]:
+        if filters["person_id"].isdigit():
+            query = query.filter(Person.id == int(filters["person_id"]))
+        else:
+            query = query.filter(Person.id == -1)
+    if filters["first_name"]:
+        query = query.filter(Person.first_name.ilike(f"%{filters['first_name']}%"))
+    if filters["last_name"]:
+        query = query.filter(Person.last_name.ilike(f"%{filters['last_name']}%"))
+    if filters["dni_nif"]:
+        query = query.filter(Person.dni_nif.ilike(f"%{filters['dni_nif']}%"))
+    if filters["q"]:
+        pattern = f"%{filters['q']}%"
         conditions = [
             Person.first_name.ilike(pattern),
             Person.last_name.ilike(pattern),
@@ -586,18 +659,19 @@ def expediente_person_picker():
             Person.direccion_linea.ilike(pattern),
             Person.poblacion.ilike(pattern),
         ]
-        if q.isdigit():
-            conditions.append(Person.id == int(q))
+        if filters["q"].isdigit():
+            conditions.append(Person.id == int(filters["q"]))
         query = query.filter(or_(*conditions))
+
     rows = (
         query.order_by(Person.last_name.asc(), Person.first_name.asc(), Person.id.asc())
-        .limit(50)
+        .limit(100)
         .all()
     )
     return render_template(
         "cemetery/expediente_picker_personas.html",
         rows=rows,
-        q=q,
+        filters=filters,
         target_field=target_field,
         label_field=label_field,
     )
