@@ -19,6 +19,9 @@ from app.core.models import (
     LapidaStock,
     MovimientoSepultura,
     MovimientoTipo,
+    OperationCase,
+    OperationDocument,
+    OperationPermit,
     OwnershipRecord,
     OwnershipTransferCase,
     OwnershipTransferStatus,
@@ -443,9 +446,12 @@ def test_demo_admin_can_load_initial_dataset_and_reset_to_zero(app, client, logi
         assert Beneficiario.query.filter(Beneficiario.activo_hasta.is_(None)).count() == 180
         assert Beneficiario.query.filter(Beneficiario.activo_hasta.is_not(None)).count() == 30
         assert SepulturaDifunto.query.count() == 180
-        assert WorkOrder.query.count() == 220
+        assert WorkOrder.query.count() == 250
+        assert OperationCase.query.count() == 140
+        assert OperationPermit.query.count() > 0
+        assert OperationDocument.query.count() > 0
         assert OwnershipTransferCase.query.count() == 90
-        assert TasaMantenimientoTicket.query.count() == 360
+        assert TasaMantenimientoTicket.query.count() == 1190
         assert Invoice.query.count() > 0
         assert Payment.query.count() > 0
         assert CaseDocument.query.count() > 0
@@ -483,6 +489,9 @@ def test_demo_admin_can_load_initial_dataset_and_reset_to_zero(app, client, logi
         assert Beneficiario.query.count() == 0
         assert SepulturaDifunto.query.count() == 0
         assert WorkOrder.query.count() == 0
+        assert OperationCase.query.count() == 0
+        assert OperationPermit.query.count() == 0
+        assert OperationDocument.query.count() == 0
         assert OwnershipTransferCase.query.count() == 0
         assert CaseDocument.query.count() == 0
         assert Publication.query.count() == 0

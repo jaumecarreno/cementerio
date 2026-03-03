@@ -150,10 +150,13 @@
   <div class="actions-row">
     <a class="btn primary" href="{{ url_for('cemetery.reporting_export_csv', report=report_key, profile=filters.profile, date_from=filters.date_from, date_to=filters.date_to, cadence_preset=filters.cadence_preset, assigned_user_id=filters.assigned_user_id, type_code=filters.type_code, category=filters.category, status=filters.status, sepultura_id=filters.sepultura_id, bloque=filters.bloque, estado=filters.estado, modalidad=filters.modalidad, tipo=filters.tipo, vigencia=filters.vigencia, titular=filters.titular, contrato_id=filters.contrato_id) }}">Exportar CSV</a>
     <a class="btn primary" href="{{ url_for('cemetery.reporting_export_pdf', report=report_key, profile=filters.profile, date_from=filters.date_from, date_to=filters.date_to, cadence_preset=filters.cadence_preset, assigned_user_id=filters.assigned_user_id, type_code=filters.type_code, category=filters.category, status=filters.status, sepultura_id=filters.sepultura_id, bloque=filters.bloque, estado=filters.estado, modalidad=filters.modalidad, tipo=filters.tipo, vigencia=filters.vigencia, titular=filters.titular, contrato_id=filters.contrato_id) }}">Exportar PDF</a>
-    {% if g.membership and g.membership.role == 'admin' %}
+    {% if g.membership and g.membership.role == 'admin' and schedule_schema_ready %}
     <a class="btn" href="{{ url_for('cemetery.reporting_schedules') }}">Programaciones</a>
     {% endif %}
   </div>
+  {% if g.membership and g.membership.role == 'admin' and not schedule_schema_ready %}
+  <p class="small muted" style="margin-top:8px;">Programaciones no disponible: ejecuta <code>flask db upgrade</code>.</p>
+  {% endif %}
 </div>
 
 <div class="box">

@@ -15,7 +15,7 @@ from email.message import EmailMessage
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from flask import current_app, g
-from sqlalchemy import func, or_
+from sqlalchemy import func, inspect, or_, text
 from sqlalchemy.orm import joinedload
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
@@ -51,6 +51,13 @@ from app.core.models import (
     OrdenTrabajo,
     Organization,
     OWNERSHIP_CASE_CHECKLIST,
+    OperationCase,
+    OperationDocument,
+    OperationPermit,
+    OperationPermitStatus,
+    OperationStatus,
+    OperationStatusLog,
+    OperationType,
     Payment,
     Person,
     Publication,
@@ -2440,6 +2447,14 @@ REPORTING_OT_TERMINAL_STATUSES = {
 }
 
 
+def reporting_schedule_schema_ready() -> bool:
+    bind = db.session.get_bind()
+    inspector = inspect(bind)
+    return inspector.has_table("report_schedule") and inspector.has_table(
+        "report_delivery_log"
+    )
+
+
 def _to_utc(value: datetime | None) -> datetime | None:
     if value is None:
         return None
@@ -3718,14 +3733,13 @@ def reset_demo_org_data(user_id: int | None = None) -> dict[str, int]:
     return load_demo_org_initial_dataset(user_id)
 
 
-def _demo_storage_root(oid: int) -> Path:
-    return (
-        Path(current_app.instance_path)
-        / "storage"
-        / "cemetery"
-        / "ownership_cases"
-        / str(oid)
-    )
+def _demo_storage_roots(oid: int) -> list[Path]:
+    base = Path(current_app.instance_path) / "storage" / "cemetery"
+    return [
+        base / "ownership_cases" / str(oid),
+        base / "expedientes" / str(oid),
+        base / "reporting" / str(oid),
+    ]
 
 
 def _demo_operational_counts(oid: int) -> dict[str, int]:
@@ -3743,9 +3757,19 @@ def _demo_operational_counts(oid: int) -> dict[str, int]:
         .filter(Beneficiario.activo_hasta.is_not(None))
         .count(),
         "difuntos": SepulturaDifunto.query.filter_by(org_id=oid).count(),
-        "expedientes": 0,
+        "expedientes": OperationCase.query.filter_by(org_id=oid).count(),
         "ots": WorkOrder.query.filter_by(org_id=oid).count(),
         "casos": OwnershipTransferCase.query.filter_by(org_id=oid).count(),
+        "operation_docs": OperationDocument.query.join(
+            OperationCase, OperationCase.id == OperationDocument.operation_case_id
+        )
+        .filter(OperationCase.org_id == oid)
+        .count(),
+        "operation_permits": OperationPermit.query.join(
+            OperationCase, OperationCase.id == OperationPermit.operation_case_id
+        )
+        .filter(OperationCase.org_id == oid)
+        .count(),
         "documents": CaseDocument.query.filter_by(org_id=oid).count(),
         "publications": Publication.query.filter_by(org_id=oid).count(),
         "tickets": TasaMantenimientoTicket.query.filter_by(org_id=oid).count(),
@@ -3755,14 +3779,76 @@ def _demo_operational_counts(oid: int) -> dict[str, int]:
         "lapida_movements": LapidaStockMovimiento.query.filter_by(org_id=oid).count(),
         "inscripciones": InscripcionLateral.query.filter_by(org_id=oid).count(),
         "activity_logs": ActivityLog.query.filter_by(org_id=oid).count(),
+        "report_schedules": ReportSchedule.query.filter_by(org_id=oid).count(),
+        "report_deliveries": ReportDeliveryLog.query.filter_by(org_id=oid).count(),
     }
 
 
 def _purge_org_operational_data() -> None:
     oid = org_id()
-    storage_root = _demo_storage_root(oid)
-    if storage_root.exists():
-        shutil.rmtree(storage_root, ignore_errors=True)
+
+    for storage_root in _demo_storage_roots(oid):
+        if storage_root.exists():
+            shutil.rmtree(storage_root, ignore_errors=True)
+
+    try:
+        db.session.query(ReportDeliveryLog).filter_by(org_id=oid).delete(
+            synchronize_session=False
+        )
+    except Exception:
+        pass
+    try:
+        db.session.query(ReportSchedule).filter_by(org_id=oid).delete(
+            synchronize_session=False
+        )
+    except Exception:
+        pass
+
+    operation_ids: list[int] = []
+    try:
+        operation_ids = [
+            row[0]
+            for row in db.session.query(OperationCase.id)
+            .filter_by(org_id=oid)
+            .all()
+        ]
+    except Exception:
+        operation_ids = []
+    if operation_ids:
+        try:
+            db.session.query(OperationStatusLog).filter(
+                OperationStatusLog.operation_case_id.in_(operation_ids)
+            ).delete(synchronize_session=False)
+        except Exception:
+            pass
+        try:
+            db.session.query(OperationDocument).filter(
+                OperationDocument.operation_case_id.in_(operation_ids)
+            ).delete(synchronize_session=False)
+        except Exception:
+            pass
+        try:
+            db.session.query(OperationPermit).filter(
+                OperationPermit.operation_case_id.in_(operation_ids)
+            ).delete(synchronize_session=False)
+        except Exception:
+            pass
+        db.session.query(OperationCase).filter(
+            OperationCase.id.in_(operation_ids)
+        ).delete(synchronize_session=False)
+
+    try:
+        db.session.query(OrdenTrabajo).filter_by(org_id=oid).delete(
+            synchronize_session=False
+        )
+    except Exception:
+        pass
+    try:
+        db.session.query(Expediente).filter_by(org_id=oid).delete(
+            synchronize_session=False
+        )
+    except Exception:
+        pass
 
     db.session.query(ContractEvent).filter_by(org_id=oid).delete(
         synchronize_session=False
@@ -3788,13 +3874,39 @@ def _purge_org_operational_data() -> None:
     db.session.query(InscripcionLateral).filter_by(org_id=oid).delete(
         synchronize_session=False
     )
-    db.session.query(WorkOrderStatusLog).delete(synchronize_session=False)
-    db.session.query(WorkOrderChecklistItem).delete(synchronize_session=False)
-    db.session.query(WorkOrderEvidence).delete(synchronize_session=False)
-    db.session.query(WorkOrderDependency).delete(synchronize_session=False)
+    work_order_ids = [
+        row[0]
+        for row in db.session.query(WorkOrder.id).filter_by(org_id=oid).all()
+    ]
+    if work_order_ids:
+        db.session.query(WorkOrderStatusLog).filter(
+            WorkOrderStatusLog.work_order_id.in_(work_order_ids)
+        ).delete(synchronize_session=False)
+        db.session.query(WorkOrderChecklistItem).filter(
+            WorkOrderChecklistItem.work_order_id.in_(work_order_ids)
+        ).delete(synchronize_session=False)
+        db.session.query(WorkOrderEvidence).filter(
+            WorkOrderEvidence.work_order_id.in_(work_order_ids)
+        ).delete(synchronize_session=False)
+        db.session.query(WorkOrderDependency).filter(
+            or_(
+                WorkOrderDependency.work_order_id.in_(work_order_ids),
+                WorkOrderDependency.depends_on_work_order_id.in_(work_order_ids),
+            )
+        ).delete(synchronize_session=False)
+
     db.session.query(WorkOrderEventLog).filter_by(org_id=oid).delete(synchronize_session=False)
     db.session.query(WorkOrderEventRule).filter_by(org_id=oid).delete(synchronize_session=False)
-    db.session.query(WorkOrderTemplateChecklistItem).delete(synchronize_session=False)
+    template_ids = [
+        row[0]
+        for row in db.session.query(WorkOrderTemplate.id)
+        .filter_by(org_id=oid)
+        .all()
+    ]
+    if template_ids:
+        db.session.query(WorkOrderTemplateChecklistItem).filter(
+            WorkOrderTemplateChecklistItem.template_id.in_(template_ids)
+        ).delete(synchronize_session=False)
     db.session.query(WorkOrderTemplate).filter_by(org_id=oid).delete(synchronize_session=False)
     db.session.query(WorkOrderType).filter_by(org_id=oid).delete(synchronize_session=False)
     db.session.query(WorkOrder).filter_by(org_id=oid).delete(synchronize_session=False)
@@ -3826,6 +3938,43 @@ def _purge_org_operational_data() -> None:
     )
     db.session.query(Sepultura).filter_by(org_id=oid).delete(synchronize_session=False)
     db.session.query(Person).filter_by(org_id=oid).delete(synchronize_session=False)
+    try:
+        db.session.execute(
+            text(
+                "DELETE FROM operation_status_log "
+                "WHERE operation_case_id IN (SELECT id FROM operation_case WHERE org_id = :oid)"
+            ),
+            {"oid": oid},
+        )
+    except Exception:
+        pass
+    try:
+        db.session.execute(
+            text(
+                "DELETE FROM operation_document "
+                "WHERE operation_case_id IN (SELECT id FROM operation_case WHERE org_id = :oid)"
+            ),
+            {"oid": oid},
+        )
+    except Exception:
+        pass
+    try:
+        db.session.execute(
+            text(
+                "DELETE FROM operation_permit "
+                "WHERE operation_case_id IN (SELECT id FROM operation_case WHERE org_id = :oid)"
+            ),
+            {"oid": oid},
+        )
+    except Exception:
+        pass
+    try:
+        db.session.execute(
+            text("DELETE FROM operation_case WHERE org_id = :oid"),
+            {"oid": oid},
+        )
+    except Exception:
+        pass
     db.session.commit()
 
 
@@ -3910,10 +4059,175 @@ def _demo_case_document_status(
     return CaseDocumentStatus.MISSING
 
 
+DEMO_DNI_LETTERS = "TRWAGMYFPDXBNJZSQVHLCKE"
+DEMO_CITIES = (
+    "Terrassa",
+    "Terrassa",
+    "Terrassa",
+    "Terrassa",
+    "Terrassa",
+    "Terrassa",
+    "Terrassa",
+    "Terrassa",
+    "Sabadell",
+    "Rubi",
+    "Castellar del Valles",
+    "Matadepera",
+)
+DEMO_STREETS = (
+    "Carrer de la Rasa",
+    "Carrer de Sant Pere",
+    "Passeig del Vint-i-dos de Juliol",
+    "Carrer de Topete",
+    "Avinguda de Barcelona",
+    "Carrer de Volta",
+    "Carrer de Galileu",
+    "Carrer de la Font Vella",
+    "Carrer de Colom",
+    "Carrer de Baldrich",
+)
+DEMO_OPERATION_PERMITS: dict[OperationType, tuple[str, ...]] = {
+    OperationType.INHUMACION: ("LICENCIA_ENTERRAMIENTO", "PERMISO_SANITARIO"),
+    OperationType.EXHUMACION: ("AUTORIZACION_EXHUMACION", "PERMISO_SANITARIO"),
+    OperationType.TRASLADO_CORTO: ("AUTORIZACION_TRASLADO", "PERMISO_SANITARIO"),
+    OperationType.TRASLADO_LARGO: ("AUTORIZACION_TRASLADO", "PERMISO_SANITARIO"),
+    OperationType.RESCATE: ("AUTORIZACION_RETIRO_RESTOS", "PERMISO_SANITARIO"),
+}
+
+
+def _demo_spanish_dni(seed: int) -> str:
+    numeric = 10_000_000 + (seed % 80_000_000)
+    letter = DEMO_DNI_LETTERS[numeric % 23]
+    return f"{numeric:08d}{letter}"
+
+
+def _demo_phone(seed: int, mobile: bool = True) -> str:
+    prefix = "6" if mobile else "9"
+    return f"{prefix}{(10_000_000 + seed) % 100_000_000:08d}"
+
+
+def _demo_person_address(seed: int) -> dict[str, str]:
+    city = DEMO_CITIES[(seed - 1) % len(DEMO_CITIES)]
+    street = DEMO_STREETS[(seed - 1) % len(DEMO_STREETS)]
+    number = ((seed * 7) % 120) + 1
+    cp_base = 8200 if city == "Terrassa" else 8100
+    postal_code = f"{cp_base + ((seed - 1) % 30):05d}"
+    line = f"{street}, {number}"
+    return {
+        "line": line,
+        "postal_code": postal_code,
+        "city": city,
+        "province": "Barcelona",
+        "country": "ES",
+        "legacy": f"{line}, {postal_code} {city}",
+    }
+
+
+def _seed_demo_work_order_catalog(oid: int) -> dict[str, WorkOrderType]:
+    specs = [
+        (
+            "INHUMACION",
+            "Inhumacion",
+            WorkOrderCategory.FUNERARIA,
+            True,
+            24,
+        ),
+        (
+            "EXHUMACION",
+            "Exhumacion",
+            WorkOrderCategory.FUNERARIA,
+            True,
+            24,
+        ),
+        (
+            "TRASLADO_CORTO",
+            "Traslado corto",
+            WorkOrderCategory.FUNERARIA,
+            False,
+            36,
+        ),
+        (
+            "TRASLADO_LARGO",
+            "Traslado largo",
+            WorkOrderCategory.FUNERARIA,
+            False,
+            48,
+        ),
+        (
+            "RESCATE",
+            "Retirada de restos",
+            WorkOrderCategory.FUNERARIA,
+            True,
+            36,
+        ),
+        (
+            "DOCUMENTACION",
+            "Documentacion",
+            WorkOrderCategory.ADMINISTRATIVA,
+            False,
+            72,
+        ),
+        (
+            "MANTENIMIENTO",
+            "Mantenimiento",
+            WorkOrderCategory.MANTENIMIENTO,
+            False,
+            96,
+        ),
+    ]
+    rows: dict[str, WorkOrderType] = {}
+    for code, name, category, critical, _sla in specs:
+        row = WorkOrderType(
+            org_id=oid,
+            code=code,
+            name=name,
+            category=category,
+            is_critical=critical,
+            active=True,
+        )
+        db.session.add(row)
+        rows[code] = row
+    db.session.flush()
+    for idx, (code, name, category, _critical, sla_hours) in enumerate(specs, start=1):
+        db.session.add(
+            WorkOrderTemplate(
+                org_id=oid,
+                code=f"TPL-{code}",
+                name=f"Plantilla {name}",
+                type_id=rows[code].id,
+                default_priority=(
+                    WorkOrderPriority.ALTA
+                    if category == WorkOrderCategory.FUNERARIA
+                    else WorkOrderPriority.MEDIA
+                ),
+                sla_hours=sla_hours,
+                auto_create=False,
+                requires_sepultura=True,
+                allows_area=True,
+                active=True,
+                created_at=datetime(2026, 1, min(idx, 28), tzinfo=timezone.utc),
+            )
+        )
+    return rows
+
+
 def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
     _purge_org_operational_data()
     oid = org_id()
     cemetery = _ensure_demo_cemetery(oid)
+    wo_types = _seed_demo_work_order_catalog(oid)
+
+    org_users = (
+        User.query.join(Membership, Membership.user_id == User.id)
+        .filter(Membership.org_id == oid)
+        .order_by(User.id.asc())
+        .all()
+    )
+    user_cycle = [row.id for row in org_users if row.id]
+    default_operator_id = user_cycle[0] if user_cycle else user_id
+    secondary_operator_id = (
+        user_cycle[1] if len(user_cycle) > 1 else default_operator_id
+    )
 
     holder_names = generate_demo_names(300, offset=0)
     extra_names = generate_demo_names(180, offset=97)
@@ -3924,15 +4238,23 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
         first_name, last_name = holder_names[idx - 1]
         if is_generic_demo_name(first_name, last_name):
             raise ValueError(f"Invalid generic holder name generated: {first_name} {last_name}")
+        address = _demo_person_address(idx)
         holders.append(
             Person(
                 org_id=oid,
                 first_name=first_name,
                 last_name=last_name,
-                dni_nif=f"HD{idx:07d}",
-                telefono=f"600{idx:06d}",
-                email=f"titular{idx:03d}@demo.local",
-                direccion=f"Carrer Exemple {idx:03d}, Terrassa",
+                dni_nif=_demo_spanish_dni(idx),
+                telefono=_demo_phone(idx, mobile=True),
+                telefono2=_demo_phone(8000 + idx, mobile=True),
+                email=f"titular{idx:03d}@terrassa.demo",
+                email2=f"familia{idx:03d}@mail.demo" if idx % 4 == 0 else "",
+                direccion=address["legacy"],
+                direccion_linea=address["line"],
+                codigo_postal=address["postal_code"],
+                poblacion=address["city"],
+                provincia=address["province"],
+                pais=address["country"],
                 notas=(
                     "Titular con expediente pendiente"
                     if idx <= 80
@@ -3944,15 +4266,23 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
         first_name, last_name = extra_names[idx - 1]
         if is_generic_demo_name(first_name, last_name):
             raise ValueError(f"Invalid generic related-person name generated: {first_name} {last_name}")
+        address = _demo_person_address(300 + idx)
         extras.append(
             Person(
                 org_id=oid,
                 first_name=first_name,
                 last_name=last_name,
-                dni_nif=f"EX{idx:07d}" if idx <= 120 else None,
-                telefono=f"700{idx:06d}" if idx <= 120 else "",
-                email=f"extra{idx:03d}@demo.local" if idx <= 90 else "",
-                direccion=f"Avinguda Prova {idx:03d}, Terrassa" if idx <= 60 else "",
+                dni_nif=_demo_spanish_dni(4000 + idx),
+                telefono=_demo_phone(12000 + idx, mobile=True),
+                telefono2=_demo_phone(22000 + idx, mobile=False),
+                email=f"persona{idx:03d}@mail.demo",
+                email2=f"alterno{idx:03d}@mail.demo" if idx % 5 == 0 else "",
+                direccion=address["legacy"],
+                direccion_linea=address["line"],
+                codigo_postal=address["postal_code"],
+                poblacion=address["city"],
+                provincia=address["province"],
+                pais=address["country"],
                 notas=(
                     "Difunto con casuistica pendiente"
                     if idx <= 90
@@ -4098,47 +4428,319 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
     db.session.add_all(remains)
 
     work_order_states = (
-        [WorkOrderStatus.PENDIENTE_PLANIFICACION] * 90
-        + [WorkOrderStatus.ASIGNADA] * 60
-        + [WorkOrderStatus.EN_CURSO] * 40
-        + [WorkOrderStatus.COMPLETADA] * 30
+        [WorkOrderStatus.BORRADOR] * 20
+        + [WorkOrderStatus.PENDIENTE_PLANIFICACION] * 70
+        + [WorkOrderStatus.PLANIFICADA] * 40
+        + [WorkOrderStatus.ASIGNADA] * 45
+        + [WorkOrderStatus.EN_CURSO] * 30
+        + [WorkOrderStatus.EN_VALIDACION] * 10
+        + [WorkOrderStatus.COMPLETADA] * 35
     )
+    type_codes = [
+        "INHUMACION",
+        "EXHUMACION",
+        "TRASLADO_CORTO",
+        "TRASLADO_LARGO",
+        "RESCATE",
+        "DOCUMENTACION",
+        "MANTENIMIENTO",
+    ]
     work_orders: list[WorkOrder] = []
-    for idx in range(1, 221):
+    for idx in range(1, 251):
         status = work_order_states[idx - 1]
         created_at = datetime(2026, 1, 1, tzinfo=timezone.utc) + timedelta(days=idx)
-        completed_at = created_at + timedelta(days=2) if status == WorkOrderStatus.COMPLETADA else None
+        type_code = type_codes[(idx - 1) % len(type_codes)]
+        category = (
+            wo_types[type_code].category
+            if type_code in wo_types
+            else WorkOrderCategory.FUNERARIA
+        )
+        due_hours = 48
+        if type_code in {"INHUMACION", "EXHUMACION"}:
+            due_hours = 24
+        elif type_code in {"TRASLADO_CORTO", "RESCATE"}:
+            due_hours = 36
+        elif type_code == "TRASLADO_LARGO":
+            due_hours = 48
+        elif type_code == "DOCUMENTACION":
+            due_hours = 72
+        elif type_code == "MANTENIMIENTO":
+            due_hours = 96
+        due_at = created_at + timedelta(hours=due_hours)
+        started_at = (
+            created_at + timedelta(hours=8)
+            if status
+            in {
+                WorkOrderStatus.EN_CURSO,
+                WorkOrderStatus.EN_VALIDACION,
+                WorkOrderStatus.COMPLETADA,
+            }
+            else None
+        )
+        completed_at = (
+            started_at + timedelta(hours=16)
+            if started_at and status == WorkOrderStatus.COMPLETADA
+            else None
+        )
         work_orders.append(
             WorkOrder(
                 org_id=oid,
                 code=f"OT-2026-{idx:06d}",
                 title=f"OT DEMO {idx:04d}",
                 description="Orden de trabajo demo",
-                category=WorkOrderCategory.FUNERARIA if idx % 3 else WorkOrderCategory.MANTENIMIENTO,
-                type_code=None,
+                category=category,
+                type_code=type_code,
                 priority=WorkOrderPriority.MEDIA if idx % 4 else WorkOrderPriority.ALTA,
                 status=status,
                 sepultura_id=sepulturas[(idx - 1) % 300].id,
                 area_type=None,
                 area_code=None,
                 location_text=None,
-                assigned_user_id=user_id if idx % 2 == 0 else None,
-                planned_start_at=created_at + timedelta(days=1),
-                planned_end_at=created_at + timedelta(days=2),
-                due_at=created_at + timedelta(days=5),
-                started_at=created_at + timedelta(days=1) if status in {WorkOrderStatus.EN_CURSO, WorkOrderStatus.COMPLETADA} else None,
+                assigned_user_id=(
+                    default_operator_id
+                    if idx % 3 == 0
+                    else (secondary_operator_id if idx % 3 == 1 else None)
+                ),
+                planned_start_at=created_at + timedelta(hours=4),
+                planned_end_at=created_at + timedelta(hours=20),
+                due_at=due_at,
+                started_at=started_at,
                 completed_at=completed_at,
                 cancelled_at=None,
                 block_reason="",
                 cancel_reason="",
                 close_notes="",
-                created_by_user_id=user_id,
-                updated_by_user_id=user_id,
+                created_by_user_id=default_operator_id,
+                updated_by_user_id=default_operator_id,
                 created_at=created_at,
                 updated_at=created_at,
             )
         )
     db.session.add_all(work_orders)
+    db.session.flush()
+
+    operation_status_cycle = (
+        [OperationStatus.BORRADOR] * 24
+        + [OperationStatus.DOCS_PENDIENTES] * 36
+        + [OperationStatus.PROGRAMADA] * 24
+        + [OperationStatus.EN_EJECUCION] * 20
+        + [OperationStatus.EN_VALIDACION] * 18
+        + [OperationStatus.CERRADA] * 16
+        + [OperationStatus.CANCELADA] * 2
+    )
+    operation_types = (
+        OperationType.INHUMACION,
+        OperationType.EXHUMACION,
+        OperationType.TRASLADO_CORTO,
+        OperationType.TRASLADO_LARGO,
+        OperationType.RESCATE,
+    )
+    operation_cases: list[OperationCase] = []
+    for idx in range(1, 141):
+        op_type = operation_types[(idx - 1) % len(operation_types)]
+        status = operation_status_cycle[idx - 1]
+        source_sep = sepulturas[(idx - 1) % 300]
+        target_sep = sepulturas[(idx + 14) % 300] if op_type in {
+            OperationType.TRASLADO_CORTO,
+            OperationType.TRASLADO_LARGO,
+        } else None
+        created_at = datetime(2026, 1, 1, tzinfo=timezone.utc) + timedelta(days=idx)
+        scheduled_at = created_at + timedelta(days=2) if status != OperationStatus.BORRADOR else None
+        executed_at = (
+            created_at + timedelta(days=4)
+            if status
+            in {
+                OperationStatus.EN_EJECUCION,
+                OperationStatus.EN_VALIDACION,
+                OperationStatus.CERRADA,
+            }
+            else None
+        )
+        closed_at = (
+            created_at + timedelta(days=8)
+            if status == OperationStatus.CERRADA
+            else None
+        )
+        operation_cases.append(
+            OperationCase(
+                org_id=oid,
+                code=f"OP-2026-{idx:04d}",
+                type=op_type,
+                status=status,
+                source_sepultura_id=source_sep.id,
+                target_sepultura_id=target_sep.id if target_sep else None,
+                deceased_person_id=extras[(idx * 2) % len(extras)].id,
+                declarant_person_id=holders[(idx * 3) % len(holders)].id,
+                scheduled_at=scheduled_at,
+                executed_at=executed_at,
+                closed_at=closed_at,
+                destination_cemetery_id=None,
+                destination_name=(
+                    ""
+                    if op_type != OperationType.TRASLADO_LARGO
+                    else "Cementerio municipal destino"
+                ),
+                destination_municipality=(
+                    "Terrassa"
+                    if op_type != OperationType.TRASLADO_LARGO
+                    else ("Sabadell" if idx % 5 else "Barcelona")
+                ),
+                destination_region="Catalunya",
+                destination_country="ES" if idx % 12 else "FR",
+                cross_border=bool(op_type == OperationType.TRASLADO_LARGO and idx % 12 == 0),
+                notes=(
+                    "Inhumacion pendiente de documentacion"
+                    if op_type == OperationType.INHUMACION
+                    and status in {OperationStatus.BORRADOR, OperationStatus.DOCS_PENDIENTES}
+                    else "Operacion demo"
+                ),
+                created_by_user_id=default_operator_id,
+                managed_by_user_id=secondary_operator_id,
+                created_at=created_at,
+            )
+        )
+    db.session.add_all(operation_cases)
+    db.session.flush()
+
+    operation_permits: list[OperationPermit] = []
+    operation_documents: list[OperationDocument] = []
+    operation_logs: list[OperationStatusLog] = []
+    for idx, case in enumerate(operation_cases, start=1):
+        for permit_type in DEMO_OPERATION_PERMITS[case.type]:
+            permit_status = OperationPermitStatus.MISSING
+            if case.status in {
+                OperationStatus.PROGRAMADA,
+                OperationStatus.EN_EJECUCION,
+                OperationStatus.EN_VALIDACION,
+                OperationStatus.CERRADA,
+            }:
+                permit_status = OperationPermitStatus.VERIFIED
+            elif case.status == OperationStatus.DOCS_PENDIENTES:
+                permit_status = (
+                    OperationPermitStatus.PROVIDED
+                    if idx % 2 == 0
+                    else OperationPermitStatus.MISSING
+                )
+            elif case.status == OperationStatus.CANCELADA:
+                permit_status = OperationPermitStatus.REJECTED
+            operation_permits.append(
+                OperationPermit(
+                    operation_case_id=case.id,
+                    permit_type=permit_type,
+                    required=True,
+                    status=permit_status,
+                    reference_number=f"PERM-{case.code}-{permit_type[:4]}",
+                    issued_at=(
+                        case.created_at + timedelta(days=1)
+                        if permit_status != OperationPermitStatus.MISSING
+                        else None
+                    ),
+                    verified_at=(
+                        case.created_at + timedelta(days=2)
+                        if permit_status == OperationPermitStatus.VERIFIED
+                        else None
+                    ),
+                    verified_by_user_id=default_operator_id
+                    if permit_status == OperationPermitStatus.VERIFIED
+                    else None,
+                    notes="Permiso demo",
+                )
+            )
+
+        acta_status = (
+            OperationPermitStatus.VERIFIED
+            if case.status == OperationStatus.CERRADA
+            else (
+                OperationPermitStatus.PROVIDED
+                if case.status
+                in {
+                    OperationStatus.EN_EJECUCION,
+                    OperationStatus.EN_VALIDACION,
+                }
+                else OperationPermitStatus.MISSING
+            )
+        )
+        operation_documents.append(
+            OperationDocument(
+                operation_case_id=case.id,
+                doc_type="ACTA_OPERACION",
+                file_path="",
+                required=True,
+                status=acta_status,
+                uploaded_at=(
+                    case.created_at + timedelta(days=4)
+                    if acta_status != OperationPermitStatus.MISSING
+                    else None
+                ),
+                verified_at=(
+                    case.created_at + timedelta(days=6)
+                    if acta_status == OperationPermitStatus.VERIFIED
+                    else None
+                ),
+                verified_by_user_id=default_operator_id
+                if acta_status == OperationPermitStatus.VERIFIED
+                else None,
+                notes="Acta demo",
+            )
+        )
+        operation_documents.append(
+            OperationDocument(
+                operation_case_id=case.id,
+                doc_type="OTROS",
+                file_path="",
+                required=False,
+                status=(
+                    OperationPermitStatus.PROVIDED
+                    if idx % 3 == 0
+                    else OperationPermitStatus.MISSING
+                ),
+                uploaded_at=case.created_at + timedelta(days=2) if idx % 3 == 0 else None,
+                verified_at=None,
+                verified_by_user_id=None,
+                notes="Documento adicional demo",
+            )
+        )
+
+        operation_logs.append(
+            OperationStatusLog(
+                operation_case_id=case.id,
+                from_status="",
+                to_status=OperationStatus.BORRADOR.value,
+                changed_at=case.created_at,
+                changed_by_user_id=default_operator_id,
+                reason="Alta demo",
+            )
+        )
+        if case.status != OperationStatus.BORRADOR:
+            operation_logs.append(
+                OperationStatusLog(
+                    operation_case_id=case.id,
+                    from_status=OperationStatus.BORRADOR.value,
+                    to_status=case.status.value,
+                    changed_at=case.created_at + timedelta(days=1),
+                    changed_by_user_id=secondary_operator_id,
+                    reason="Evolucion demo",
+                )
+            )
+
+    db.session.add_all(operation_permits)
+    db.session.add_all(operation_documents)
+    db.session.add_all(operation_logs)
+
+    for idx, case in enumerate(operation_cases[:140], start=1):
+        work_order = work_orders[(idx - 1) % len(work_orders)]
+        work_order.operation_case_id = case.id
+        if case.status == OperationStatus.CERRADA:
+            work_order.status = WorkOrderStatus.COMPLETADA
+            work_order.completed_at = case.closed_at or (
+                case.created_at + timedelta(days=7)
+            )
+        elif case.status == OperationStatus.EN_VALIDACION:
+            work_order.status = WorkOrderStatus.EN_VALIDACION
+        elif case.status == OperationStatus.EN_EJECUCION:
+            work_order.status = WorkOrderStatus.EN_CURSO
+        elif case.status == OperationStatus.PROGRAMADA:
+            work_order.status = WorkOrderStatus.PLANIFICADA
 
     case_types = (
         OwnershipTransferType.MORTIS_CAUSA_TESTAMENTO,
@@ -4398,14 +5000,41 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 user_id=user_id,
             )
         )
+    operation_to_movement = {
+        OperationType.INHUMACION: MovimientoTipo.INHUMACION,
+        OperationType.EXHUMACION: MovimientoTipo.EXHUMACION,
+        OperationType.TRASLADO_CORTO: MovimientoTipo.TRASLADO_CORTO,
+        OperationType.TRASLADO_LARGO: MovimientoTipo.TRASLADO_LARGO,
+        OperationType.RESCATE: MovimientoTipo.RESCATE,
+    }
+    for case in operation_cases:
+        movement_type = operation_to_movement.get(case.type)
+        if not movement_type:
+            continue
+        movement_date = (
+            case.executed_at
+            or case.scheduled_at
+            or case.created_at
+            or datetime.now(timezone.utc)
+        )
+        movements.append(
+            MovimientoSepultura(
+                org_id=oid,
+                sepultura_id=case.source_sepultura_id,
+                tipo=movement_type,
+                fecha=movement_date,
+                detalle=f"Operacion {case.code} en estado {case.status.value}",
+                user_id=default_operator_id,
+            )
+        )
     db.session.add_all(contract_events)
     db.session.add_all(movements)
 
-    ticket_years = (2024, 2025, 2026)
+    ticket_years = (2020, 2021, 2022, 2023, 2024, 2025, 2026)
     discount_pct = Decimal("10.00")
     invoice_counter = 1
     receipt_counter = 1
-    for contract_index, contract in enumerate(contracts[:120], start=1):
+    for contract_index, contract in enumerate(contracts[:170], start=1):
         holder = ownership_records[contract_index - 1]
         for year in ticket_years:
             amount = Decimal(contract.annual_fee_amount or Decimal("0.00")).quantize(

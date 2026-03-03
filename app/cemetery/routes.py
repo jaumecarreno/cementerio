@@ -106,6 +106,7 @@ from app.cemetery.services import (
     reporting_filter_users,
     reporting_pdf_bytes,
     reporting_rows,
+    reporting_schedule_schema_ready,
     run_reporting_schedule,
     search_sepulturas_paged,
     set_contract_holder_pensioner,
@@ -1098,6 +1099,7 @@ def reporting():
         report_categories=[item.value for item in WorkOrderCategory],
         report_statuses=[item.value for item in WorkOrderStatus],
         report_options=sorted(REPORTING_SCREEN_KEYS),
+        schedule_schema_ready=reporting_schedule_schema_ready(),
         paged=paged,
         money=money,
     )
@@ -1152,6 +1154,10 @@ def reporting_export_pdf():
 @require_membership
 @require_role("admin")
 def reporting_schedules():
+    if not reporting_schedule_schema_ready():
+        flash("Falta migracion de informes. Ejecuta: flask db upgrade", "error")
+        return redirect(url_for("cemetery.reporting"))
+
     if request.method == "POST":
         payload = {k: v for k, v in request.form.items()}
         formats = request.form.getlist("formats")
@@ -1188,6 +1194,9 @@ def reporting_schedules():
 @require_membership
 @require_role("admin")
 def reporting_schedule_toggle(schedule_id: int):
+    if not reporting_schedule_schema_ready():
+        flash("Falta migracion de informes. Ejecuta: flask db upgrade", "error")
+        return redirect(url_for("cemetery.reporting"))
     try:
         schedule = toggle_reporting_schedule(schedule_id)
         state = "activa" if schedule.active else "pausada"
@@ -1202,6 +1211,9 @@ def reporting_schedule_toggle(schedule_id: int):
 @require_membership
 @require_role("admin")
 def reporting_schedule_run_now(schedule_id: int):
+    if not reporting_schedule_schema_ready():
+        flash("Falta migracion de informes. Ejecuta: flask db upgrade", "error")
+        return redirect(url_for("cemetery.reporting"))
     try:
         log = run_reporting_schedule(schedule_id, current_user.id)
         if log.status == "ERROR":
