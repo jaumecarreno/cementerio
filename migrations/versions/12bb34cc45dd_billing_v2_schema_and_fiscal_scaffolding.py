@@ -23,6 +23,7 @@ billing_document_v2_type = postgresql.ENUM(
     "CREDIT_NOTE",
     name="billing_document_v2_type",
     create_type=False,
+    _create_events=False,
 )
 billing_document_v2_status = postgresql.ENUM(
     "DRAFT",
@@ -32,6 +33,7 @@ billing_document_v2_status = postgresql.ENUM(
     "CANCELLED",
     name="billing_document_v2_status",
     create_type=False,
+    _create_events=False,
 )
 billing_document_v2_fiscal_status = postgresql.ENUM(
     "PENDING",
@@ -41,6 +43,7 @@ billing_document_v2_fiscal_status = postgresql.ENUM(
     "RETRYING",
     name="billing_document_v2_fiscal_status",
     create_type=False,
+    _create_events=False,
 )
 payment_method_v2 = postgresql.ENUM(
     "EFECTIVO",
@@ -49,6 +52,7 @@ payment_method_v2 = postgresql.ENUM(
     "BIZUM",
     name="payment_method_v2",
     create_type=False,
+    _create_events=False,
 )
 fiscal_submission_v2_status = postgresql.ENUM(
     "PENDING",
@@ -58,16 +62,48 @@ fiscal_submission_v2_status = postgresql.ENUM(
     "RETRYING",
     name="fiscal_submission_v2_status",
     create_type=False,
+    _create_events=False,
 )
 
 
-def upgrade():
+def _create_enum_if_missing(name: str, values: list[str]) -> None:
     bind = op.get_bind()
-    billing_document_v2_type.create(bind, checkfirst=True)
-    billing_document_v2_status.create(bind, checkfirst=True)
-    billing_document_v2_fiscal_status.create(bind, checkfirst=True)
-    payment_method_v2.create(bind, checkfirst=True)
-    fiscal_submission_v2_status.create(bind, checkfirst=True)
+    if bind.dialect.name != "postgresql":
+        return
+    values_sql = ", ".join("'" + value.replace("'", "''") + "'" for value in values)
+    op.execute(
+        sa.text(
+            f"""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '{name}') THEN
+                    CREATE TYPE {name} AS ENUM ({values_sql});
+                END IF;
+            END
+            $$;
+            """
+        )
+    )
+
+
+def upgrade():
+    _create_enum_if_missing("billing_document_v2_type", ["INVOICE", "CREDIT_NOTE"])
+    _create_enum_if_missing(
+        "billing_document_v2_status",
+        ["DRAFT", "ISSUED", "PARTIALLY_PAID", "PAID", "CANCELLED"],
+    )
+    _create_enum_if_missing(
+        "billing_document_v2_fiscal_status",
+        ["PENDING", "SENT", "ACCEPTED", "REJECTED", "RETRYING"],
+    )
+    _create_enum_if_missing(
+        "payment_method_v2",
+        ["EFECTIVO", "TARJETA", "TRANSFERENCIA", "BIZUM"],
+    )
+    _create_enum_if_missing(
+        "fiscal_submission_v2_status",
+        ["PENDING", "SENT", "ACCEPTED", "REJECTED", "RETRYING"],
+    )
 
     op.create_table(
         "billing_document_v2",

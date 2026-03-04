@@ -10,11 +10,11 @@ import sys
 from app.core.demo_people import is_generic_demo_name
 from app.core.extensions import db
 from app.core.models import (
+    BillingDocumentV2,
     Beneficiario,
     CaseDocument,
     CaseDocumentStatus,
     DerechoFunerarioContrato,
-    Invoice,
     InscripcionLateral,
     LapidaStock,
     MovimientoSepultura,
@@ -26,13 +26,11 @@ from app.core.models import (
     OwnershipTransferCase,
     OwnershipTransferStatus,
     OwnershipTransferType,
-    Payment,
+    PaymentV2,
     Person,
     Publication,
     Sepultura,
     SepulturaDifunto,
-    TasaMantenimientoTicket,
-    TicketEstado,
     WorkOrder,
     WorkOrderStatus,
 )
@@ -389,7 +387,7 @@ def test_sidebar_menu_contains_only_expected_links_and_no_top_tabs(app, client, 
         b'href="/dashboard"',
         b'href="/cementerio/sepulturas/buscar"',
         b'href="/cementerio/ordenes-trabajo"',
-        b'href="/cementerio/tasas"',
+        b'href="/cementerio/facturacion"',
         b'href="/cementerio/titularidad"',
         b'href="/cementerio/reporting"',
         b'href="/demo"',
@@ -451,9 +449,8 @@ def test_demo_admin_can_load_initial_dataset_and_reset_to_zero(app, client, logi
         assert OperationPermit.query.count() > 0
         assert OperationDocument.query.count() > 0
         assert OwnershipTransferCase.query.count() == 90
-        assert TasaMantenimientoTicket.query.count() == 1190
-        assert Invoice.query.count() > 0
-        assert Payment.query.count() > 0
+        assert BillingDocumentV2.query.count() > 0
+        assert PaymentV2.query.count() > 0
         assert CaseDocument.query.count() > 0
         assert Publication.query.count() > 0
         names = Person.query.with_entities(Person.first_name, Person.last_name).all()
@@ -495,9 +492,8 @@ def test_demo_admin_can_load_initial_dataset_and_reset_to_zero(app, client, logi
         assert OwnershipTransferCase.query.count() == 0
         assert CaseDocument.query.count() == 0
         assert Publication.query.count() == 0
-        assert TasaMantenimientoTicket.query.count() == 0
-        assert Invoice.query.count() == 0
-        assert Payment.query.count() == 0
+        assert BillingDocumentV2.query.count() == 0
+        assert PaymentV2.query.count() == 0
         assert LapidaStock.query.count() == 0
         assert InscripcionLateral.query.count() == 0
 

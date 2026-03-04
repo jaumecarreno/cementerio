@@ -6,8 +6,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
-from flask import current_app, g
-from sqlalchemy import func
+from flask import g
 from sqlalchemy.exc import IntegrityError
 
 from app.core.extensions import db
@@ -20,17 +19,10 @@ from app.core.models import (
     FiscalSubmissionStatus,
     FiscalSubmissionV2,
     IdempotencyRequestV2,
-    Invoice,
-    InvoiceEstado,
     PaymentMethod,
     PaymentV2,
     PaymentAllocationV2,
-    TasaMantenimientoTicket,
-    TicketEstado,
 )
-
-
-ALLOWED_LEGACY_PAYMENT_METHODS = {"EFECTIVO", "TARJETA"}
 
 
 @dataclass
@@ -95,32 +87,6 @@ def _parse_optional_int(value: str | int | None) -> int | None:
     if not raw.isdigit():
         raise ValueError("Id invalido")
     return int(raw)
-
-
-def billing_cutover_date() -> date | None:
-    raw = str(current_app.config.get("BILLING_V2_CUTOVER_DATE", "")).strip()
-    if not raw:
-        return None
-    try:
-        return date.fromisoformat(raw)
-    except ValueError:
-        current_app.logger.warning("BILLING_V2_CUTOVER_DATE invalida: %s", raw)
-        return None
-
-
-def is_legacy_billing_write_blocked(today: date | None = None) -> bool:
-    cutover = billing_cutover_date()
-    if not cutover:
-        return False
-    current_day = today or date.today()
-    return current_day >= cutover
-
-
-def validate_legacy_payment_method(method: str) -> str:
-    normalized = (method or "").strip().upper() or "EFECTIVO"
-    if normalized not in ALLOWED_LEGACY_PAYMENT_METHODS:
-        raise ValueError("Metodo de pago invalido para cobro legacy")
-    return normalized
 
 
 def _canonical_payload_hash(payload: dict[str, object]) -> str:
@@ -548,9 +514,7 @@ def workspace_data(filters: dict[str, str]) -> dict[str, object]:
         except KeyError:
             return {
                 "documents": [],
-                "legacy_pending_tickets": Decimal("0.00"),
-                "legacy_unpaid_invoices": Decimal("0.00"),
-                "legacy_total_pending": Decimal("0.00"),
+                "pending_total": Decimal("0.00"),
                 "recent_submissions": [],
             }
 
@@ -559,9 +523,7 @@ def workspace_data(filters: dict[str, str]) -> dict[str, object]:
         if not contract_id_raw.isdigit():
             return {
                 "documents": [],
-                "legacy_pending_tickets": Decimal("0.00"),
-                "legacy_unpaid_invoices": Decimal("0.00"),
-                "legacy_total_pending": Decimal("0.00"),
+                "pending_total": Decimal("0.00"),
                 "recent_submissions": [],
             }
         query = query.filter(BillingDocumentV2.contract_id == int(contract_id_raw))
@@ -571,9 +533,7 @@ def workspace_data(filters: dict[str, str]) -> dict[str, object]:
         if not sepultura_id_raw.isdigit():
             return {
                 "documents": [],
-                "legacy_pending_tickets": Decimal("0.00"),
-                "legacy_unpaid_invoices": Decimal("0.00"),
-                "legacy_total_pending": Decimal("0.00"),
+                "pending_total": Decimal("0.00"),
                 "recent_submissions": [],
             }
         query = query.filter(BillingDocumentV2.sepultura_id == int(sepultura_id_raw))
@@ -584,17 +544,15 @@ def workspace_data(filters: dict[str, str]) -> dict[str, object]:
         .all()
     )
 
-    legacy_pending_tickets = _safe_decimal(
-        db.session.query(func.coalesce(func.sum(TasaMantenimientoTicket.importe), 0))
-        .filter(TasaMantenimientoTicket.org_id == _org_id())
-        .filter(TasaMantenimientoTicket.estado != TicketEstado.COBRADO)
-        .scalar()
-    )
-    legacy_unpaid_invoices = _safe_decimal(
-        db.session.query(func.coalesce(func.sum(Invoice.total_amount), 0))
-        .filter(Invoice.org_id == _org_id())
-        .filter(Invoice.estado == InvoiceEstado.IMPAGADA)
-        .scalar()
+    pending_total = _safe_decimal(
+        sum(
+            (
+                _safe_decimal(item.residual_amount)
+                for item in documents
+                if item.status in {BillingDocumentStatus.ISSUED, BillingDocumentStatus.PARTIALLY_PAID}
+            ),
+            Decimal("0.00"),
+        )
     )
     recent_submissions = (
         FiscalSubmissionV2.query.filter_by(org_id=_org_id())
@@ -605,8 +563,6 @@ def workspace_data(filters: dict[str, str]) -> dict[str, object]:
 
     return {
         "documents": documents,
-        "legacy_pending_tickets": legacy_pending_tickets,
-        "legacy_unpaid_invoices": legacy_unpaid_invoices,
-        "legacy_total_pending": (legacy_pending_tickets + legacy_unpaid_invoices).quantize(Decimal("0.01")),
+        "pending_total": pending_total,
         "recent_submissions": recent_submissions,
     }

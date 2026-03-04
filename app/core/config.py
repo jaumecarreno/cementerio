@@ -11,6 +11,3 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     APP_ENV = os.getenv("APP_ENV", "")
-    # Fecha de corte para bloquear escrituras de facturacion legacy (/tasas/*).
-    # Formato ISO YYYY-MM-DD. Vacio = sin corte activo.
-    BILLING_V2_CUTOVER_DATE = os.getenv("BILLING_V2_CUTOVER_DATE", "")

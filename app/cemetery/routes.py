@@ -54,11 +54,9 @@ from app.cemetery.billing_v2_service import (
     create_credit_note,
     create_invoice_draft,
     issue_invoice,
-    is_legacy_billing_write_blocked,
     payment_receipt_by_id,
     register_payment,
     retry_fiscal_submission,
-    validate_legacy_payment_method,
     workspace_data as billing_workspace_data,
 )
 from app.cemetery.services import (
@@ -72,7 +70,6 @@ from app.cemetery.services import (
     change_ownership_case_status,
     change_sepultura_state,
     complete_expediente_ot,
-    collect_tickets,
     close_ownership_case,
     contract_by_id,
     create_expediente,
@@ -85,7 +82,6 @@ from app.cemetery.services import (
     expediente_by_id,
     expediente_ot_pdf,
     funeral_right_title_pdf,
-    generate_maintenance_tickets_for_year,
     lapida_stock_entry,
     lapida_stock_exit,
     list_expediente_ots,
@@ -123,7 +119,6 @@ from app.cemetery.services import (
     set_contract_holder_pensioner,
     sepultura_by_id,
     sepultura_tabs_data,
-    sepultura_tickets_and_invoices,
     transition_expediente_state,
     transition_inscripcion_estado,
     update_sepultura_notes,
@@ -232,24 +227,6 @@ def panel():
     return render_template(
         "cemetery/panel.html", data=data, current_year=date.today().year
     )
-
-
-@cemetery_bp.post("/admin/tickets/generar")
-@login_required
-@require_membership
-@require_role("admin")
-def admin_generate_tickets():
-    # Spec 5.2.5.2.2 / 5.3.4 - Generar tiquets anuales de mantenimiento
-    year = request.form.get("year", type=int)
-    if not year:
-        flash("Indica un ano valido", "error")
-        return redirect(url_for("cemetery.panel"))
-    result = generate_maintenance_tickets_for_year(year, org_record())
-    flash(
-        f"Tiquets generados {year}: creados={result.created}, existentes={result.existing}",
-        "success",
-    )
-    return redirect(url_for("cemetery.panel"))
 
 
 @cemetery_bp.get("/personas")
@@ -1321,66 +1298,27 @@ def search_graves():
     )
 
 
-@cemetery_bp.route("/tasas", methods=["GET", "POST"])
-@login_required
-@require_membership
-def fees_search():
-    # Punto de entrada a Tasas: buscar sepultura para abrir cobro.
-    filters = {
-        "bloque": request.values.get("bloque", "").strip(),
-        "fila": request.values.get("fila", "").strip(),
-        "columna": request.values.get("columna", "").strip(),
-        "numero": request.values.get("numero", "").strip(),
-        "con_deuda": request.values.get("con_deuda", "").strip(),
-        "titular": request.values.get("titular", "").strip(),
-        "difunto": request.values.get("difunto", "").strip(),
-    }
-    page = request.values.get("page", type=int, default=1) or 1
-    page_size = request.values.get("page_size", type=int, default=25) or 25
-    sort_by = request.values.get("sort_by", "ubicacion").strip() or "ubicacion"
-    sort_dir = request.values.get("sort_dir", "asc").strip() or "asc"
-    paged = (
-        search_sepulturas_paged(
-            filters, page=page, page_size=page_size, sort_by=sort_by, sort_dir=sort_dir
-        )
-        if any(filters.values())
-        else {
-            "rows": [],
-            "total": 0,
-            "shown": 0,
-            "page": 1,
-            "page_size": page_size,
-            "total_pages": 1,
-            "has_prev": False,
-            "has_next": False,
-        }
-    )
-    if _is_htmx():
-        return render_template(
-            "cemetery/_fees_search_results.html",
-            paged=paged,
-            filters=filters,
-            sort_by=sort_by,
-            sort_dir=sort_dir,
-            money=money,
-        )
-    return render_template(
-        "cemetery/fees_search.html",
-        filters=filters,
-        paged=paged,
-        sort_by=sort_by,
-        sort_dir=sort_dir,
-        money=money,
-        blocks=list_sepultura_blocks(),
-    )
-
-
 @cemetery_bp.get("/sepulturas/<int:sepultura_id>")
 @login_required
 @require_membership
 def grave_detail(sepultura_id: int):
     # Spec 9.4.3 / 9.4.4 / 9.4.5 / 9.1.7 - Ficha de sepultura con tabs
     tab = request.args.get("tab", "principal")
+    valid_tabs = {
+        "principal",
+        "resumen",
+        "titularidad",
+        "titulares",
+        "beneficiarios",
+        "difuntos",
+        "movimientos",
+        "facturacion",
+        "derecho",
+        "notas",
+        "lapidas",
+    }
+    if tab not in valid_tabs:
+        tab = "principal"
     mov_filters = {
         "tipo": request.args.get("tipo", "").strip(),
         "desde": request.args.get("desde", "").strip(),
@@ -1753,85 +1691,12 @@ def change_state(sepultura_id: int):
     )
 
 
-@cemetery_bp.get("/tasas/cobro")
-@login_required
-@require_membership
-def fee_collection():
-    # Spec 9.1.3 + 5.3.4 - Cobrament de taxes
-    sepultura_id = request.args.get("sepultura_id", type=int)
-    if not sepultura_id:
-        flash("Selecciona una sepultura para cobrar tasas", "error")
-        return redirect(url_for("cemetery.search_graves"))
-    try:
-        data = sepultura_tickets_and_invoices(sepultura_id)
-    except ValueError:
-        abort(404)
-    return render_template(
-        "cemetery/fees.html", data=data, money=money, today=date.today()
-    )
-
-
-def _selected_ticket_ids() -> list[int]:
-    values = request.form.getlist("ticket_ids")
-    return [int(v) for v in values if v.isdigit()]
-
-
-def _selected_discount_ticket_ids() -> set[int]:
-    values = request.form.getlist("discount_ticket_ids")
-    return {int(v) for v in values if v.isdigit()}
-
-
-@cemetery_bp.post("/tasas/cobro/facturar")
-@login_required
-@require_membership
-def fee_generate_invoice():
-    # Spec 9.1.3 - Criterio de caja: facturar en el momento del cobro
-    sepultura_id = request.form.get("sepultura_id", type=int)
-    flash("No disponible. Con criterio de caja se factura al cobrar.", "error")
-    return redirect(url_for("cemetery.fee_collection", sepultura_id=sepultura_id))
-
-
-@cemetery_bp.post("/tasas/cobro/cobrar")
-@login_required
-@require_membership
-def fee_collect_and_receipt():
-    # Spec 9.1.3 - Cobrar y emitir recibo en mostrador
-    if is_legacy_billing_write_blocked():
-        flash(
-            "Cobro legacy deshabilitado tras la fecha de corte. Usa Facturacion V2.",
-            "error",
-        )
-        return redirect(url_for("cemetery.billing_workspace"))
-
-    sepultura_id = request.form.get("sepultura_id", type=int)
-    selected_ids = _selected_ticket_ids()
-    discount_ticket_ids = _selected_discount_ticket_ids()
-    payment_method = request.form.get("payment_method", "EFECTIVO")
-    try:
-        payment_method = validate_legacy_payment_method(payment_method)
-        invoice, payment = collect_tickets(
-            sepultura_id=sepultura_id,
-            selected_ids=selected_ids,
-            method=payment_method,
-            user_id=current_user.id,
-            discount_ticket_ids=discount_ticket_ids,
-        )
-        flash(
-            f"Cobro registrado. Factura {invoice.numero} / Recibo {payment.receipt_number}",
-            "success",
-        )
-        return redirect(url_for("cemetery.receipt", payment_id=payment.id))
-    except ValueError as exc:
-        flash(str(exc), "error")
-        return redirect(url_for("cemetery.fee_collection", sepultura_id=sepultura_id))
-
-
 @cemetery_bp.post("/contratos/<int:contract_id>/beneficiario/nombrar")
 @login_required
 @require_membership
 @require_role("admin")
 def nominate_beneficiary(contract_id: int):
-    # Spec Cementiri 9.1.6 - Nomenament de beneficiari desde cobro de tasas
+    # Spec Cementiri 9.1.6 - Nomenament de beneficiari
     payload = {k: v for k, v in request.form.items()}
     sepultura_id = request.form.get("sepultura_id", type=int)
     try:
@@ -1839,7 +1704,22 @@ def nominate_beneficiary(contract_id: int):
         flash("Beneficiario guardado", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("cemetery.fee_collection", sepultura_id=sepultura_id))
+    target_sepultura = sepultura_id
+    if not target_sepultura:
+        try:
+            contrato = contract_by_id(contract_id)
+            target_sepultura = contrato.sepultura_id
+        except ValueError:
+            target_sepultura = None
+    if target_sepultura:
+        return redirect(
+            url_for(
+                "cemetery.grave_detail",
+                sepultura_id=target_sepultura,
+                tab="beneficiarios",
+            )
+        )
+    return redirect(url_for("cemetery.search_graves"))
 
 
 @cemetery_bp.post("/contratos/<int:contract_id>/titular/pensionista")
@@ -1898,18 +1778,6 @@ def remove_beneficiary(contract_id: int):
             )
         )
     return redirect(url_for("cemetery.search_graves"))
-
-
-@cemetery_bp.get("/tasas/recibo/<int:payment_id>")
-@login_required
-@require_membership
-def receipt(payment_id: int):
-    # Spec 9.1.3 - Justificante de cobro
-    from app.core.models import Payment
-
-    payment = Payment.query.filter_by(org_id=g.org.id, id=payment_id).first_or_404()
-    return render_template("cemetery/receipt.html", payment=payment, money=money)
-
 
 def _billing_workspace_filters() -> dict[str, str]:
     return {

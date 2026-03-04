@@ -8,7 +8,7 @@
   <a class="btn primary" href="{{ url_for('cemetery.expedientes', create_type='INHUMACION') }}">Inhumación</a>
   <a class="btn primary" href="{{ url_for('cemetery.expedientes', create_type='EXHUMACION') }}">Exhumación</a>
   <a class="btn" href="{{ url_for('cemetery.search_graves') }}">Buscar</a>
-  <a class="btn" href="{{ url_for('cemetery.fees_search') }}">Cobrar</a>
+  <a class="btn" href="{{ url_for('cemetery.billing_workspace') }}">Facturacion</a>
 </div>
 
 <div class="panel-grid">
@@ -24,8 +24,12 @@
         <span class="value">{{ data.kpis.ot_pendientes }}</span>
       </div>
       <div class="kpi-row">
-        <span>Tiquets impagados</span>
-        <span class="value">{{ data.kpis.tiquets_impagados }}</span>
+        <span>Documentos pendientes</span>
+        <span class="value">{{ data.kpis.documentos_pendientes }}</span>
+      </div>
+      <div class="kpi-row">
+        <span>Importe pendiente</span>
+        <span class="value">{{ data.kpis.importe_pendiente }}</span>
       </div>
       <div class="kpi-row">
         <span>Pend. notificar</span>

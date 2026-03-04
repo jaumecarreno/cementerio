@@ -9,7 +9,7 @@
 {% macro report_label(key) -%}
   {%- if key == 'sepulturas' -%}Sepulturas
   {%- elif key == 'contratos' -%}Contratos
-  {%- elif key == 'deuda' -%}Deuda (legacy)
+  {%- elif key == 'deuda' -%}Deuda
   {%- elif key == 'ot_carga_equipos' -%}OT carga equipos
   {%- elif key == 'ot_sla_cumplimiento' -%}OT SLA cumplimiento
   {%- elif key == 'ot_calendario_faenas' -%}OT calendario faenas
@@ -172,7 +172,7 @@
       {% elif report_key == 'contratos' %}
       <tr><th>ID</th><th>Tipo</th><th>Vigencia</th><th>Titular</th><th>Sepultura</th></tr>
       {% elif report_key == 'deuda' %}
-      <tr><th>Contrato</th><th>Sepultura</th><th>Tickets pendientes</th><th>Importe tickets</th><th>Facturas impagadas</th><th>Importe facturas</th><th>Deuda total</th></tr>
+      <tr><th>Contrato</th><th>Sepultura</th><th>Documentos pendientes</th><th>Importe pendiente</th><th>Deuda total</th></tr>
       {% elif report_key == 'ot_carga_equipos' %}
       <tr><th>Usuario</th><th>Tipo OT</th><th>Categoria</th><th>Abiertas</th><th>Nuevas</th><th>Completadas</th><th>Backlog neto</th><th>% carga tipo</th></tr>
       {% elif report_key == 'ot_sla_cumplimiento' %}
@@ -209,10 +209,8 @@
       <tr>
         <td>{{ row.contrato_id }}</td>
         <td>{{ row.sepultura }}</td>
-        <td>{{ row.tickets_pendientes }}</td>
-        <td>{{ money(row.importe_tickets) }}</td>
-        <td>{{ row.facturas_impagadas }}</td>
-        <td>{{ money(row.importe_facturas) }}</td>
+        <td>{{ row.documentos_pendientes }}</td>
+        <td>{{ money(row.importe_pendiente) }}</td>
         <td>{{ money(row.deuda_total) }}</td>
       </tr>
       {% elif report_key == 'ot_carga_equipos' %}

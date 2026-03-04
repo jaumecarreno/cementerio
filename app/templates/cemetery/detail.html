@@ -13,6 +13,7 @@
     {% if data.contrato %}
     <div>
       <strong>Contrato:</strong>
+      C{{ data.contrato.id }} -
       {{ 'LLOGUER' if data.contrato.tipo.value == 'USO_INMEDIATO' else data.contrato.tipo.value }}
       ({{ data.contrato.fecha_inicio }} - {{ data.contrato.fecha_fin }})
     </div>
@@ -29,7 +30,11 @@
       </select>
       <button type="submit">Cambiar estado</button>
     </form>
-    <a class="btn" href="{{ url_for('cemetery.fee_collection', sepultura_id=data.sepultura.id) }}">Cobrar tasas</a>
+    {% if data.contrato %}
+    <a class="btn" href="{{ url_for('cemetery.billing_workspace', contract_id=data.contrato.id, sepultura_id=data.sepultura.id) }}">Facturacion</a>
+    {% else %}
+    <a class="btn" href="{{ url_for('cemetery.billing_workspace', sepultura_id=data.sepultura.id) }}">Facturacion</a>
+    {% endif %}
     <a class="btn" href="{{ url_for('cemetery.expedientes', prefill_source_sepultura_id=data.sepultura.id) }}">Nuevo expediente</a>
     {% if not data.contrato %}
     <a class="btn" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='derecho') }}">Crear derecho funerario</a>
@@ -49,7 +54,7 @@
   <a class="tab-link {% if data.tab == 'beneficiarios' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='beneficiarios') }}">Beneficiarios</a>
   <a class="tab-link {% if data.tab == 'difuntos' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='difuntos') }}">Difuntos</a>
   <a class="tab-link {% if data.tab == 'movimientos' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='movimientos') }}">Movimientos</a>
-  <a class="tab-link {% if data.tab == 'tasas' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='tasas') }}">Tasas</a>
+  <a class="tab-link {% if data.tab == 'facturacion' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='facturacion') }}">Facturacion</a>
   <a class="tab-link {% if data.tab == 'derecho' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='derecho') }}">{{ t('cem.rights') }}</a>
   <a class="tab-link {% if data.tab == 'notas' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='notas') }}">Notas</a>
   <a class="tab-link {% if data.tab == 'lapidas' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='lapidas') }}">{{ t('cem.engraving') }}</a>
@@ -59,9 +64,9 @@
 {% set titular_person = data.active_titular.person if data.active_titular else none %}
 {% set beneficiario_person = data.active_beneficiario.person if data.active_beneficiario else none %}
 {% set representante_person = data.representante %}
-{% set tasas_limit = 5 %}
-{% set visible_tasas = data.tasas[:tasas_limit] %}
-{% set hidden_tasas = data.tasas[tasas_limit:] %}
+{% set billing_limit = 5 %}
+{% set visible_documents = data.billing_documents[:billing_limit] %}
+{% set hidden_documents = data.billing_documents[billing_limit:] %}
 {% set titular_phone_value = [titular_person.telefono, titular_person.telefono2]|select|join(', ') if titular_person else '' %}
 {% set titular_email_value = [titular_person.email, titular_person.email2]|select|join(', ') if titular_person else '' %}
 {% set titular_locality_value = [titular_person.codigo_postal, titular_person.poblacion]|select|join(' ') if titular_person else '' %}
@@ -217,48 +222,52 @@
   </div>
 
   <div class="box detail-card">
-    <h3>Tasas</h3>
+    <h3>Facturacion</h3>
     <table class="table-zebra detail-table-compact">
       <thead>
         <tr>
-          <th>Ano</th>
+          <th>Documento</th>
           <th>Estado</th>
-          <th>Importe</th>
+          <th>Pendiente</th>
         </tr>
       </thead>
       <tbody>
-        {% for ticket in visible_tasas %}
+        {% for doc in visible_documents %}
         <tr>
-          <td>{{ ticket.anio }}</td>
-          <td>{{ ticket.estado.value }}</td>
-          <td>{{ money(ticket.importe) }}</td>
+          <td>{{ doc.number or ('#' ~ doc.id) }}</td>
+          <td>{{ doc.status.value }}</td>
+          <td>{{ money(doc.residual_amount) }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="3">Sin tasas</td></tr>
+        <tr><td colspan="3">Sin documentos</td></tr>
         {% endfor %}
       </tbody>
-      {% if hidden_tasas %}
-      <tbody id="tasas-extra-{{ data.sepultura.id }}" hidden>
-        {% for ticket in hidden_tasas %}
+      {% if hidden_documents %}
+      <tbody id="billing-extra-{{ data.sepultura.id }}" hidden>
+        {% for doc in hidden_documents %}
         <tr>
-          <td>{{ ticket.anio }}</td>
-          <td>{{ ticket.estado.value }}</td>
-          <td>{{ money(ticket.importe) }}</td>
+          <td>{{ doc.number or ('#' ~ doc.id) }}</td>
+          <td>{{ doc.status.value }}</td>
+          <td>{{ money(doc.residual_amount) }}</td>
         </tr>
         {% endfor %}
       </tbody>
       {% endif %}
     </table>
     <div class="actions-row">
-      <a class="btn primary" href="{{ url_for('cemetery.fee_collection', sepultura_id=data.sepultura.id) }}">Cobrar tasas</a>
-      {% if hidden_tasas %}
+      {% if data.contrato %}
+      <a class="btn primary" href="{{ url_for('cemetery.billing_workspace', contract_id=data.contrato.id, sepultura_id=data.sepultura.id) }}">Abrir facturacion</a>
+      {% else %}
+      <a class="btn primary" href="{{ url_for('cemetery.billing_workspace', sepultura_id=data.sepultura.id) }}">Abrir facturacion</a>
+      {% endif %}
+      {% if hidden_documents %}
       <button
         type="button"
         class="text-toggle-btn"
-        data-toggle-target="tasas-extra-{{ data.sepultura.id }}"
-        data-open-label="Ver mas tasas"
-        data-close-label="Ver menos tasas"
-      >Ver mas tasas</button>
+        data-toggle-target="billing-extra-{{ data.sepultura.id }}"
+        data-open-label="Ver mas documentos"
+        data-close-label="Ver menos documentos"
+      >Ver mas documentos</button>
       {% endif %}
     </div>
   </div>
@@ -710,33 +719,41 @@
   </form>
 </div>
 
-{% elif data.tab == 'tasas' %}
+{% elif data.tab == 'facturacion' %}
 <div class="box">
-  <h3>{{ t('cem.fees') }}</h3>
+  <h3>Facturacion</h3>
   <table>
     <thead>
       <tr>
-        <th>AÃ±o</th>
-        <th>Importe</th>
-        <th>Descuento</th>
+        <th>Documento</th>
+        <th>Tipo</th>
         <th>Estado</th>
+        <th>Fiscal</th>
+        <th>Total</th>
+        <th>Pendiente</th>
       </tr>
     </thead>
     <tbody>
-      {% for ticket in data.tasas %}
+      {% for doc in data.billing_documents %}
       <tr>
-        <td>{{ ticket.anio }}</td>
-        <td>{{ money(ticket.importe) }}</td>
-        <td>{{ ticket.descuento_tipo.value }}</td>
-        <td>{{ ticket.estado.value }}</td>
+        <td>{{ doc.number or ('#' ~ doc.id) }}</td>
+        <td>{{ doc.document_type.value }}</td>
+        <td>{{ doc.status.value }}</td>
+        <td>{{ doc.fiscal_status.value }}</td>
+        <td>{{ money(doc.total_amount) }}</td>
+        <td>{{ money(doc.residual_amount) }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="4">Sin tiquets</td></tr>
+      <tr><td colspan="6">Sin documentos</td></tr>
       {% endfor %}
     </tbody>
   </table>
   <div class="actions-row">
-    <a class="btn primary" href="{{ url_for('cemetery.fee_collection', sepultura_id=data.sepultura.id) }}">Ir a cobro de tasas</a>
+    {% if data.contrato %}
+    <a class="btn primary" href="{{ url_for('cemetery.billing_workspace', contract_id=data.contrato.id, sepultura_id=data.sepultura.id) }}">Ir a facturacion</a>
+    {% else %}
+    <a class="btn primary" href="{{ url_for('cemetery.billing_workspace', sepultura_id=data.sepultura.id) }}">Ir a facturacion</a>
+    {% endif %}
   </div>
 </div>
 {% elif data.tab == 'derecho' %}

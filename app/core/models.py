@@ -32,18 +32,6 @@ class DerechoTipo(str, Enum):
     USO_INMEDIATO = "USO_INMEDIATO"
 
 
-class TicketEstado(str, Enum):
-    # Spec 9.1.3 + 5.3.4 - Cobrament de taxes
-    PENDIENTE = "PENDIENTE"
-    FACTURADO = "FACTURADO"
-    COBRADO = "COBRADO"
-
-
-class TicketDescuentoTipo(str, Enum):
-    NONE = "NONE"
-    PENSIONISTA = "PENSIONISTA"
-
-
 class MovimientoTipo(str, Enum):
     INHUMACION = "INHUMACION"
     EXHUMACION = "EXHUMACION"
@@ -127,13 +115,6 @@ class WorkOrderAreaType(str, Enum):
 
 class WorkOrderDependencyType(str, Enum):
     FINISH_TO_START = "FINISH_TO_START"
-
-
-class InvoiceEstado(str, Enum):
-    BORRADOR = "BORRADOR"
-    EMITIDA = "EMITIDA"
-    IMPAGADA = "IMPAGADA"
-    PAGADA = "PAGADA"
 
 
 class BillingDocumentType(str, Enum):
@@ -474,7 +455,6 @@ class DerechoFunerarioContrato(db.Model):
     sepultura = relationship("Sepultura", back_populates="contratos")
     ownership_records = relationship("OwnershipRecord", back_populates="contract", cascade="all, delete-orphan")
     beneficiaries = relationship("Beneficiario", back_populates="contract", cascade="all, delete-orphan")
-    tickets = relationship("TasaMantenimientoTicket", back_populates="contrato", cascade="all, delete-orphan")
     ownership_transfer_cases = relationship(
         "OwnershipTransferCase",
         back_populates="contract",
@@ -1179,73 +1159,6 @@ class MovimientoSepultura(db.Model):
     user = relationship("User")
 
 
-class Invoice(db.Model):
-    # Spec 5.2.5.2.2 / 9.1.3 - facturación de tasas
-    __tablename__ = "invoice"
-    __table_args__ = (UniqueConstraint("org_id", "numero", name="uq_invoice_org_number"),)
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
-    contrato_id: Mapped[int] = mapped_column(ForeignKey("derecho_funerario_contrato.id"), nullable=False)
-    sepultura_id: Mapped[int] = mapped_column(ForeignKey("sepultura.id"), nullable=False)
-    numero: Mapped[str] = mapped_column(db.String(40), nullable=False)
-    estado: Mapped[InvoiceEstado] = mapped_column(
-        SAEnum(InvoiceEstado, name="invoice_estado"),
-        nullable=False,
-        default=InvoiceEstado.BORRADOR,
-    )
-    total_amount: Mapped[Decimal] = mapped_column(db.Numeric(10, 2), nullable=False, default=0)
-    issued_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
-
-    payments = relationship("Payment", back_populates="invoice", cascade="all, delete-orphan")
-
-
-class Payment(db.Model):
-    # Spec 9.1.3 - cobro y recibo
-    __tablename__ = "payment"
-    __table_args__ = (UniqueConstraint("org_id", "receipt_number", name="uq_payment_org_receipt"),)
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
-    invoice_id: Mapped[int] = mapped_column(ForeignKey("invoice.id"), nullable=False, index=True)
-    user_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"), nullable=True, index=True)
-    amount: Mapped[Decimal] = mapped_column(db.Numeric(10, 2), nullable=False)
-    method: Mapped[str] = mapped_column(db.String(20), nullable=False, default="EFECTIVO")
-    receipt_number: Mapped[str] = mapped_column(db.String(40), nullable=False)
-    paid_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
-
-    invoice = relationship("Invoice", back_populates="payments")
-    user = relationship("User")
-
-
-class TasaMantenimientoTicket(db.Model):
-    # Spec 5.2.5.2.2 / 9.1.3 - tiquets anuales de mantenimiento
-    __tablename__ = "tasa_mantenimiento_ticket"
-    __table_args__ = (UniqueConstraint("org_id", "contrato_id", "anio", name="uq_ticket_contract_year"),)
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
-    contrato_id: Mapped[int] = mapped_column(ForeignKey("derecho_funerario_contrato.id"), nullable=False)
-    invoice_id: Mapped[int | None] = mapped_column(ForeignKey("invoice.id"), nullable=True)
-    anio: Mapped[int] = mapped_column(nullable=False)
-    importe: Mapped[Decimal] = mapped_column(db.Numeric(10, 2), nullable=False)
-    descuento_tipo: Mapped[TicketDescuentoTipo] = mapped_column(
-        SAEnum(TicketDescuentoTipo, name="ticket_descuento_tipo"),
-        nullable=False,
-        default=TicketDescuentoTipo.NONE,
-    )
-    estado: Mapped[TicketEstado] = mapped_column(
-        SAEnum(TicketEstado, name="ticket_estado"),
-        nullable=False,
-        default=TicketEstado.PENDIENTE,
-    )
-    created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
-
-    contrato = relationship("DerechoFunerarioContrato", back_populates="tickets")
-    invoice = relationship("Invoice")
-
-
 class BillingDocumentV2(db.Model):
     __tablename__ = "billing_document_v2"
     __table_args__ = (
@@ -1555,37 +1468,6 @@ def sepultura_after_update(_mapper, connection, target: Sepultura) -> None:
         )
 
 
-@event.listens_for(TasaMantenimientoTicket, "after_update")
-def ticket_after_update(_mapper, connection, target: TasaMantenimientoTicket) -> None:
-    # Spec 9.1.3 - trazabilidad en cobro/facturación de tasas
-    state = inspect(target)
-    if state.attrs.estado.history.has_changes():
-        contrato = connection.execute(
-            DerechoFunerarioContrato.__table__.select().where(DerechoFunerarioContrato.id == target.contrato_id)
-        ).mappings().first()
-        if contrato:
-            connection.execute(
-                MovimientoSepultura.__table__.insert().values(
-                    org_id=target.org_id,
-                    sepultura_id=contrato["sepultura_id"],
-                    tipo=MovimientoTipo.TASAS,
-                    fecha=utcnow(),
-                    detalle=f"Tiquet {target.anio} -> {target.estado.value}",
-                    user_id=None,
-                )
-            )
-            connection.execute(
-                ActivityLog.__table__.insert().values(
-                    org_id=target.org_id,
-                    sepultura_id=contrato["sepultura_id"],
-                    action_type=MovimientoTipo.TASAS.value,
-                    details=f"Tiquet {target.anio} -> {target.estado.value}",
-                    created_at=utcnow(),
-                    user_id=None,
-                )
-            )
-
-
 def seed_demo_data(session) -> None:
     def _assert_non_generic_person(*persons: Person) -> None:
         for person in persons:
@@ -1844,62 +1726,257 @@ def seed_demo_data(session) -> None:
 
     session.add(SepulturaDifunto(org_id=org.id, sepultura_id=sep_1.id, person_id=difunto_1.id, notes="Cadàver"))
 
-    ticket_2023 = TasaMantenimientoTicket(
+    draft_doc = BillingDocumentV2(
         org_id=org.id,
-        contrato_id=contrato_1.id,
-        anio=2023,
-        importe=Decimal("45.00"),
-        descuento_tipo=TicketDescuentoTipo.NONE,
-        estado=TicketEstado.PENDIENTE,
+        contract_id=contrato_1.id,
+        sepultura_id=sep_1.id,
+        document_type=BillingDocumentType.INVOICE,
+        status=BillingDocumentStatus.DRAFT,
+        fiscal_status=FiscalSubmissionStatus.PENDING,
+        currency="EUR",
+        total_amount=Decimal("45.00"),
+        residual_amount=Decimal("45.00"),
+        created_by_user_id=admin.id,
     )
-    ticket_2024 = TasaMantenimientoTicket(
+    issued_doc = BillingDocumentV2(
         org_id=org.id,
-        contrato_id=contrato_1.id,
-        anio=2024,
-        importe=Decimal("45.00"),
-        descuento_tipo=TicketDescuentoTipo.NONE,
-        estado=TicketEstado.PENDIENTE,
-    )
-    ticket_2025 = TasaMantenimientoTicket(
-        org_id=org.id,
-        contrato_id=contrato_1.id,
-        anio=2025,
-        importe=Decimal("40.50"),
-        descuento_tipo=TicketDescuentoTipo.PENSIONISTA,
-        estado=TicketEstado.PENDIENTE,
-    )
-    ticket_2026 = TasaMantenimientoTicket(
-        org_id=org.id,
-        contrato_id=contrato_1.id,
-        anio=2026,
-        importe=Decimal("40.50"),
-        descuento_tipo=TicketDescuentoTipo.PENSIONISTA,
-        estado=TicketEstado.PENDIENTE,
-    )
-
-    invoice_old = Invoice(
-        org_id=org.id,
-        contrato_id=contrato_2.id,
+        contract_id=contrato_2.id,
         sepultura_id=sep_5.id,
-        numero="F-CEM-2025-0001",
-        estado=InvoiceEstado.IMPAGADA,
+        document_type=BillingDocumentType.INVOICE,
+        status=BillingDocumentStatus.ISSUED,
+        fiscal_status=FiscalSubmissionStatus.ACCEPTED,
+        number="F-DEMO-2026-000001",
+        currency="EUR",
         total_amount=Decimal("50.00"),
+        residual_amount=Decimal("50.00"),
         issued_at=utcnow(),
+        created_by_user_id=admin.id,
     )
-    session.add(invoice_old)
+    partial_doc = BillingDocumentV2(
+        org_id=org.id,
+        contract_id=contrato_1.id,
+        sepultura_id=sep_1.id,
+        document_type=BillingDocumentType.INVOICE,
+        status=BillingDocumentStatus.PARTIALLY_PAID,
+        fiscal_status=FiscalSubmissionStatus.ACCEPTED,
+        number="F-DEMO-2026-000002",
+        currency="EUR",
+        total_amount=Decimal("40.50"),
+        residual_amount=Decimal("20.50"),
+        issued_at=utcnow(),
+        created_by_user_id=admin.id,
+    )
+    paid_doc = BillingDocumentV2(
+        org_id=org.id,
+        contract_id=contrato_3.id,
+        sepultura_id=sep_2.id,
+        document_type=BillingDocumentType.INVOICE,
+        status=BillingDocumentStatus.PAID,
+        fiscal_status=FiscalSubmissionStatus.ACCEPTED,
+        number="F-DEMO-2026-000003",
+        currency="EUR",
+        total_amount=Decimal("30.00"),
+        residual_amount=Decimal("0.00"),
+        issued_at=utcnow(),
+        created_by_user_id=admin.id,
+    )
+    cancelled_doc = BillingDocumentV2(
+        org_id=org.id,
+        contract_id=contrato_2.id,
+        sepultura_id=sep_5.id,
+        document_type=BillingDocumentType.INVOICE,
+        status=BillingDocumentStatus.CANCELLED,
+        fiscal_status=FiscalSubmissionStatus.ACCEPTED,
+        number="F-DEMO-2026-000004",
+        currency="EUR",
+        total_amount=Decimal("35.00"),
+        residual_amount=Decimal("0.00"),
+        issued_at=utcnow(),
+        cancelled_at=utcnow(),
+        created_by_user_id=admin.id,
+    )
+    session.add_all([draft_doc, issued_doc, partial_doc, paid_doc, cancelled_doc])
     session.flush()
 
-    ticket_impagado = TasaMantenimientoTicket(
+    credit_note = BillingDocumentV2(
         org_id=org.id,
-        contrato_id=contrato_2.id,
-        anio=2025,
-        importe=Decimal("50.00"),
-        descuento_tipo=TicketDescuentoTipo.NONE,
-        estado=TicketEstado.FACTURADO,
-        invoice_id=invoice_old.id,
+        contract_id=cancelled_doc.contract_id,
+        sepultura_id=cancelled_doc.sepultura_id,
+        original_document_id=cancelled_doc.id,
+        document_type=BillingDocumentType.CREDIT_NOTE,
+        status=BillingDocumentStatus.ISSUED,
+        fiscal_status=FiscalSubmissionStatus.ACCEPTED,
+        number="NC-DEMO-2026-000001",
+        currency="EUR",
+        total_amount=Decimal("35.00"),
+        residual_amount=Decimal("0.00"),
+        issued_at=utcnow(),
+        created_by_user_id=admin.id,
+    )
+    session.add(credit_note)
+    session.flush()
+
+    session.add_all(
+        [
+            BillingLineV2(
+                org_id=org.id,
+                document_id=draft_doc.id,
+                line_no=1,
+                concept="Mantenimiento anual",
+                quantity=Decimal("1.00"),
+                unit_price=Decimal("45.00"),
+                tax_rate=Decimal("0.00"),
+                net_amount=Decimal("45.00"),
+                tax_amount=Decimal("0.00"),
+                total_amount=Decimal("45.00"),
+            ),
+            BillingLineV2(
+                org_id=org.id,
+                document_id=issued_doc.id,
+                line_no=1,
+                concept="Regularizacion contrato",
+                quantity=Decimal("1.00"),
+                unit_price=Decimal("50.00"),
+                tax_rate=Decimal("0.00"),
+                net_amount=Decimal("50.00"),
+                tax_amount=Decimal("0.00"),
+                total_amount=Decimal("50.00"),
+            ),
+            BillingLineV2(
+                org_id=org.id,
+                document_id=partial_doc.id,
+                line_no=1,
+                concept="Mantenimiento pensionista",
+                quantity=Decimal("1.00"),
+                unit_price=Decimal("40.50"),
+                tax_rate=Decimal("0.00"),
+                net_amount=Decimal("40.50"),
+                tax_amount=Decimal("0.00"),
+                total_amount=Decimal("40.50"),
+            ),
+            BillingLineV2(
+                org_id=org.id,
+                document_id=paid_doc.id,
+                line_no=1,
+                concept="Mantenimiento uso inmediato",
+                quantity=Decimal("1.00"),
+                unit_price=Decimal("30.00"),
+                tax_rate=Decimal("0.00"),
+                net_amount=Decimal("30.00"),
+                tax_amount=Decimal("0.00"),
+                total_amount=Decimal("30.00"),
+            ),
+            BillingLineV2(
+                org_id=org.id,
+                document_id=cancelled_doc.id,
+                line_no=1,
+                concept="Factura anulada por rectificacion",
+                quantity=Decimal("1.00"),
+                unit_price=Decimal("35.00"),
+                tax_rate=Decimal("0.00"),
+                net_amount=Decimal("35.00"),
+                tax_amount=Decimal("0.00"),
+                total_amount=Decimal("35.00"),
+            ),
+            BillingLineV2(
+                org_id=org.id,
+                document_id=credit_note.id,
+                line_no=1,
+                concept="Rectificacion total",
+                quantity=Decimal("1.00"),
+                unit_price=Decimal("35.00"),
+                tax_rate=Decimal("0.00"),
+                net_amount=Decimal("35.00"),
+                tax_amount=Decimal("0.00"),
+                total_amount=Decimal("35.00"),
+            ),
+        ]
     )
 
-    session.add_all([ticket_2023, ticket_2024, ticket_2025, ticket_2026, ticket_impagado])
+    partial_payment = PaymentV2(
+        org_id=org.id,
+        document_id=partial_doc.id,
+        amount=Decimal("20.00"),
+        method=PaymentMethod.TARJETA,
+        receipt_number="R-DEMO-2026-000001",
+        external_reference="seed-partial",
+        created_by_user_id=admin.id,
+    )
+    paid_payment = PaymentV2(
+        org_id=org.id,
+        document_id=paid_doc.id,
+        amount=Decimal("30.00"),
+        method=PaymentMethod.EFECTIVO,
+        receipt_number="R-DEMO-2026-000002",
+        external_reference="seed-paid",
+        created_by_user_id=admin.id,
+    )
+    session.add_all([partial_payment, paid_payment])
+    session.flush()
+    session.add_all(
+        [
+            PaymentAllocationV2(
+                org_id=org.id,
+                payment_id=partial_payment.id,
+                document_id=partial_doc.id,
+                amount=Decimal("20.00"),
+            ),
+            PaymentAllocationV2(
+                org_id=org.id,
+                payment_id=paid_payment.id,
+                document_id=paid_doc.id,
+                amount=Decimal("30.00"),
+            ),
+        ]
+    )
+
+    session.add_all(
+        [
+            FiscalSubmissionV2(
+                org_id=org.id,
+                document_id=issued_doc.id,
+                status=FiscalSubmissionStatus.ACCEPTED,
+                provider_name="demo_provider",
+                attempt_count=1,
+                external_submission_id="SUB-DEMO-0001",
+                request_payload_json='{"mode":"seed"}',
+                response_payload_json='{"status":"ok"}',
+                accepted_at=utcnow(),
+            ),
+            FiscalSubmissionV2(
+                org_id=org.id,
+                document_id=partial_doc.id,
+                status=FiscalSubmissionStatus.ACCEPTED,
+                provider_name="demo_provider",
+                attempt_count=1,
+                external_submission_id="SUB-DEMO-0002",
+                request_payload_json='{"mode":"seed"}',
+                response_payload_json='{"status":"ok"}',
+                accepted_at=utcnow(),
+            ),
+            FiscalSubmissionV2(
+                org_id=org.id,
+                document_id=cancelled_doc.id,
+                status=FiscalSubmissionStatus.RETRYING,
+                provider_name="blocked_no_provider",
+                attempt_count=2,
+                request_payload_json='{"mode":"seed"}',
+                response_payload_json='{"status":"blocked"}',
+                error_message="Integracion fiscal bloqueada: proveedor no definido para envio VeriFactu",
+            ),
+            FiscalSubmissionV2(
+                org_id=org.id,
+                document_id=credit_note.id,
+                status=FiscalSubmissionStatus.ACCEPTED,
+                provider_name="demo_provider",
+                attempt_count=1,
+                external_submission_id="SUB-DEMO-0003",
+                request_payload_json='{"mode":"seed"}',
+                response_payload_json='{"status":"ok"}',
+                accepted_at=utcnow(),
+            ),
+        ]
+    )
 
     session.add_all(
         [
@@ -1916,13 +1993,6 @@ def seed_demo_data(session) -> None:
                 tipo=MovimientoTipo.LAPIDA,
                 detalle="Colocación lápida resina",
                 user_id=operario.id,
-            ),
-            MovimientoSepultura(
-                org_id=org.id,
-                sepultura_id=sep_1.id,
-                tipo=MovimientoTipo.TASAS,
-                detalle="Tiquet 2025 generado",
-                user_id=None,
             ),
         ]
     )

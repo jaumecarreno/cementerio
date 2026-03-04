@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% set active_cem = 'facturacion' %}
-{% block title %}Recibo V2 {{ payment.receipt_number }}{% endblock %}
+{% block title %}Recibo {{ payment.receipt_number }}{% endblock %}
 {% block content %}
-<h1 class="page-title">Recibo de cobro V2</h1>
+<h1 class="page-title">Recibo de cobro</h1>
 
 <div class="box">
   <p><strong>Recibo:</strong> {{ payment.receipt_number }}</p>

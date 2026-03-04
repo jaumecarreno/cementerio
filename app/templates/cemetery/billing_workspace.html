@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% from "partials/icons.html" import action_icon %}
 {% set active_cem = 'facturacion' %}
-{% block title %}Facturacion V2{% endblock %}
+{% block title %}Facturacion{% endblock %}
 {% block content %}
-<h1 class="page-title">Facturacion V2</h1>
+<h1 class="page-title">Facturacion</h1>
 
 <div class="box">
   <h3>Filtros</h3>
@@ -53,11 +53,8 @@
 </div>
 
 <div class="box">
-  <h3>Deuda legado consolidada</h3>
   <div class="meta-row">
-    <div><strong>Tickets pendientes:</strong> {{ money(data.legacy_pending_tickets) }}</div>
-    <div><strong>Facturas impagadas:</strong> {{ money(data.legacy_unpaid_invoices) }}</div>
-    <div><strong>Total:</strong> {{ money(data.legacy_total_pending) }}</div>
+    <div><strong>Total pendiente en vista:</strong> {{ money(data.pending_total) }}</div>
   </div>
 </div>
 
@@ -94,7 +91,7 @@
     </div>
     <div style="grid-column: span 2;">
       <label>Conceptos (separador <code>|</code>)</label>
-      <input type="text" name="line_concept" placeholder="Tasa mantenimiento 2026|Regularizacion">
+      <input type="text" name="line_concept" placeholder="Mantenimiento 2026|Regularizacion">
     </div>
     <div>
       <label>Cantidades (|)</label>
@@ -115,7 +112,7 @@
 </div>
 
 <div class="box">
-  <h3>Documentos V2</h3>
+  <h3>Documentos</h3>
   <table>
     <thead>
       <tr>
@@ -171,7 +168,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="8">Sin documentos V2.</td></tr>
+      <tr><td colspan="8">Sin documentos.</td></tr>
       {% endfor %}
     </tbody>
   </table>
