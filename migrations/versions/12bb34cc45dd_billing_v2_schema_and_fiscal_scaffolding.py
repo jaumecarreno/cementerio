@@ -8,6 +8,7 @@ Create Date: 2026-03-04 10:30:00.000000
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 
 # revision identifiers, used by Alembic.
@@ -17,13 +18,13 @@ branch_labels = None
 depends_on = None
 
 
-billing_document_v2_type = sa.Enum(
+billing_document_v2_type = postgresql.ENUM(
     "INVOICE",
     "CREDIT_NOTE",
     name="billing_document_v2_type",
     create_type=False,
 )
-billing_document_v2_status = sa.Enum(
+billing_document_v2_status = postgresql.ENUM(
     "DRAFT",
     "ISSUED",
     "PARTIALLY_PAID",
@@ -32,7 +33,7 @@ billing_document_v2_status = sa.Enum(
     name="billing_document_v2_status",
     create_type=False,
 )
-billing_document_v2_fiscal_status = sa.Enum(
+billing_document_v2_fiscal_status = postgresql.ENUM(
     "PENDING",
     "SENT",
     "ACCEPTED",
@@ -41,7 +42,7 @@ billing_document_v2_fiscal_status = sa.Enum(
     name="billing_document_v2_fiscal_status",
     create_type=False,
 )
-payment_method_v2 = sa.Enum(
+payment_method_v2 = postgresql.ENUM(
     "EFECTIVO",
     "TARJETA",
     "TRANSFERENCIA",
@@ -49,7 +50,7 @@ payment_method_v2 = sa.Enum(
     name="payment_method_v2",
     create_type=False,
 )
-fiscal_submission_v2_status = sa.Enum(
+fiscal_submission_v2_status = postgresql.ENUM(
     "PENDING",
     "SENT",
     "ACCEPTED",
