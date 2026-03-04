@@ -50,6 +50,17 @@ from app.cemetery.operation_service import (
     verify_operation_document,
     verify_operation_permit,
 )
+from app.cemetery.billing_v2_service import (
+    create_credit_note,
+    create_invoice_draft,
+    issue_invoice,
+    is_legacy_billing_write_blocked,
+    payment_receipt_by_id,
+    register_payment,
+    retry_fiscal_submission,
+    validate_legacy_payment_method,
+    workspace_data as billing_workspace_data,
+)
 from app.cemetery.services import (
     REPORTING_ALL_KEYS,
     REPORTING_SCREEN_KEYS,
@@ -124,8 +135,10 @@ from app.cemetery.services import (
     verify_case_document,
 )
 from app.core.models import (
+    BillingDocumentStatus,
     OperationStatus,
     OperationType,
+    PaymentMethod,
     Person,
     ReportDeliveryLog,
     Sepultura,
@@ -1761,11 +1774,19 @@ def fee_generate_invoice():
 @require_membership
 def fee_collect_and_receipt():
     # Spec 9.1.3 - Cobrar y emitir recibo en mostrador
+    if is_legacy_billing_write_blocked():
+        flash(
+            "Cobro legacy deshabilitado tras la fecha de corte. Usa Facturacion V2.",
+            "error",
+        )
+        return redirect(url_for("cemetery.billing_workspace"))
+
     sepultura_id = request.form.get("sepultura_id", type=int)
     selected_ids = _selected_ticket_ids()
     discount_ticket_ids = _selected_discount_ticket_ids()
     payment_method = request.form.get("payment_method", "EFECTIVO")
     try:
+        payment_method = validate_legacy_payment_method(payment_method)
         invoice, payment = collect_tickets(
             sepultura_id=sepultura_id,
             selected_ids=selected_ids,
@@ -1864,8 +1885,124 @@ def receipt(payment_id: int):
     # Spec 9.1.3 - Justificante de cobro
     from app.core.models import Payment
 
-    payment = Payment.query.filter_by(id=payment_id).first_or_404()
+    payment = Payment.query.filter_by(org_id=g.org.id, id=payment_id).first_or_404()
     return render_template("cemetery/receipt.html", payment=payment, money=money)
+
+
+def _billing_workspace_filters() -> dict[str, str]:
+    return {
+        "status": request.args.get("status", "").strip(),
+        "contract_id": request.args.get("contract_id", "").strip(),
+        "sepultura_id": request.args.get("sepultura_id", "").strip(),
+    }
+
+
+@cemetery_bp.get("/facturacion")
+@login_required
+@require_membership
+def billing_workspace():
+    filters = _billing_workspace_filters()
+    data = billing_workspace_data(filters)
+    return render_template(
+        "cemetery/billing_workspace.html",
+        filters=filters,
+        data=data,
+        money=money,
+        BillingDocumentStatus=BillingDocumentStatus,
+        PaymentMethod=PaymentMethod,
+    )
+
+
+@cemetery_bp.post("/facturacion/invoices")
+@login_required
+@require_membership
+def billing_create_invoice():
+    payload = {k: v for k, v in request.form.items()}
+    try:
+        document = create_invoice_draft(payload, current_user.id)
+        flash(f"Factura borrador creada ({document.id})", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.billing_workspace"))
+
+
+@cemetery_bp.post("/facturacion/invoices/<int:document_id>/issue")
+@login_required
+@require_membership
+def billing_issue_invoice(document_id: int):
+    try:
+        document = issue_invoice(document_id, current_user.id)
+        flash(f"Factura emitida: {document.number}", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.billing_workspace"))
+
+
+@cemetery_bp.post("/facturacion/invoices/<int:document_id>/payments")
+@login_required
+@require_membership
+def billing_register_payment(document_id: int):
+    payload = {k: v for k, v in request.form.items()}
+    idempotency_key = (request.headers.get("Idempotency-Key", "") or "").strip()
+    if not idempotency_key:
+        # Fallback for HTML forms: deterministic key to prevent immediate double submit.
+        idempotency_key = (
+            request.form.get("idempotency_key", "").strip()
+            or f"form-{current_user.id}-{document_id}-{request.form.get('amount', '').strip()}-{request.form.get('method', '').strip()}"
+        )
+    try:
+        payment, reused = register_payment(
+            document_id=document_id,
+            payload=payload,
+            user_id=current_user.id,
+            idempotency_key=idempotency_key,
+            endpoint="POST:/cementerio/facturacion/invoices/<id>/payments",
+        )
+        if reused:
+            flash(f"Cobro ya registrado previamente. Recibo {payment.receipt_number}", "success")
+        else:
+            flash(f"Cobro registrado. Recibo {payment.receipt_number}", "success")
+        return redirect(url_for("cemetery.billing_receipt", payment_id=payment.id))
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("cemetery.billing_workspace"))
+
+
+@cemetery_bp.post("/facturacion/invoices/<int:document_id>/credit-note")
+@login_required
+@require_membership
+def billing_create_credit_note(document_id: int):
+    payload = {k: v for k, v in request.form.items()}
+    try:
+        note = create_credit_note(document_id, payload, current_user.id)
+        flash(f"Rectificativa emitida: {note.number}", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.billing_workspace"))
+
+
+@cemetery_bp.get("/facturacion/receipts/<int:payment_id>")
+@login_required
+@require_membership
+def billing_receipt(payment_id: int):
+    try:
+        payment = payment_receipt_by_id(payment_id)
+    except ValueError:
+        abort(404)
+    return render_template("cemetery/billing_receipt.html", payment=payment, money=money)
+
+
+@cemetery_bp.post("/facturacion/fiscal/submissions/<int:submission_id>/retry")
+@login_required
+@require_membership
+@require_role("admin")
+def billing_retry_submission(submission_id: int):
+    try:
+        submission = retry_fiscal_submission(submission_id, current_user.id)
+        flash(f"Reintento fiscal registrado en estado {submission.status.value}", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.billing_workspace"))
 
 
 @cemetery_bp.route("/sepulturas/alta-masiva", methods=["GET", "POST"])

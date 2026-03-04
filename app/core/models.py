@@ -136,6 +136,34 @@ class InvoiceEstado(str, Enum):
     PAGADA = "PAGADA"
 
 
+class BillingDocumentType(str, Enum):
+    INVOICE = "INVOICE"
+    CREDIT_NOTE = "CREDIT_NOTE"
+
+
+class BillingDocumentStatus(str, Enum):
+    DRAFT = "DRAFT"
+    ISSUED = "ISSUED"
+    PARTIALLY_PAID = "PARTIALLY_PAID"
+    PAID = "PAID"
+    CANCELLED = "CANCELLED"
+
+
+class PaymentMethod(str, Enum):
+    EFECTIVO = "EFECTIVO"
+    TARJETA = "TARJETA"
+    TRANSFERENCIA = "TRANSFERENCIA"
+    BIZUM = "BIZUM"
+
+
+class FiscalSubmissionStatus(str, Enum):
+    PENDING = "PENDING"
+    SENT = "SENT"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
+    RETRYING = "RETRYING"
+
+
 class OwnershipTransferType(str, Enum):
     MORTIS_CAUSA_TESTAMENTO = "MORTIS_CAUSA_TESTAMENTO"
     MORTIS_CAUSA_SIN_TESTAMENTO = "MORTIS_CAUSA_SIN_TESTAMENTO"
@@ -1216,6 +1244,185 @@ class TasaMantenimientoTicket(db.Model):
 
     contrato = relationship("DerechoFunerarioContrato", back_populates="tickets")
     invoice = relationship("Invoice")
+
+
+class BillingDocumentV2(db.Model):
+    __tablename__ = "billing_document_v2"
+    __table_args__ = (
+        UniqueConstraint("org_id", "number", name="uq_billing_document_v2_org_number"),
+        CheckConstraint("total_amount >= 0", name="ck_billing_document_v2_total_non_negative"),
+        CheckConstraint("residual_amount >= 0", name="ck_billing_document_v2_residual_non_negative"),
+        Index("ix_billing_document_v2_org_status_issued_at", "org_id", "status", "issued_at"),
+        Index("ix_billing_document_v2_org_contract_status", "org_id", "contract_id", "status"),
+        Index("ix_billing_document_v2_org_fiscal_status", "org_id", "fiscal_status"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
+    contract_id: Mapped[int | None] = mapped_column(ForeignKey("derecho_funerario_contrato.id"), nullable=True, index=True)
+    sepultura_id: Mapped[int | None] = mapped_column(ForeignKey("sepultura.id"), nullable=True, index=True)
+    original_document_id: Mapped[int | None] = mapped_column(ForeignKey("billing_document_v2.id"), nullable=True, index=True)
+    document_type: Mapped[BillingDocumentType] = mapped_column(
+        SAEnum(BillingDocumentType, name="billing_document_v2_type"),
+        nullable=False,
+    )
+    status: Mapped[BillingDocumentStatus] = mapped_column(
+        SAEnum(BillingDocumentStatus, name="billing_document_v2_status"),
+        nullable=False,
+        default=BillingDocumentStatus.DRAFT,
+    )
+    fiscal_status: Mapped[FiscalSubmissionStatus] = mapped_column(
+        SAEnum(FiscalSubmissionStatus, name="billing_document_v2_fiscal_status"),
+        nullable=False,
+        default=FiscalSubmissionStatus.PENDING,
+    )
+    number: Mapped[str | None] = mapped_column(db.String(60), nullable=True)
+    currency: Mapped[str] = mapped_column(db.String(3), nullable=False, default="EUR")
+    total_amount: Mapped[Decimal] = mapped_column(db.Numeric(12, 2), nullable=False, default=0)
+    residual_amount: Mapped[Decimal] = mapped_column(db.Numeric(12, 2), nullable=False, default=0)
+    issued_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    cancelled_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow, nullable=False)
+
+    created_by = relationship("User")
+    lines = relationship("BillingLineV2", back_populates="document", cascade="all, delete-orphan")
+    payments = relationship("PaymentV2", back_populates="document")
+    allocations = relationship("PaymentAllocationV2", back_populates="document")
+    submissions = relationship("FiscalSubmissionV2", back_populates="document", cascade="all, delete-orphan")
+    original_document = relationship("BillingDocumentV2", remote_side=[id], uselist=False)
+
+
+class BillingLineV2(db.Model):
+    __tablename__ = "billing_line_v2"
+    __table_args__ = (
+        UniqueConstraint("org_id", "document_id", "line_no", name="uq_billing_line_v2_org_doc_line"),
+        CheckConstraint("quantity > 0", name="ck_billing_line_v2_qty_positive"),
+        CheckConstraint("unit_price >= 0", name="ck_billing_line_v2_price_non_negative"),
+        CheckConstraint("total_amount >= 0", name="ck_billing_line_v2_total_non_negative"),
+        Index("ix_billing_line_v2_org_document", "org_id", "document_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("billing_document_v2.id"), nullable=False, index=True)
+    line_no: Mapped[int] = mapped_column(nullable=False)
+    concept: Mapped[str] = mapped_column(db.String(255), nullable=False)
+    quantity: Mapped[Decimal] = mapped_column(db.Numeric(12, 2), nullable=False, default=1)
+    unit_price: Mapped[Decimal] = mapped_column(db.Numeric(12, 2), nullable=False, default=0)
+    tax_rate: Mapped[Decimal] = mapped_column(db.Numeric(5, 2), nullable=False, default=0)
+    net_amount: Mapped[Decimal] = mapped_column(db.Numeric(12, 2), nullable=False, default=0)
+    tax_amount: Mapped[Decimal] = mapped_column(db.Numeric(12, 2), nullable=False, default=0)
+    total_amount: Mapped[Decimal] = mapped_column(db.Numeric(12, 2), nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
+
+    document = relationship("BillingDocumentV2", back_populates="lines")
+
+
+class PaymentV2(db.Model):
+    __tablename__ = "payment_v2"
+    __table_args__ = (
+        UniqueConstraint("org_id", "receipt_number", name="uq_payment_v2_org_receipt"),
+        CheckConstraint("amount > 0", name="ck_payment_v2_amount_positive"),
+        Index("ix_payment_v2_org_paid_at", "org_id", "paid_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("billing_document_v2.id"), nullable=False, index=True)
+    amount: Mapped[Decimal] = mapped_column(db.Numeric(12, 2), nullable=False)
+    method: Mapped[PaymentMethod] = mapped_column(
+        SAEnum(PaymentMethod, name="payment_method_v2"),
+        nullable=False,
+        default=PaymentMethod.EFECTIVO,
+    )
+    receipt_number: Mapped[str] = mapped_column(db.String(60), nullable=False)
+    external_reference: Mapped[str] = mapped_column(db.String(120), nullable=False, default="")
+    paid_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
+    created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
+
+    document = relationship("BillingDocumentV2", back_populates="payments")
+    created_by = relationship("User")
+    allocations = relationship("PaymentAllocationV2", back_populates="payment", cascade="all, delete-orphan")
+
+
+class PaymentAllocationV2(db.Model):
+    __tablename__ = "payment_allocation_v2"
+    __table_args__ = (
+        UniqueConstraint("org_id", "payment_id", "document_id", name="uq_payment_allocation_v2_org_payment_document"),
+        CheckConstraint("amount > 0", name="ck_payment_allocation_v2_amount_positive"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
+    payment_id: Mapped[int] = mapped_column(ForeignKey("payment_v2.id"), nullable=False, index=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("billing_document_v2.id"), nullable=False, index=True)
+    amount: Mapped[Decimal] = mapped_column(db.Numeric(12, 2), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
+
+    payment = relationship("PaymentV2", back_populates="allocations")
+    document = relationship("BillingDocumentV2", back_populates="allocations")
+
+
+class FiscalSubmissionV2(db.Model):
+    __tablename__ = "fiscal_submission_v2"
+    __table_args__ = (
+        Index("ix_fiscal_submission_v2_org_status", "org_id", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("billing_document_v2.id"), nullable=False, index=True)
+    status: Mapped[FiscalSubmissionStatus] = mapped_column(
+        SAEnum(FiscalSubmissionStatus, name="fiscal_submission_v2_status"),
+        nullable=False,
+        default=FiscalSubmissionStatus.PENDING,
+    )
+    provider_name: Mapped[str] = mapped_column(db.String(80), nullable=False, default="")
+    attempt_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    external_submission_id: Mapped[str] = mapped_column(db.String(120), nullable=False, default="")
+    request_payload_json: Mapped[str] = mapped_column(db.Text(), nullable=False, default="{}")
+    response_payload_json: Mapped[str] = mapped_column(db.Text(), nullable=False, default="{}")
+    error_message: Mapped[str] = mapped_column(db.String(255), nullable=False, default="")
+    last_attempt_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    accepted_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow, nullable=False)
+
+    document = relationship("BillingDocumentV2", back_populates="submissions")
+
+
+class BillingSequenceV2(db.Model):
+    __tablename__ = "billing_sequence_v2"
+    __table_args__ = (
+        UniqueConstraint("org_id", "sequence_key", "year", name="uq_billing_sequence_v2_org_key_year"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
+    sequence_key: Mapped[str] = mapped_column(db.String(30), nullable=False)
+    year: Mapped[int] = mapped_column(nullable=False)
+    current_value: Mapped[int] = mapped_column(nullable=False, default=0)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow, nullable=False)
+
+
+class IdempotencyRequestV2(db.Model):
+    __tablename__ = "idempotency_request_v2"
+    __table_args__ = (
+        UniqueConstraint("org_id", "endpoint", "idempotency_key", name="uq_idempotency_request_v2_org_endpoint_key"),
+        Index("ix_idempotency_request_v2_org_created", "org_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), nullable=False, index=True)
+    endpoint: Mapped[str] = mapped_column(db.String(120), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(db.String(120), nullable=False)
+    request_hash: Mapped[str] = mapped_column(db.String(64), nullable=False)
+    response_status: Mapped[int] = mapped_column(nullable=False, default=0)
+    response_json: Mapped[str] = mapped_column(db.Text(), nullable=False, default="{}")
+    created_at: Mapped[datetime] = mapped_column(default=utcnow, nullable=False)
 
 
 class Expediente(db.Model):

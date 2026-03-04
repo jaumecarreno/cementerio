@@ -74,6 +74,10 @@
             <span class="menu-icon">{{ sidebar_icon('billing') }}</span>
             <span class="menu-label">{{ t('cem.fees') }}</span>
           </a>
+          <a class="menu-link {% if active_cem == 'facturacion' %}active{% endif %}" href="{{ url_for('cemetery.billing_workspace') }}">
+            <span class="menu-icon">{{ sidebar_icon('billing') }}</span>
+            <span class="menu-label">Facturacion V2</span>
+          </a>
           <a class="menu-link {% if active_cem == 'titularidad' %}active{% endif %}" href="{{ url_for('cemetery.ownership_cases_alias') }}">
             <span class="menu-icon">{{ sidebar_icon('crematorium') }}</span>
             <span class="menu-label">{{ t('cem.ownership') }}</span>

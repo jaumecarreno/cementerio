@@ -26,6 +26,9 @@ from app.core.extensions import db
 from app.core.i18n import translate
 from app.core.models import (
     ActivityLog,
+    BillingDocumentStatus,
+    BillingDocumentType,
+    BillingDocumentV2,
     Beneficiario,
     Cemetery,
     DerechoTipo,
@@ -60,6 +63,7 @@ from app.core.models import (
     OperationStatusLog,
     OperationType,
     Payment,
+    PaymentV2,
     Person,
     Publication,
     Sepultura,
@@ -1269,26 +1273,92 @@ def search_sepulturas_paged(
     titular_filter = filters.get("titular", "").strip().lower()
     difunto_filter = filters.get("difunto", "").strip().lower()
 
+    sepultura_ids = [sep.id for sep in sepulturas]
+    today = date.today()
+    contracts = (
+        DerechoFunerarioContrato.query.filter(
+            DerechoFunerarioContrato.org_id == oid,
+            DerechoFunerarioContrato.sepultura_id.in_(sepultura_ids),
+            DerechoFunerarioContrato.estado == "ACTIVO",
+            DerechoFunerarioContrato.fecha_inicio <= today,
+            DerechoFunerarioContrato.fecha_fin >= today,
+        )
+        .order_by(DerechoFunerarioContrato.sepultura_id.asc(), DerechoFunerarioContrato.id.asc())
+        .all()
+    )
+    contract_by_sepultura: dict[int, DerechoFunerarioContrato] = {}
+    for contract in contracts:
+        contract_by_sepultura.setdefault(contract.sepultura_id, contract)
+
+    contract_ids = [contract.id for contract in contract_by_sepultura.values()]
+    titular_by_contract: dict[int, OwnershipRecord] = {}
+    beneficiario_by_contract: dict[int, Beneficiario] = {}
+    debt_by_contract: dict[int, Decimal] = {}
+
+    if contract_ids:
+        titulares = (
+            OwnershipRecord.query.options(joinedload(OwnershipRecord.person))
+            .filter(OwnershipRecord.org_id == oid)
+            .filter(OwnershipRecord.contract_id.in_(contract_ids))
+            .filter(OwnershipRecord.start_date <= today)
+            .filter(
+                or_(
+                    OwnershipRecord.end_date.is_(None),
+                    OwnershipRecord.end_date >= today,
+                )
+            )
+            .order_by(OwnershipRecord.contract_id.asc(), OwnershipRecord.start_date.desc())
+            .all()
+        )
+        for titular in titulares:
+            titular_by_contract.setdefault(titular.contract_id, titular)
+
+        beneficiarios = (
+            Beneficiario.query.options(joinedload(Beneficiario.person))
+            .filter(Beneficiario.org_id == oid)
+            .filter(Beneficiario.contrato_id.in_(contract_ids))
+            .filter(Beneficiario.activo_desde <= today)
+            .filter(
+                or_(
+                    Beneficiario.activo_hasta.is_(None),
+                    Beneficiario.activo_hasta >= today,
+                )
+            )
+            .order_by(Beneficiario.contrato_id.asc(), Beneficiario.activo_desde.desc())
+            .all()
+        )
+        for beneficiario in beneficiarios:
+            beneficiario_by_contract.setdefault(beneficiario.contrato_id, beneficiario)
+
+        debt_rows = (
+            db.session.query(
+                TasaMantenimientoTicket.contrato_id,
+                func.coalesce(func.sum(TasaMantenimientoTicket.importe), 0),
+            )
+            .filter(TasaMantenimientoTicket.org_id == oid)
+            .filter(TasaMantenimientoTicket.contrato_id.in_(contract_ids))
+            .filter(TasaMantenimientoTicket.estado != TicketEstado.COBRADO)
+            .group_by(TasaMantenimientoTicket.contrato_id)
+            .all()
+        )
+        debt_by_contract = {
+            int(contract_id): Decimal(amount).quantize(Decimal("0.01"))
+            for contract_id, amount in debt_rows
+        }
+
     rows: list[dict[str, object]] = []
     for sep in sepulturas:
-        contrato = active_contract_for_sepultura(sep.id)
+        contrato = contract_by_sepultura.get(sep.id)
         titular_name = ""
         titular = None
         beneficiario = None
         debt = Decimal("0.00")
         if contrato:
-            titular = active_titular_for_contract(contrato.id)
-            beneficiario = active_beneficiario_for_contract(contrato.id)
+            titular = titular_by_contract.get(contrato.id)
+            beneficiario = beneficiario_by_contract.get(contrato.id)
             if titular:
                 titular_name = titular.person.full_name
-            debt = (
-                db.session.query(
-                    func.coalesce(func.sum(TasaMantenimientoTicket.importe), 0)
-                )
-                .filter_by(org_id=oid, contrato_id=contrato.id)
-                .filter(TasaMantenimientoTicket.estado != TicketEstado.COBRADO)
-                .scalar()
-            )
+            debt = debt_by_contract.get(contrato.id, Decimal("0.00"))
 
         difuntos = [sd.person.full_name for sd in sep.difuntos]
         if titular_filter and titular_filter not in titular_name.lower():
@@ -1556,6 +1626,10 @@ def collect_tickets(
     user_id: int | None = None,
     discount_ticket_ids: set[int] | None = None,
 ) -> tuple[Invoice, Payment]:
+    normalized_method = (method or "").strip().upper() or "EFECTIVO"
+    if normalized_method not in {"EFECTIVO", "TARJETA"}:
+        raise ValueError("Metodo de pago invalido")
+
     data = sepultura_tickets_and_invoices(sepultura_id)
     contrato = data["contrato"]
     if contrato is None:
@@ -1599,7 +1673,7 @@ def collect_tickets(
         invoice_id=invoice.id,
         user_id=user_id,
         amount=total,
-        method=method,
+        method=normalized_method,
         receipt_number=_next_receipt_number(),
     )
     db.session.add(payment)
@@ -2715,40 +2789,108 @@ def reporting_deuda_rows(filters: dict[str, str]) -> list[dict[str, object]]:
     query = _reporting_contracts_query(filters)
     if query is None:
         return []
-    query = query.order_by(DerechoFunerarioContrato.id.desc())
-    rows = []
-    for contract in query.all():
-        pending_tickets = (
-            TasaMantenimientoTicket.query.filter_by(
-                org_id=org_id(), contrato_id=contract.id
+    contracts = query.order_by(DerechoFunerarioContrato.id.desc()).all()
+    contract_ids = [contract.id for contract in contracts]
+    if not contract_ids:
+        return []
+
+    pending_ticket_rows = (
+        db.session.query(
+            TasaMantenimientoTicket.contrato_id,
+            func.count(TasaMantenimientoTicket.id),
+            func.coalesce(func.sum(TasaMantenimientoTicket.importe), 0),
+        )
+        .filter(TasaMantenimientoTicket.org_id == org_id())
+        .filter(TasaMantenimientoTicket.contrato_id.in_(contract_ids))
+        .filter(TasaMantenimientoTicket.estado != TicketEstado.COBRADO)
+        .group_by(TasaMantenimientoTicket.contrato_id)
+        .all()
+    )
+    pending_ticket_by_contract = {
+        int(contract_id): {
+            "count": int(count or 0),
+            "amount": _safe_decimal(amount),
+        }
+        for contract_id, count, amount in pending_ticket_rows
+    }
+
+    unpaid_legacy_rows = (
+        db.session.query(
+            Invoice.contrato_id,
+            func.count(Invoice.id),
+            func.coalesce(func.sum(Invoice.total_amount), 0),
+        )
+        .filter(Invoice.org_id == org_id())
+        .filter(Invoice.contrato_id.in_(contract_ids))
+        .filter(Invoice.estado == InvoiceEstado.IMPAGADA)
+        .group_by(Invoice.contrato_id)
+        .all()
+    )
+    unpaid_legacy_by_contract = {
+        int(contract_id): {
+            "count": int(count or 0),
+            "amount": _safe_decimal(amount),
+        }
+        for contract_id, count, amount in unpaid_legacy_rows
+    }
+
+    unpaid_v2_rows = (
+        db.session.query(
+            BillingDocumentV2.contract_id,
+            func.count(BillingDocumentV2.id),
+            func.coalesce(func.sum(BillingDocumentV2.residual_amount), 0),
+        )
+        .filter(BillingDocumentV2.org_id == org_id())
+        .filter(BillingDocumentV2.contract_id.in_(contract_ids))
+        .filter(BillingDocumentV2.document_type == BillingDocumentType.INVOICE)
+        .filter(
+            BillingDocumentV2.status.in_(
+                [BillingDocumentStatus.ISSUED, BillingDocumentStatus.PARTIALLY_PAID]
             )
-            .filter(TasaMantenimientoTicket.estado != TicketEstado.COBRADO)
-            .all()
         )
-        unpaid_invoices = Invoice.query.filter_by(
-            org_id=org_id(),
-            contrato_id=contract.id,
-            estado=InvoiceEstado.IMPAGADA,
-        ).all()
-        if not pending_tickets and not unpaid_invoices:
+        .group_by(BillingDocumentV2.contract_id)
+        .all()
+    )
+    unpaid_v2_by_contract = {
+        int(contract_id): {
+            "count": int(count or 0),
+            "amount": _safe_decimal(amount),
+        }
+        for contract_id, count, amount in unpaid_v2_rows
+    }
+
+    rows = []
+    for contract in contracts:
+        ticket_agg = pending_ticket_by_contract.get(
+            contract.id, {"count": 0, "amount": Decimal("0.00")}
+        )
+        legacy_agg = unpaid_legacy_by_contract.get(
+            contract.id, {"count": 0, "amount": Decimal("0.00")}
+        )
+        v2_agg = unpaid_v2_by_contract.get(
+            contract.id, {"count": 0, "amount": Decimal("0.00")}
+        )
+
+        ticket_count = int(ticket_agg["count"])
+        ticket_amount = _safe_decimal(ticket_agg["amount"])
+        unpaid_invoice_count = int(legacy_agg["count"]) + int(v2_agg["count"])
+        unpaid_invoice_amount = _safe_decimal(legacy_agg["amount"]) + _safe_decimal(
+            v2_agg["amount"]
+        )
+
+        if ticket_count == 0 and unpaid_invoice_count == 0:
             continue
-        ticket_amount = sum(
-            (_safe_decimal(t.importe) for t in pending_tickets), Decimal("0.00")
-        )
-        invoice_amount = sum(
-            (_safe_decimal(i.total_amount) for i in unpaid_invoices), Decimal("0.00")
-        )
         rows.append(
             {
                 "contrato_id": contract.id,
                 "sepultura": (
                     contract.sepultura.location_label if contract.sepultura else "-"
                 ),
-                "tickets_pendientes": len(pending_tickets),
+                "tickets_pendientes": ticket_count,
                 "importe_tickets": ticket_amount,
-                "facturas_impagadas": len(unpaid_invoices),
-                "importe_facturas": invoice_amount,
-                "deuda_total": ticket_amount + invoice_amount,
+                "facturas_impagadas": unpaid_invoice_count,
+                "importe_facturas": unpaid_invoice_amount,
+                "deuda_total": ticket_amount + unpaid_invoice_amount,
             }
         )
     return rows
@@ -2977,6 +3119,33 @@ def reporting_deuda_aging_rows(filters: dict[str, str]) -> list[dict[str, object
         if isinstance(casted_contracts, set):
             casted_contracts.add(inv.contrato_id)
 
+    invoices_v2 = (
+        BillingDocumentV2.query.filter(BillingDocumentV2.org_id == org_id())
+        .filter(BillingDocumentV2.contract_id.in_(contract_ids))
+        .filter(BillingDocumentV2.document_type == BillingDocumentType.INVOICE)
+        .filter(
+            BillingDocumentV2.status.in_(
+                [BillingDocumentStatus.ISSUED, BillingDocumentStatus.PARTIALLY_PAID]
+            )
+        )
+        .all()
+    )
+    for inv in invoices_v2:
+        anchor = (
+            _to_utc(inv.issued_at)
+            or _to_utc(inv.created_at)
+            or datetime.now(timezone.utc)
+        ).date()
+        days = max(0, (as_of - anchor).days)
+        bucket = buckets[_bucket_for_days(days)]
+        bucket["casos"] = int(bucket["casos"]) + 1
+        bucket["importe"] = _safe_decimal(bucket["importe"]) + _safe_decimal(
+            inv.residual_amount
+        )
+        casted_contracts = bucket["contratos"]
+        if isinstance(casted_contracts, set) and inv.contract_id:
+            casted_contracts.add(inv.contract_id)
+
     tickets = (
         TasaMantenimientoTicket.query.filter(TasaMantenimientoTicket.org_id == org_id())
         .filter(TasaMantenimientoTicket.contrato_id.in_(contract_ids))
@@ -3042,6 +3211,18 @@ def _recaudacion_period_metrics(
         if issued and date_from <= issued.date() <= date_to:
             emitted += _safe_decimal(inv.total_amount)
 
+    invoices_emitted_v2 = (
+        BillingDocumentV2.query.filter(BillingDocumentV2.org_id == org_id())
+        .filter(BillingDocumentV2.contract_id.in_(contract_ids))
+        .filter(BillingDocumentV2.document_type == BillingDocumentType.INVOICE)
+        .filter(BillingDocumentV2.issued_at.is_not(None))
+        .all()
+    )
+    for inv in invoices_emitted_v2:
+        issued = _to_utc(inv.issued_at)
+        if issued and date_from <= issued.date() <= date_to:
+            emitted += _safe_decimal(inv.total_amount)
+
     payments = (
         Payment.query.join(Invoice, Invoice.id == Payment.invoice_id)
         .filter(Payment.org_id == org_id())
@@ -3049,6 +3230,17 @@ def _recaudacion_period_metrics(
         .all()
     )
     for payment in payments:
+        paid_at = _to_utc(payment.paid_at)
+        if paid_at and date_from <= paid_at.date() <= date_to:
+            paid += _safe_decimal(payment.amount)
+
+    payments_v2 = (
+        PaymentV2.query.join(BillingDocumentV2, BillingDocumentV2.id == PaymentV2.document_id)
+        .filter(PaymentV2.org_id == org_id())
+        .filter(BillingDocumentV2.contract_id.in_(contract_ids))
+        .all()
+    )
+    for payment in payments_v2:
         paid_at = _to_utc(payment.paid_at)
         if paid_at and date_from <= paid_at.date() <= date_to:
             paid += _safe_decimal(payment.amount)
@@ -3075,6 +3267,21 @@ def _recaudacion_period_metrics(
         remaining = _safe_decimal(inv.total_amount) - paid_until_close
         if remaining > 0:
             pending += remaining
+
+    invoices_to_close_v2 = (
+        BillingDocumentV2.query.filter(BillingDocumentV2.org_id == org_id())
+        .filter(BillingDocumentV2.contract_id.in_(contract_ids))
+        .filter(BillingDocumentV2.document_type == BillingDocumentType.INVOICE)
+        .filter(BillingDocumentV2.issued_at.is_not(None))
+        .all()
+    )
+    for inv in invoices_to_close_v2:
+        issued = _to_utc(inv.issued_at)
+        if not issued or issued > close_dt:
+            continue
+        if inv.status in {BillingDocumentStatus.PAID, BillingDocumentStatus.CANCELLED}:
+            continue
+        pending += _safe_decimal(inv.residual_amount)
 
     return {"emitido": emitted, "cobrado": paid, "pendiente": pending}
 

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% set active_cem = 'facturacion' %}
+{% block title %}Recibo V2 {{ payment.receipt_number }}{% endblock %}
+{% block content %}
+<h1 class="page-title">Recibo de cobro V2</h1>
+
+<div class="box">
+  <p><strong>Recibo:</strong> {{ payment.receipt_number }}</p>
+  <p><strong>Documento:</strong> {{ payment.document.number or payment.document.id }}</p>
+  <p><strong>Estado documento:</strong> {{ payment.document.status.value }}</p>
+  <p><strong>Fecha:</strong> {{ payment.paid_at }}</p>
+  <p><strong>Metodo:</strong> {{ payment.method.value }}</p>
+  <p><strong>Importe:</strong> {{ money(payment.amount) }}</p>
+  <p><strong>Cobrado por:</strong> {{ payment.created_by.full_name if payment.created_by else 'sistema' }}</p>
+</div>
+
+<div class="actions-row">
+  <button class="btn" onclick="window.print()">Imprimir</button>
+  <a class="btn" href="{{ url_for('cemetery.billing_workspace') }}">Volver a facturacion</a>
+</div>
+{% endblock %}

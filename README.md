@@ -18,6 +18,7 @@ MVP vertical multi-tenant del modulo Cementerio, implementado con:
 - Buscar sepulturas: `/cementerio/sepulturas/buscar`
 - Ficha de sepultura con tabs: `/cementerio/sepulturas/<id>`
 - Cobro de tasas: `/cementerio/tasas/cobro?sepultura_id=<id>`
+- Facturacion V2: `/cementerio/facturacion`
 - Alta masiva: `/cementerio/sepulturas/alta-masiva`
 - Contratacion derecho funerario: `POST /cementerio/sepulturas/<id>/derecho/contratar`
 - Titulo de derecho funerario PDF: `GET /cementerio/contratos/<id>/titulo.pdf`
@@ -34,6 +35,12 @@ Incluye:
 - Regla pensionista configurable por organizacion
 - Criterio de caja: factura de tasas en el momento del cobro
 - Aislamiento multi-tenant por `org_id`
+- Facturacion V2 con:
+  - documentos `INVOICE`/`CREDIT_NOTE` y estados `DRAFT/ISSUED/PARTIALLY_PAID/PAID/CANCELLED`
+  - cobros parciales con idempotencia (`Idempotency-Key`)
+  - numeracion segura por secuencia (`billing_sequence_v2`)
+  - scaffolding fiscal VeriFactu (reintentos; proveedor pendiente de definir)
+  - bloqueo de escrituras legacy por fecha de corte (`BILLING_V2_CUTOVER_DATE`)
 
 ## Estructura
 - `app/core`: config, auth, db, tenancy, modelos, permisos

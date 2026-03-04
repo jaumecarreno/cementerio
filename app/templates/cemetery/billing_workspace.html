@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% set active_cem = 'facturacion' %}
+{% block title %}Facturacion V2{% endblock %}
+{% block content %}
+<h1 class="page-title">Facturacion V2</h1>
+
+<div class="box">
+  <h3>Filtros</h3>
+  <form method="get" class="form-grid">
+    <div>
+      <label>Estado</label>
+      <select name="status">
+        <option value="">Todos</option>
+        {% for st in BillingDocumentStatus %}
+        <option value="{{ st.value }}" {% if filters.status == st.value %}selected{% endif %}>{{ st.value }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Contrato ID</label>
+      <input type="number" name="contract_id" min="1" value="{{ filters.contract_id }}">
+    </div>
+    <div>
+      <label>Sepultura ID</label>
+      <input type="number" name="sepultura_id" min="1" value="{{ filters.sepultura_id }}">
+    </div>
+    <div class="actions-row">
+      <button class="btn primary" type="submit">Filtrar</button>
+      <a class="btn" href="{{ url_for('cemetery.billing_workspace') }}">Limpiar</a>
+    </div>
+  </form>
+</div>
+
+<div class="box">
+  <h3>Deuda legado consolidada</h3>
+  <div class="meta-row">
+    <div><strong>Tickets pendientes:</strong> {{ money(data.legacy_pending_tickets) }}</div>
+    <div><strong>Facturas impagadas:</strong> {{ money(data.legacy_unpaid_invoices) }}</div>
+    <div><strong>Total:</strong> {{ money(data.legacy_total_pending) }}</div>
+  </div>
+</div>
+
+<div class="box">
+  <h3>Crear factura (borrador)</h3>
+  <form method="post" action="{{ url_for('cemetery.billing_create_invoice') }}" class="form-grid">
+    <div>
+      <label>Contrato ID</label>
+      <input type="number" name="contract_id" min="1">
+    </div>
+    <div>
+      <label>Sepultura ID</label>
+      <input type="number" name="sepultura_id" min="1">
+    </div>
+    <div style="grid-column: span 2;">
+      <label>Conceptos (separador <code>|</code>)</label>
+      <input type="text" name="line_concept" placeholder="Tasa mantenimiento 2026|Regularizacion">
+    </div>
+    <div>
+      <label>Cantidades (|)</label>
+      <input type="text" name="line_quantity" placeholder="1|1">
+    </div>
+    <div>
+      <label>Precio unitario (|)</label>
+      <input type="text" name="line_unit_price" placeholder="45.00|12.50">
+    </div>
+    <div>
+      <label>IVA % (|)</label>
+      <input type="text" name="line_tax_rate" placeholder="0|21">
+    </div>
+    <div class="actions-row">
+      <button class="btn primary" type="submit">Crear borrador</button>
+    </div>
+  </form>
+</div>
+
+<div class="box">
+  <h3>Documentos V2</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Tipo</th>
+        <th>Numero</th>
+        <th>Estado</th>
+        <th>Fiscal</th>
+        <th>Total</th>
+        <th>Pendiente</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for doc in data.documents %}
+      <tr>
+        <td>{{ doc.id }}</td>
+        <td>{{ doc.document_type.value }}</td>
+        <td>{{ doc.number or '-' }}</td>
+        <td>{{ doc.status.value }}</td>
+        <td>{{ doc.fiscal_status.value }}</td>
+        <td>{{ money(doc.total_amount) }}</td>
+        <td>{{ money(doc.residual_amount) }}</td>
+        <td>
+          <div class="actions-row" style="flex-wrap:wrap; gap:6px;">
+            {% if doc.status.value == 'DRAFT' and doc.document_type.value == 'INVOICE' %}
+            <form method="post" action="{{ url_for('cemetery.billing_issue_invoice', document_id=doc.id) }}">
+              <button class="btn" type="submit">Emitir</button>
+            </form>
+            {% endif %}
+
+            {% if doc.document_type.value == 'INVOICE' and doc.status.value in ['ISSUED','PARTIALLY_PAID'] %}
+            <form method="post" action="{{ url_for('cemetery.billing_register_payment', document_id=doc.id) }}" class="actions-row">
+              <input type="hidden" name="idempotency_key" value="pay-{{ doc.id }}-{{ doc.residual_amount }}">
+              <input type="text" name="amount" placeholder="Importe" style="width:100px;">
+              <select name="method">
+                {% for pm in PaymentMethod %}
+                <option value="{{ pm.value }}">{{ pm.value }}</option>
+                {% endfor %}
+              </select>
+              <button class="btn primary" type="submit">Cobrar</button>
+            </form>
+            {% endif %}
+
+            {% if doc.document_type.value == 'INVOICE' and doc.status.value != 'DRAFT' %}
+            <form method="post" action="{{ url_for('cemetery.billing_create_credit_note', document_id=doc.id) }}" class="actions-row">
+              <input type="text" name="amount" placeholder="Importe rectificar" style="width:130px;">
+              <input type="text" name="concept" placeholder="Concepto" style="width:150px;">
+              <button class="btn" type="submit">Rectificativa</button>
+            </form>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8">Sin documentos V2.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="box">
+  <h3>Envios fiscales recientes</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Documento</th>
+        <th>Proveedor</th>
+        <th>Estado</th>
+        <th>Intentos</th>
+        <th>Error</th>
+        <th>Accion</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for sub in data.recent_submissions %}
+      <tr>
+        <td>{{ sub.id }}</td>
+        <td>{{ sub.document_id }}</td>
+        <td>{{ sub.provider_name or '-' }}</td>
+        <td>{{ sub.status.value }}</td>
+        <td>{{ sub.attempt_count }}</td>
+        <td>{{ sub.error_message or '-' }}</td>
+        <td>
+          <form method="post" action="{{ url_for('cemetery.billing_retry_submission', submission_id=sub.id) }}">
+            <button class="btn" type="submit">Reintentar</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7">Sin envios registrados.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
