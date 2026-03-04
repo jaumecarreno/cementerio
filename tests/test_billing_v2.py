@@ -317,6 +317,40 @@ def test_billing_v2_receipt_route_is_org_scoped(app, client, login_admin, second
     assert response.status_code == 404
 
 
+def test_billing_workspace_uses_folder_picker_for_contract_and_sepultura_ids(
+    app, client, login_admin
+):
+    login_admin()
+    response = client.get("/cementerio/facturacion")
+    assert response.status_code == 200
+    assert b"billing_create_contract_id" in response.data
+    assert b"billing_create_sepultura_id" in response.data
+    assert b"value_mode=contract_id" in response.data
+    assert b"value_mode=sepultura_id" in response.data
+
+
+def test_sepultura_picker_contract_mode_returns_active_contract_value(
+    app, client, login_admin
+):
+    login_admin()
+    with app.app_context():
+        contract = (
+            DerechoFunerarioContrato.query.join(Sepultura)
+            .filter(Sepultura.bloque == "B-12", Sepultura.numero == 127)
+            .first()
+        )
+        assert contract is not None
+        sep_id = contract.sepultura_id
+        contract_id = contract.id
+
+    response = client.get(
+        f"/cementerio/expedientes/picker/sepulturas?target_field=billing_create_contract_id&label_field=billing_create_contract_selected&value_mode=contract_id&sepultura_id={sep_id}"
+    )
+    assert response.status_code == 200
+    assert f'data-value="{contract_id}"'.encode() in response.data
+    assert f"C{contract_id}".encode() in response.data
+
+
 def test_legacy_collect_is_blocked_after_cutover_date(app, client, login_admin):
     login_admin()
     app.config["BILLING_V2_CUTOVER_DATE"] = date.today().isoformat()

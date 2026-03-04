@@ -13,6 +13,7 @@
       <form method="get" action="{{ url_for('cemetery.expediente_sepultura_picker') }}">
         <input type="hidden" name="target_field" value="{{ target_field }}">
         <input type="hidden" name="label_field" value="{{ label_field }}">
+        <input type="hidden" name="value_mode" value="{{ value_mode }}">
         <div class="picker-filters-row">
           <div class="picker-filter-item">
             <label>Busqueda libre</label>
@@ -63,7 +64,7 @@
         </div>
         <div class="actions-row">
           <button class="btn" type="submit">Buscar</button>
-          <a class="btn" href="{{ url_for('cemetery.expediente_sepultura_picker', target_field=target_field, label_field=label_field) }}">Limpiar</a>
+          <a class="btn" href="{{ url_for('cemetery.expediente_sepultura_picker', target_field=target_field, label_field=label_field, value_mode=value_mode) }}">Limpiar</a>
           <button class="btn" type="button" onclick="window.close()">Cerrar</button>
         </div>
       </form>
@@ -75,6 +76,7 @@
           <tr>
             <th>ID</th>
             <th>Ubicacion</th>
+            <th>Contrato activo</th>
             <th>Estado</th>
             <th>Modalidad</th>
             <th></th>
@@ -82,23 +84,33 @@
         </thead>
         <tbody>
           {% for row in rows %}
+          {% set selected_value = row.id %}
+          {% set selected_label = row.location_label %}
+          {% if value_mode == 'contract_id' %}
+            {% set selected_value = active_contract_id_by_sepultura.get(row.id) %}
+            {% if selected_value %}
+              {% set selected_label = row.location_label ~ ' / C' ~ selected_value %}
+            {% endif %}
+          {% endif %}
           <tr>
             <td>{{ row.id }}</td>
             <td>{{ row.location_label }}</td>
+            <td>{% if active_contract_id_by_sepultura.get(row.id) %}C{{ active_contract_id_by_sepultura.get(row.id) }}{% else %}-{% endif %}</td>
             <td>{{ row.estado.value }}</td>
             <td>{{ row.modalidad }}</td>
             <td>
               <button
                 class="btn"
                 type="button"
-                data-value="{{ row.id }}"
-                data-label="{{ row.location_label|e }}"
+                data-value="{{ selected_value or '' }}"
+                data-label="{{ selected_label|e }}"
+                {% if not selected_value %}title="Sin contrato activo"{% endif %}
                 onclick="return chooseSepulturaFromButton(this);"
               >Seleccionar</button>
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="5">Sin resultados</td></tr>
+          <tr><td colspan="6">Sin resultados</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -112,6 +124,10 @@
       if (!button) return false;
       const value = button.getAttribute("data-value") || "";
       const label = button.getAttribute("data-label") || "";
+      if (!value) {
+        window.alert("La sepultura seleccionada no tiene contrato activo.");
+        return false;
+      }
       return chooseSepultura(PICKER_FIELD_ID, value, PICKER_LABEL_FIELD_ID, label);
     }
 

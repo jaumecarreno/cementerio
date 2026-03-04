@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/icons.html" import action_icon %}
 {% set active_cem = 'facturacion' %}
 {% block title %}Facturacion V2{% endblock %}
 {% block content %}
@@ -18,11 +19,31 @@
     </div>
     <div>
       <label>Contrato ID</label>
-      <input type="number" name="contract_id" min="1" value="{{ filters.contract_id }}">
+      <div class="field-picker-row">
+        <input id="billing_filter_contract_id" type="number" name="contract_id" min="1" value="{{ filters.contract_id }}">
+        <button
+          class="icon-btn"
+          type="button"
+          title="Seleccionar contrato desde sepultura"
+          aria-label="Seleccionar contrato desde sepultura"
+          onclick="(function(){var u='{{ url_for('cemetery.expediente_sepultura_picker', target_field='billing_filter_contract_id', label_field='billing_filter_contract_selected', value_mode='contract_id') }}';var w=window.open(u,'cem-picker','width=980,height=720,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes');if(w){w.focus();}else{window.location.href=u;}})();"
+        >{{ action_icon('folder') }}</button>
+      </div>
+      <div class="small muted field-picker-helper" id="billing_filter_contract_selected"></div>
     </div>
     <div>
       <label>Sepultura ID</label>
-      <input type="number" name="sepultura_id" min="1" value="{{ filters.sepultura_id }}">
+      <div class="field-picker-row">
+        <input id="billing_filter_sepultura_id" type="number" name="sepultura_id" min="1" value="{{ filters.sepultura_id }}">
+        <button
+          class="icon-btn"
+          type="button"
+          title="Seleccionar sepultura"
+          aria-label="Seleccionar sepultura"
+          onclick="(function(){var u='{{ url_for('cemetery.expediente_sepultura_picker', target_field='billing_filter_sepultura_id', label_field='billing_filter_sepultura_selected', value_mode='sepultura_id') }}';var w=window.open(u,'cem-picker','width=980,height=720,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes');if(w){w.focus();}else{window.location.href=u;}})();"
+        >{{ action_icon('folder') }}</button>
+      </div>
+      <div class="small muted field-picker-helper" id="billing_filter_sepultura_selected"></div>
     </div>
     <div class="actions-row">
       <button class="btn primary" type="submit">Filtrar</button>
@@ -45,11 +66,31 @@
   <form method="post" action="{{ url_for('cemetery.billing_create_invoice') }}" class="form-grid">
     <div>
       <label>Contrato ID</label>
-      <input type="number" name="contract_id" min="1">
+      <div class="field-picker-row">
+        <input id="billing_create_contract_id" type="number" name="contract_id" min="1">
+        <button
+          class="icon-btn"
+          type="button"
+          title="Seleccionar contrato desde sepultura"
+          aria-label="Seleccionar contrato desde sepultura"
+          onclick="(function(){var u='{{ url_for('cemetery.expediente_sepultura_picker', target_field='billing_create_contract_id', label_field='billing_create_contract_selected', value_mode='contract_id') }}';var w=window.open(u,'cem-picker','width=980,height=720,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes');if(w){w.focus();}else{window.location.href=u;}})();"
+        >{{ action_icon('folder') }}</button>
+      </div>
+      <div class="small muted field-picker-helper" id="billing_create_contract_selected"></div>
     </div>
     <div>
       <label>Sepultura ID</label>
-      <input type="number" name="sepultura_id" min="1">
+      <div class="field-picker-row">
+        <input id="billing_create_sepultura_id" type="number" name="sepultura_id" min="1">
+        <button
+          class="icon-btn"
+          type="button"
+          title="Seleccionar sepultura"
+          aria-label="Seleccionar sepultura"
+          onclick="(function(){var u='{{ url_for('cemetery.expediente_sepultura_picker', target_field='billing_create_sepultura_id', label_field='billing_create_sepultura_selected', value_mode='sepultura_id') }}';var w=window.open(u,'cem-picker','width=980,height=720,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes');if(w){w.focus();}else{window.location.href=u;}})();"
+        >{{ action_icon('folder') }}</button>
+      </div>
+      <div class="small muted field-picker-helper" id="billing_create_sepultura_selected"></div>
     </div>
     <div style="grid-column: span 2;">
       <label>Conceptos (separador <code>|</code>)</label>

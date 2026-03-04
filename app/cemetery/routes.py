@@ -136,6 +136,7 @@ from app.cemetery.services import (
 )
 from app.core.models import (
     BillingDocumentStatus,
+    DerechoFunerarioContrato,
     OperationStatus,
     OperationType,
     PaymentMethod,
@@ -560,6 +561,9 @@ def expediente_acta(expediente_id: int):
 def expediente_sepultura_picker():
     target_field = (request.args.get("target_field") or "source_sepultura_id").strip()
     label_field = (request.args.get("label_field") or "").strip()
+    value_mode = (request.args.get("value_mode") or "sepultura_id").strip().lower()
+    if value_mode not in {"sepultura_id", "contract_id"}:
+        value_mode = "sepultura_id"
     filters = {
         "q": request.args.get("q", "").strip(),
         "sepultura_id": request.args.get("sepultura_id", "").strip(),
@@ -639,12 +643,30 @@ def expediente_sepultura_picker():
             .limit(100)
             .all()
         )
+
+    active_contract_id_by_sepultura: dict[int, int] = {}
+    if rows and value_mode == "contract_id":
+        today = date.today()
+        sep_ids = [row.id for row in rows]
+        contracts = (
+            DerechoFunerarioContrato.query.filter_by(org_id=org_record().id, estado="ACTIVO")
+            .filter(DerechoFunerarioContrato.sepultura_id.in_(sep_ids))
+            .filter(DerechoFunerarioContrato.fecha_inicio <= today)
+            .filter(DerechoFunerarioContrato.fecha_fin >= today)
+            .order_by(DerechoFunerarioContrato.sepultura_id.asc(), DerechoFunerarioContrato.id.asc())
+            .all()
+        )
+        for contract in contracts:
+            active_contract_id_by_sepultura.setdefault(contract.sepultura_id, contract.id)
+
     return render_template(
         "cemetery/expediente_picker_sepulturas.html",
         rows=rows,
         filters=filters,
         target_field=target_field,
         label_field=label_field,
+        value_mode=value_mode,
+        active_contract_id_by_sepultura=active_contract_id_by_sepultura,
         sepultura_blocks=list_sepultura_blocks(),
         sepultura_states=[state.value for state in SepulturaEstado],
     )
