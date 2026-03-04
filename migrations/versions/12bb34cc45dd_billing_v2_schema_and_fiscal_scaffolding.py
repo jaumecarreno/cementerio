@@ -17,16 +17,46 @@ branch_labels = None
 depends_on = None
 
 
-billing_document_v2_type = sa.Enum("INVOICE", "CREDIT_NOTE", name="billing_document_v2_type")
+billing_document_v2_type = sa.Enum(
+    "INVOICE",
+    "CREDIT_NOTE",
+    name="billing_document_v2_type",
+    create_type=False,
+)
 billing_document_v2_status = sa.Enum(
-    "DRAFT", "ISSUED", "PARTIALLY_PAID", "PAID", "CANCELLED", name="billing_document_v2_status"
+    "DRAFT",
+    "ISSUED",
+    "PARTIALLY_PAID",
+    "PAID",
+    "CANCELLED",
+    name="billing_document_v2_status",
+    create_type=False,
 )
 billing_document_v2_fiscal_status = sa.Enum(
-    "PENDING", "SENT", "ACCEPTED", "REJECTED", "RETRYING", name="billing_document_v2_fiscal_status"
+    "PENDING",
+    "SENT",
+    "ACCEPTED",
+    "REJECTED",
+    "RETRYING",
+    name="billing_document_v2_fiscal_status",
+    create_type=False,
 )
-payment_method_v2 = sa.Enum("EFECTIVO", "TARJETA", "TRANSFERENCIA", "BIZUM", name="payment_method_v2")
+payment_method_v2 = sa.Enum(
+    "EFECTIVO",
+    "TARJETA",
+    "TRANSFERENCIA",
+    "BIZUM",
+    name="payment_method_v2",
+    create_type=False,
+)
 fiscal_submission_v2_status = sa.Enum(
-    "PENDING", "SENT", "ACCEPTED", "REJECTED", "RETRYING", name="fiscal_submission_v2_status"
+    "PENDING",
+    "SENT",
+    "ACCEPTED",
+    "REJECTED",
+    "RETRYING",
+    name="fiscal_submission_v2_status",
+    create_type=False,
 )
 
 
