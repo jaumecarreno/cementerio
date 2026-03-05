@@ -1,6 +1,6 @@
 <!-- Spec 5.3.4 - Resultados de búsqueda y acceso a ficha -->
 <div class="box search-results-box">
-  <p class="small muted search-results-caption">Mostrando {{ paged.shown }} de {{ paged.total }} resultados.</p>
+  <p class="small muted search-results-caption">{{ t('common.results_count').format(shown=paged.shown, total=paged.total) }}</p>
   <table class="table-zebra table-sticky-head">
     <thead>
       <tr>
@@ -42,11 +42,11 @@
   </table>
   <div class="table-pagination small">
     {% if paged.has_prev %}
-      <a class="btn" href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, sort_by=sort_by, sort_dir=sort_dir, page=paged.page-1, page_size=paged.page_size) }}">Anterior</a>
+      <a class="btn" href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, sort_by=sort_by, sort_dir=sort_dir, page=paged.page-1, page_size=paged.page_size) }}">{{ t('common.previous') }}</a>
     {% endif %}
-    <span>Pagina {{ paged.page }} de {{ paged.total_pages }}</span>
+    <span>{{ t('common.page') }} {{ paged.page }} {{ t('common.of') }} {{ paged.total_pages }}</span>
     {% if paged.has_next %}
-      <a class="btn" href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, sort_by=sort_by, sort_dir=sort_dir, page=paged.page+1, page_size=paged.page_size) }}">Siguiente</a>
+      <a class="btn" href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, sort_by=sort_by, sort_dir=sort_dir, page=paged.page+1, page_size=paged.page_size) }}">{{ t('common.next') }}</a>
     {% endif %}
   </div>
   <p class="small muted">{{ t('search.tip_open_record') }}</p>

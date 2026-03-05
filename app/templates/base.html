@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}GSF - Cementerio{% endblock %}</title>
+  <title>{% block title %}{{ t('app.brand_title') }}{% endblock %}</title>
   <script>
     (function () {
       const savedTheme = localStorage.getItem("gsf-theme");
@@ -21,12 +21,12 @@
   <div class="layout">
     <div class="topbar">
       <div class="topbar-left">
-        <button type="button" id="nav-toggle" class="nav-toggle" aria-label="Abrir menu" aria-expanded="false">
+        <button type="button" id="nav-toggle" class="nav-toggle" aria-label="{{ t('nav.open_menu') }}" aria-expanded="false">
           <span></span>
           <span></span>
           <span></span>
         </button>
-        <div class="brand-small">SENDA</div>
+        <div class="brand-small">{{ t('app.brand') }}</div>
       </div>
       <div class="lang-switch">
         <button
@@ -53,7 +53,7 @@
     <div class="content">
       <div id="nav-overlay" class="nav-overlay" hidden></div>
       <aside class="sidebar">
-        <nav class="sidebar-nav" aria-label="Navegacion principal">
+        <nav class="sidebar-nav" aria-label="{{ t('nav.main') }}">
           <a class="menu-link {% if active_global == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard_page') }}">
             <span class="menu-icon">{{ sidebar_icon('dashboard') }}</span>
             <span class="menu-label">{{ t('menu.home') }}</span>
@@ -72,7 +72,7 @@
           </a>
           <a class="menu-link {% if active_cem == 'facturacion' %}active{% endif %}" href="{{ url_for('cemetery.billing_workspace') }}">
             <span class="menu-icon">{{ sidebar_icon('billing') }}</span>
-            <span class="menu-label">Facturacion</span>
+            <span class="menu-label">{{ t('menu.billing') }}</span>
           </a>
           <a class="menu-link {% if active_cem == 'titularidad' %}active{% endif %}" href="{{ url_for('cemetery.ownership_cases_alias') }}">
             <span class="menu-icon">{{ sidebar_icon('crematorium') }}</span>
