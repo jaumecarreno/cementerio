@@ -4254,8 +4254,8 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 dni_nif=_demo_spanish_dni(idx),
                 telefono=_demo_phone(idx, mobile=True),
                 telefono2=_demo_phone(8000 + idx, mobile=True),
-                email=f"titular{idx:03d}@terrassa.demo",
-                email2=f"familia{idx:03d}@mail.demo" if idx % 4 == 0 else "",
+                email=f"titular{idx:03d}@familia.local",
+                email2=f"contacto{idx:03d}@familia.local" if idx % 4 == 0 else "",
                 direccion=address["legacy"],
                 direccion_linea=address["line"],
                 codigo_postal=address["postal_code"],
@@ -4265,7 +4265,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 notas=(
                     "Titular con expediente pendiente"
                     if idx <= 80
-                    else "Titular demo"
+                    else "Titular con historico de renovaciones"
                 ),
             )
         )
@@ -4282,8 +4282,8 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 dni_nif=_demo_spanish_dni(4000 + idx),
                 telefono=_demo_phone(12000 + idx, mobile=True),
                 telefono2=_demo_phone(22000 + idx, mobile=False),
-                email=f"persona{idx:03d}@mail.demo",
-                email2=f"alterno{idx:03d}@mail.demo" if idx % 5 == 0 else "",
+                email=f"persona{idx:03d}@soporte.local",
+                email2=f"alterno{idx:03d}@soporte.local" if idx % 5 == 0 else "",
                 direccion=address["legacy"],
                 direccion_linea=address["line"],
                 codigo_postal=address["postal_code"],
@@ -4389,7 +4389,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
             pensioner_since_date=date(2024, 1, 1) if is_pensioner else None,
             is_provisional=is_provisional,
             provisional_until=date(2036, 1, 1) if is_provisional else None,
-            notes="Titularidad demo",
+            notes="Titularidad en seguimiento administrativo",
         )
         ownership_records.append(record)
         owner_person_by_contract_id[contract.id] = record.person_id
@@ -4429,7 +4429,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 org_id=oid,
                 sepultura_id=sep.id,
                 person_id=extras[(idx - 1) % len(extras)].id,
-                notes=f"Restos previos demo {idx:03d}",
+                notes=f"Restos historicos verificados {idx:03d}",
             )
         )
     db.session.add_all(remains)
@@ -4493,8 +4493,8 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
             WorkOrder(
                 org_id=oid,
                 code=f"OT-2026-{idx:06d}",
-                title=f"OT DEMO {idx:04d}",
-                description="Orden de trabajo demo",
+                title=f"OT-2026-{idx:04d} Intervencion programada",
+                description="Orden de trabajo programada para circuito de presentacion",
                 category=category,
                 type_code=type_code,
                 priority=WorkOrderPriority.MEDIA if idx % 4 else WorkOrderPriority.ALTA,
@@ -4599,7 +4599,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                     "Inhumacion pendiente de documentacion"
                     if op_type == OperationType.INHUMACION
                     and status in {OperationStatus.BORRADOR, OperationStatus.DOCS_PENDIENTES}
-                    else "Operacion demo"
+                    else "Operacion en tramitacion"
                 ),
                 created_by_user_id=default_operator_id,
                 managed_by_user_id=secondary_operator_id,
@@ -4650,7 +4650,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                     verified_by_user_id=default_operator_id
                     if permit_status == OperationPermitStatus.VERIFIED
                     else None,
-                    notes="Permiso demo",
+                    notes="Permiso presentado por registro",
                 )
             )
 
@@ -4687,7 +4687,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 verified_by_user_id=default_operator_id
                 if acta_status == OperationPermitStatus.VERIFIED
                 else None,
-                notes="Acta demo",
+                notes="Acta validada por operativa",
             )
         )
         operation_documents.append(
@@ -4704,7 +4704,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 uploaded_at=case.created_at + timedelta(days=2) if idx % 3 == 0 else None,
                 verified_at=None,
                 verified_by_user_id=None,
-                notes="Documento adicional demo",
+                notes="Documento adicional de soporte",
             )
         )
 
@@ -4715,7 +4715,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 to_status=OperationStatus.BORRADOR.value,
                 changed_at=case.created_at,
                 changed_by_user_id=default_operator_id,
-                reason="Alta demo",
+                reason="Alta por carga de escenario",
             )
         )
         if case.status != OperationStatus.BORRADOR:
@@ -4726,7 +4726,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                     to_status=case.status.value,
                     changed_at=case.created_at + timedelta(days=1),
                     changed_by_user_id=secondary_operator_id,
-                    reason="Evolucion demo",
+                    reason="Cambio de estado segun calendario",
                 )
             )
 
@@ -4794,11 +4794,11 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
             assigned_to_user_id=user_id if user_id and idx % 4 == 0 else None,
             resolution_number=resolution_number,
             rejection_reason=(
-                f"Falta documentacion demo {idx:03d}"
+                f"Falta documento acreditativo {idx:03d}"
                 if status == OwnershipTransferStatus.REJECTED
                 else None
             ),
-            notes=f"Caso demo {idx:03d}",
+            notes=f"Caso en curso {idx:03d}",
             internal_notes="Dataset de demostracion",
         )
         if transfer_type == OwnershipTransferType.PROVISIONAL:
@@ -5055,7 +5055,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
         status = BillingDocumentStatus.ISSUED
         fiscal_status = FiscalSubmissionStatus.ACCEPTED
         residual_amount = total_amount
-        number: str | None = f"F-DEMO-2026-{doc_counter:06d}"
+        number: str | None = f"F-2026-{doc_counter:06d}"
         document_issued_at = issued_at
         submission_status = FiscalSubmissionStatus.ACCEPTED
         submission_error = ""
@@ -5132,13 +5132,13 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                     provider_name=(
                         "blocked_no_provider"
                         if submission_status in {FiscalSubmissionStatus.RETRYING, FiscalSubmissionStatus.PENDING}
-                        else "demo_provider"
+                        else "fiscal_provider"
                     ),
                     attempt_count=1,
                     external_submission_id=(
                         f"SUB-{document.number}" if submission_status == FiscalSubmissionStatus.ACCEPTED else ""
                     ),
-                    request_payload_json='{"mode":"demo"}',
+                    request_payload_json='{"mode":"seed"}',
                     response_payload_json='{"status":"ok"}'
                     if submission_status == FiscalSubmissionStatus.ACCEPTED
                     else '{"status":"blocked"}',
@@ -5158,8 +5158,8 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 document_id=document.id,
                 amount=payment_amount,
                 method=PaymentMethod.EFECTIVO,
-                receipt_number=f"R-DEMO-2026-{receipt_counter:06d}",
-                external_reference=f"demo-{document.id}",
+                receipt_number=f"R-2026-{receipt_counter:06d}",
+                external_reference=f"pago-{document.id}",
                 paid_at=issued_at + timedelta(days=5),
                 created_by_user_id=user_id,
                 created_at=issued_at + timedelta(days=5),
@@ -5187,7 +5187,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 document_type=BillingDocumentType.CREDIT_NOTE,
                 status=BillingDocumentStatus.ISSUED,
                 fiscal_status=FiscalSubmissionStatus.ACCEPTED,
-                number=f"NC-DEMO-2026-{doc_counter:06d}",
+                number=f"NC-2026-{doc_counter:06d}",
                 currency="EUR",
                 total_amount=credit_note_amount,
                 residual_amount=Decimal("0.00"),
@@ -5218,10 +5218,10 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                     org_id=oid,
                     document_id=credit_note.id,
                     status=FiscalSubmissionStatus.ACCEPTED,
-                    provider_name="demo_provider",
+                    provider_name="fiscal_provider",
                     attempt_count=1,
                     external_submission_id=f"SUB-{credit_note.number}",
-                    request_payload_json='{"mode":"demo"}',
+                    request_payload_json='{"mode":"seed"}',
                     response_payload_json='{"status":"ok"}',
                     error_message="",
                     last_attempt_at=credit_note.issued_at,
@@ -5239,8 +5239,8 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
         lapida_stocks.append(
             LapidaStock(
                 org_id=oid,
-                codigo=f"LAP-DEMO-{idx:02d}",
-                descripcion=f"Modelo lapida demo {idx:02d}",
+                codigo=f"LAP-STD-{idx:02d}",
+                descripcion=f"Modelo lapida estandar {idx:02d}",
                 estado="ACTIVO",
                 available_qty=25 + idx,
             )
@@ -5259,7 +5259,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 lapida_stock_id=stock.id,
                 movimiento="ENTRADA",
                 quantity=quantity,
-                notes=f"Entrada demo {idx:03d}",
+                notes=f"Entrada por reposicion {idx:03d}",
             )
         )
     for idx in range(1, 31):
@@ -5273,7 +5273,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 movimiento="SALIDA",
                 quantity=quantity,
                 sepultura_id=sepulturas[(idx * 3) % 300].id,
-                notes=f"Salida demo {idx:03d}",
+                notes=f"Salida para instalacion {idx:03d}",
             )
         )
     db.session.add_all(lapida_movements)
@@ -5290,7 +5290,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
             InscripcionLateral(
                 org_id=oid,
                 sepultura_id=sepulturas[(idx - 1) % 300].id,
-                texto=f"Inscripcion demo {idx:03d}",
+                texto=f"Inscripcion lateral {idx:03d}",
                 estado=inscripcion_states[idx - 1],
             )
         )

@@ -67,6 +67,31 @@ def login_operator(client):
     return _login
 
 
+
+
+@pytest.fixture
+def login_comercial(client):
+    def _login():
+        return client.post(
+            "/auth/login",
+            data={"email": "comercial@smsft.local", "password": "comercial123"},
+            follow_redirects=True,
+        )
+
+    return _login
+
+
+@pytest.fixture
+def login_operativo(client):
+    def _login():
+        return client.post(
+            "/auth/login",
+            data={"email": "operativo@smsft.local", "password": "operativo123"},
+            follow_redirects=True,
+        )
+
+    return _login
+
 @pytest.fixture
 def second_org_sepultura(app):
     with app.app_context():

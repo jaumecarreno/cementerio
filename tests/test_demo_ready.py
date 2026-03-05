@@ -10,6 +10,7 @@ import sys
 from app.core.demo_people import is_generic_demo_name
 from app.core.extensions import db
 from app.core.models import (
+    BillingDocumentType,
     BillingDocumentV2,
     Beneficiario,
     CaseDocument,
@@ -518,3 +519,63 @@ def test_seed_demo_data_person_names_are_not_generic(app):
             if is_generic_demo_name(first_name, last_name)
         ]
         assert generic_names == []
+
+
+def test_demo_seed_avoids_demo_tokens_on_key_business_fields(app, client, login_admin):
+    login_admin()
+    response = client.post("/demo/load-initial", follow_redirects=True)
+    assert response.status_code == 200
+
+    with app.app_context():
+        ownership_notes = [row.notes or "" for row in OwnershipRecord.query.all()]
+        case_notes = [row.notes or "" for row in OwnershipTransferCase.query.all()]
+        invoice_numbers = [
+            row.number or ""
+            for row in BillingDocumentV2.query.all()
+            if row.document_type == BillingDocumentType.INVOICE
+        ]
+        receipt_numbers = [row.receipt_number or "" for row in PaymentV2.query.all()]
+
+        payload = ownership_notes + case_notes + invoice_numbers + receipt_numbers
+        assert payload
+        assert all("DEMO" not in value.upper() for value in payload)
+
+
+def test_presentation_users_have_expected_capabilities(app, client, login_comercial, login_operativo):
+    login_comercial()
+    assert client.get("/demo").status_code == 200
+    assert client.get("/cementerio/titularidad/casos").status_code == 200
+    assert client.post("/demo/load-initial", follow_redirects=False).status_code == 403
+    assert client.get("/cementerio/ot/nueva", follow_redirects=False).status_code == 403
+
+    client.post("/auth/logout", follow_redirects=True)
+
+    login_operativo()
+    assert client.get("/demo").status_code == 200
+    assert client.post("/demo/load-initial", follow_redirects=False).status_code == 302
+    assert client.get("/cementerio/ot/nueva", follow_redirects=False).status_code == 200
+
+
+def test_demo_smoke_environment_is_ready(app, client, login_admin):
+    login_admin()
+
+    load_response = client.post("/demo/load-initial", follow_redirects=True)
+    assert load_response.status_code == 200
+
+    checks = {
+        "/demo": 200,
+        "/cementerio/panel": 200,
+        "/cementerio/titularidad": 200,
+        "/cementerio/facturacion": 200,
+        "/cementerio/ot": 200,
+    }
+    for route, expected in checks.items():
+        assert client.get(route, follow_redirects=True).status_code == expected
+
+    with app.app_context():
+        assert Person.query.count() >= 480
+        assert DerechoFunerarioContrato.query.count() >= 300
+        assert OwnershipTransferCase.query.count() >= 90
+        assert BillingDocumentV2.query.count() > 0
+        assert PaymentV2.query.count() > 0
+
