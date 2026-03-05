@@ -92,10 +92,15 @@ Incluye:
 ## Credenciales demo
 - Admin: `admin@smsft.local` / `admin123`
 - Operario: `operario@smsft.local` / `operario123`
+- Comercial (solo lectura guiada): `comercial@smsft.local` / `comercial123`
+- Operativo (acciones controladas): `operativo@smsft.local` / `operativo123`
+
+Checklist pre-demo: `docs/demo_runbook.md`.
 
 ## Tests
 ```bash
 pytest -q
+pytest -q tests/test_demo_ready.py -k "smoke or presentation_users or avoids_demo_tokens"
 ```
 
 Cobertura funcional de tests:

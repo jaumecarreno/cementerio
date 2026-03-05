@@ -1488,13 +1488,25 @@ def seed_demo_data(session) -> None:
         full_name="Operario Cementerio",
         password_hash=generate_password_hash("operario123"),
     )
-    session.add_all([admin, operario])
+    comercial = User(
+        email="comercial@smsft.local",
+        full_name="Presentacion Comercial",
+        password_hash=generate_password_hash("comercial123"),
+    )
+    operativo = User(
+        email="operativo@smsft.local",
+        full_name="Presentacion Operativa",
+        password_hash=generate_password_hash("operativo123"),
+    )
+    session.add_all([admin, operario, comercial, operativo])
     session.flush()
 
     session.add_all(
         [
             Membership(user_id=admin.id, org_id=org.id, role="admin"),
             Membership(user_id=operario.id, org_id=org.id, role="operator"),
+            Membership(user_id=comercial.id, org_id=org.id, role="operator"),
+            Membership(user_id=operativo.id, org_id=org.id, role="admin"),
         ]
     )
 
