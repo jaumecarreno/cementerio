@@ -4,22 +4,22 @@
 {% set breadcrumbs = [
   {'label': t('menu.cemetery'), 'href': url_for('cemetery.panel')},
   {'label': t('reporting.title'), 'href': url_for('cemetery.reporting')},
-  {'label': 'Programaciones', 'href': None}
+  {'label': t('reporting.schedules'), 'href': None}
 ] %}
-{% block title %}Programaciones de informes{% endblock %}
+{% block title %}{{ t('reporting.schedules_title') }}{% endblock %}
 {% block content %}
-<h1 class="page-title">Programaciones de informes</h1>
+<h1 class="page-title">{{ t('reporting.schedules_title') }}</h1>
 
 <div class="box">
-  <h3>Nueva programacion</h3>
+  <h3>{{ t('reporting.new_schedule') }}</h3>
   <form method="post" action="{{ url_for('cemetery.reporting_schedules') }}">
     <div class="form-grid">
       <div>
-        <label>Nombre</label>
+        <label>{{ t('field.name') }}</label>
         <input type="text" name="name" required>
       </div>
       <div>
-        <label>Informe</label>
+        <label>{{ t('menu.reports') }}</label>
         <select name="report_key" required>
           {% for key in report_options %}
           <option value="{{ key }}">{{ key }}</option>
@@ -27,68 +27,68 @@
         </select>
       </div>
       <div>
-        <label>Cadencia</label>
+        <label>{{ t('reporting.cadence') }}</label>
         <select name="cadence" required>
           <option value="WEEKLY">WEEKLY</option>
           <option value="MONTHLY">MONTHLY</option>
         </select>
       </div>
       <div>
-        <label>Dia semana (0=Lunes..6=Domingo)</label>
+        <label>{{ t('reporting.day_of_week') }}</label>
         <input type="number" name="day_of_week" min="0" max="6" value="0">
       </div>
       <div>
-        <label>Dia mes</label>
+        <label>{{ t('reporting.day_of_month') }}</label>
         <input type="number" name="day_of_month" min="1" max="31" value="1">
       </div>
       <div>
-        <label>Hora</label>
+        <label>{{ t('reporting.hour') }}</label>
         <input type="time" name="run_time" value="07:00">
       </div>
       <div>
-        <label>Zona horaria</label>
+        <label>{{ t('reporting.timezone') }}</label>
         <input type="text" name="timezone" value="Europe/Madrid">
       </div>
       <div>
-        <label>Destinatarios (coma)</label>
-        <input type="text" name="recipients" placeholder="jefe@org.es, direccion@org.es">
+        <label>{{ t('reporting.recipients_comma') }}</label>
+        <input type="text" name="recipients" placeholder="{{ t('reporting.recipients_placeholder') }}">
       </div>
       <div>
-        <label>Formatos</label>
+        <label>{{ t('reporting.formats') }}</label>
         <label><input type="checkbox" name="formats" value="CSV" checked> CSV</label>
         <label><input type="checkbox" name="formats" value="PDF" checked> PDF</label>
       </div>
       <div>
-        <label>Activa</label>
-        <label><input type="checkbox" name="active" value="1" checked> Si</label>
+        <label>{{ t('reporting.active') }}</label>
+        <label><input type="checkbox" name="active" value="1" checked> {{ t('common.yes') }}</label>
       </div>
       <div style="grid-column: 1 / -1;">
-        <label>Filtros JSON</label>
+        <label>{{ t('reporting.json_filters') }}</label>
         <textarea name="filters_json" rows="3" placeholder='{"cadence_preset":"weekly","type_code":"INHUMACION"}'></textarea>
       </div>
       <div style="display:flex;align-items:flex-end;">
-        <button class="btn primary" type="submit">Guardar programacion</button>
+        <button class="btn primary" type="submit">{{ t('reporting.save_schedule') }}</button>
       </div>
     </div>
   </form>
 </div>
 
 <div class="box">
-  <h3>Programaciones</h3>
+  <h3>{{ t('reporting.schedules') }}</h3>
   <table>
     <thead>
       <tr>
         <th>ID</th>
-        <th>Nombre</th>
-        <th>Informe</th>
-        <th>Cadencia</th>
-        <th>Dia</th>
-        <th>Hora</th>
+        <th>{{ t('field.name') }}</th>
+        <th>{{ t('menu.reports') }}</th>
+        <th>{{ t('reporting.cadence') }}</th>
+        <th>{{ t('reporting.day') }}</th>
+        <th>{{ t('reporting.hour') }}</th>
         <th>TZ</th>
-        <th>Formatos</th>
-        <th>Activa</th>
-        <th>Ultima ejecucion</th>
-        <th>Acciones</th>
+        <th>{{ t('reporting.formats') }}</th>
+        <th>{{ t('reporting.active') }}</th>
+        <th>{{ t('reporting.last_execution') }}</th>
+        <th>{{ t('common.actions') }}</th>
       </tr>
     </thead>
     <tbody>
@@ -102,35 +102,35 @@
         <td>{{ schedule.run_time }}</td>
         <td>{{ schedule.timezone }}</td>
         <td>{{ schedule.formats }}</td>
-        <td>{{ 'Si' if schedule.active else 'No' }}</td>
+        <td>{{ t('common.yes') if schedule.active else t('common.no') }}</td>
         <td>{{ schedule.last_run_at or '-' }}</td>
         <td>
           <form method="post" action="{{ url_for('cemetery.reporting_schedule_toggle', schedule_id=schedule.id) }}" style="display:inline;">
-            <button class="btn" type="submit">{{ 'Pausar' if schedule.active else 'Activar' }}</button>
+            <button class="btn" type="submit">{{ t('reporting.pause') if schedule.active else t('reporting.activate') }}</button>
           </form>
           <form method="post" action="{{ url_for('cemetery.reporting_schedule_run_now', schedule_id=schedule.id) }}" style="display:inline;">
-            <button class="btn" type="submit">Run now</button>
+            <button class="btn" type="submit">{{ t('reporting.run_now') }}</button>
           </form>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="11">Sin programaciones</td></tr>
+      <tr><td colspan="11">{{ t('reporting.no_schedules') }}</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
 
 <div class="box">
-  <h3>Log de entregas</h3>
+  <h3>{{ t('reporting.delivery_log') }}</h3>
   <table>
     <thead>
       <tr>
-        <th>Fecha</th>
-        <th>Schedule</th>
-        <th>Estado</th>
-        <th>Filas</th>
-        <th>Artefactos</th>
-        <th>Error</th>
+        <th>{{ t('field.date') }}</th>
+        <th>{{ t('reporting.schedule') }}</th>
+        <th>{{ t('field.status') }}</th>
+        <th>{{ t('reporting.rows') }}</th>
+        <th>{{ t('reporting.artifacts') }}</th>
+        <th>{{ t('billing.error') }}</th>
       </tr>
     </thead>
     <tbody>
@@ -144,7 +144,7 @@
         <td>{{ log.error or '-' }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="6">Sin ejecuciones</td></tr>
+      <tr><td colspan="6">{{ t('reporting.no_executions') }}</td></tr>
       {% endfor %}
     </tbody>
   </table>

@@ -14,7 +14,7 @@
     <label>
       {{ t('field.status') }}
       <select name="estado">
-        <option value="">Todos</option>
+        <option value="">{{ t('search.all') }}</option>
         {% for st in states %}
         <option value="{{ st }}" {% if filters.estado == st %}selected{% endif %}>{{ st }}</option>
         {% endfor %}
@@ -29,20 +29,20 @@
 </div>
 
 <div class="box">
-  <h3>{{ t('common.create') }} OT</h3>
+  <h3>{{ t('common.create') }} {{ t('common.ot') }}</h3>
   <form method="post" action="{{ url_for('cemetery.work_orders') }}">
     <div class="form-grid">
       <div>
-        <label>{{ t('cases.title') }} ID</label>
+        <label>{{ t('cases.title') }} {{ t('common.id') }}</label>
         <input type="number" min="1" name="expediente_id" required>
       </div>
       <div>
         <label>{{ t('common.title') }}</label>
-        <input type="text" name="titulo" placeholder="OT manual">
+        <input type="text" name="titulo" placeholder="{{ t('work_orders.manual_placeholder') }}">
       </div>
       <div>
         <label>{{ t('field.notes') }}</label>
-        <input type="text" name="notes" placeholder="Indicaciones de trabajo">
+        <input type="text" name="notes" placeholder="{{ t('work_orders.notes_placeholder') }}">
       </div>
     </div>
     <div class="actions-row">
@@ -56,7 +56,7 @@
   <table>
     <thead>
       <tr>
-        <th>OT</th>
+        <th>{{ t('common.ot') }}</th>
         <th>{{ t('common.title') }}</th>
         <th>{{ t('field.status') }}</th>
         <th>{{ t('cases.title') }}</th>
@@ -81,7 +81,7 @@
         <td>
           {% if expediente %}
           <a class="btn" href="{{ url_for('cemetery.expediente_detail', expediente_id=expediente.id) }}#ot-{{ ot.id }}">{{ t('common.open') }}</a>
-          <a class="btn" href="{{ url_for('cemetery.expediente_ot_order_pdf', expediente_id=expediente.id, ot_id=ot.id) }}" target="_blank">PDF</a>
+          <a class="btn" href="{{ url_for('cemetery.expediente_ot_order_pdf', expediente_id=expediente.id, ot_id=ot.id) }}" target="_blank">{{ t('common.pdf') }}</a>
           {% endif %}
         </td>
       </tr>

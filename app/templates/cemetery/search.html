@@ -30,7 +30,7 @@
         <input type="number" name="numero" value="{{ filters.numero }}">
       </div>
       <div>
-        <label>Modalitat</label>
+        <label>{{ t('reporting.modality') }}</label>
         <select name="modalidad">
           <option value="">{{ t('search.all') }}</option>
           {% for modalidad in modalidades %}
@@ -39,7 +39,7 @@
         </select>
       </div>
       <div>
-        <label>Estado</label>
+        <label>{{ t('field.status') }}</label>
         <select name="estado">
           <option value="">{{ t('search.all') }}</option>
           {% for state in sepultura_states %}
@@ -66,7 +66,7 @@
       <div class="search-debt-check">
         <label>
           <input type="checkbox" name="con_deuda" value="1" {% if filters.con_deuda %}checked{% endif %}>
-          Deuda
+          {{ t('reporting.debt') }}
         </label>
       </div>
     </div>
