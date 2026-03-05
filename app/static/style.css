@@ -1271,3 +1271,38 @@ tr:last-child td {
     margin: 18px auto;
   }
 }
+
+.reporting-kpi-hint {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 13px;
+}
+
+.reporting-kpi-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin-top: 12px;
+}
+
+.reporting-kpi-card {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--surface-2);
+  text-decoration: none;
+  color: inherit;
+}
+
+.reporting-kpi-card:hover {
+  border-color: var(--input-focus);
+}
+
+.status-pill.status-reporting-impact {
+  background: #e7f0ff;
+  border-color: #bfd3f8;
+  color: #2d63c8;
+  text-transform: none;
+}

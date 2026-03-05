@@ -7,6 +7,31 @@
   {'label': t('reporting.schedules'), 'href': None}
 ] %}
 {% block title %}{{ t('reporting.schedules_title') }}{% endblock %}
+
+{% macro report_label(key) -%}
+  {%- if key == 'sepulturas' -%}Sepulturas
+  {%- elif key == 'contratos' -%}Contratos
+  {%- elif key == 'deuda' -%}Deuda
+  {%- elif key == 'ot_carga_equipos' -%}OT carga equipos
+  {%- elif key == 'ot_sla_cumplimiento' -%}OT SLA cumplimiento
+  {%- elif key == 'ot_calendario_faenas' -%}OT calendario faenas
+  {%- elif key == 'deuda_aging' -%}Deuda aging
+  {%- elif key == 'deuda_recaudacion' -%}Deuda y recaudación
+  {%- elif key == 'directivo_operacion_pdf' -%}Directivo operación (PDF)
+  {%- elif key == 'directivo_finanzas_pdf' -%}Directivo finanzas (PDF)
+  {%- else -%}{{ key }}
+  {%- endif -%}
+{%- endmacro %}
+{% macro report_impact(key) -%}
+  {%- if key == 'ot_carga_equipos' -%}Reducción de tiempo administrativo
+  {%- elif key == 'ot_sla_cumplimiento' -%}Cumplimiento y previsibilidad operativa
+  {%- elif key == 'ot_calendario_faenas' -%}Planificación diaria y coordinación en campo
+  {%- elif key == 'deuda_aging' -%}Seguimiento de impagos
+  {%- elif key == 'deuda_recaudacion' -%}Mejora de caja y anticipación financiera
+  {%- elif key == 'deuda' -%}Priorización de cobro por contrato
+  {%- else -%}Seguimiento operativo
+  {%- endif -%}
+{%- endmacro %}
 {% block content %}
 <h1 class="page-title">{{ t('reporting.schedules_title') }}</h1>
 
@@ -22,7 +47,7 @@
         <label>{{ t('menu.reports') }}</label>
         <select name="report_key" required>
           {% for key in report_options %}
-          <option value="{{ key }}">{{ key }}</option>
+          <option value="{{ key }}">{{ report_label(key) }} · {{ report_impact(key) }}</option>
           {% endfor %}
         </select>
       </div>
@@ -96,7 +121,7 @@
       <tr>
         <td>{{ schedule.id }}</td>
         <td>{{ schedule.name }}</td>
-        <td>{{ schedule.report_key }}</td>
+        <td><div>{{ report_label(schedule.report_key) }}</div><small class="reporting-kpi-hint">{{ report_impact(schedule.report_key) }}</small></td>
         <td>{{ schedule.cadence }}</td>
         <td>{% if schedule.cadence == 'WEEKLY' %}{{ schedule.day_of_week }}{% else %}{{ schedule.day_of_month }}{% endif %}</td>
         <td>{{ schedule.run_time }}</td>
