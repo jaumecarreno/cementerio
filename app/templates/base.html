@@ -33,7 +33,6 @@
             <span class="menu-label">{{ t('menu.home') }}</span>
           </a>
 
-          <div class="menu-group-label">Operativa</div>
           <a class="menu-link {% if active_cem == 'sepulturas' %}active{% endif %}" href="{{ url_for('cemetery.search_graves') }}">
             <span class="menu-icon">{{ sidebar_icon('inventory') }}</span>
             <span class="menu-label">{{ t('cem.graves') }}</span>
@@ -47,13 +46,11 @@
             <span class="menu-label">{{ t('cem.work_orders') }}</span>
           </a>
 
-          <div class="menu-group-label">Facturacion</div>
           <a class="menu-link {% if active_cem == 'facturacion' %}active{% endif %}" href="{{ url_for('cemetery.billing_workspace') }}">
             <span class="menu-icon">{{ sidebar_icon('billing') }}</span>
             <span class="menu-label">{{ t('menu.billing') }}</span>
           </a>
 
-          <div class="menu-group-label">Titularidad</div>
           <a class="menu-link {% if active_cem == 'titularidad' %}active{% endif %}" href="{{ url_for('cemetery.ownership_cases_alias') }}">
             <span class="menu-icon">{{ sidebar_icon('crematorium') }}</span>
             <span class="menu-label">{{ t('cem.ownership') }}</span>
@@ -63,13 +60,11 @@
             <span class="menu-label">{{ t('cem.people') }}</span>
           </a>
 
-          <div class="menu-group-label">Informes</div>
           <a class="menu-link {% if active_cem == 'reporting' or active_global == 'reports' %}active{% endif %}" href="{{ url_for('cemetery.reporting') }}">
             <span class="menu-icon">{{ sidebar_icon('reports') }}</span>
             <span class="menu-label">{{ t('menu.reports') }}</span>
           </a>
 
-          <div class="menu-group-label">General</div>
           <a class="menu-link {% if active_global == 'demo' %}active{% endif %}" href="{{ url_for('demo_page') }}">
             <span class="menu-icon">{{ sidebar_icon('settings') }}</span>
             <span class="menu-label">{{ t('menu.demo') }}</span>
