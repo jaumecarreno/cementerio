@@ -58,6 +58,8 @@
             <span class="menu-icon">{{ sidebar_icon('dashboard') }}</span>
             <span class="menu-label">{{ t('menu.home') }}</span>
           </a>
+
+          <div class="menu-group-label">Operativa</div>
           <a class="menu-link {% if active_cem == 'sepulturas' %}active{% endif %}" href="{{ url_for('cemetery.search_graves') }}">
             <span class="menu-icon">{{ sidebar_icon('inventory') }}</span>
             <span class="menu-label">{{ t('cem.graves') }}</span>
@@ -70,18 +72,30 @@
             <span class="menu-icon">{{ sidebar_icon('work_orders') }}</span>
             <span class="menu-label">{{ t('cem.work_orders') }}</span>
           </a>
+
+          <div class="menu-group-label">Facturacion</div>
           <a class="menu-link {% if active_cem == 'facturacion' %}active{% endif %}" href="{{ url_for('cemetery.billing_workspace') }}">
             <span class="menu-icon">{{ sidebar_icon('billing') }}</span>
             <span class="menu-label">{{ t('menu.billing') }}</span>
           </a>
+
+          <div class="menu-group-label">Titularidad</div>
           <a class="menu-link {% if active_cem == 'titularidad' %}active{% endif %}" href="{{ url_for('cemetery.ownership_cases_alias') }}">
             <span class="menu-icon">{{ sidebar_icon('crematorium') }}</span>
             <span class="menu-label">{{ t('cem.ownership') }}</span>
           </a>
+          <a class="menu-link {% if active_cem == 'personas' %}active{% endif %}" href="{{ url_for('cemetery.people_list') }}">
+            <span class="menu-icon">{{ sidebar_icon('reports') }}</span>
+            <span class="menu-label">{{ t('cem.people') }}</span>
+          </a>
+
+          <div class="menu-group-label">Informes</div>
           <a class="menu-link {% if active_cem == 'reporting' or active_global == 'reports' %}active{% endif %}" href="{{ url_for('cemetery.reporting') }}">
             <span class="menu-icon">{{ sidebar_icon('reports') }}</span>
             <span class="menu-label">{{ t('menu.reports') }}</span>
           </a>
+
+          <div class="menu-group-label">General</div>
           <a class="menu-link {% if active_global == 'demo' %}active{% endif %}" href="{{ url_for('demo_page') }}">
             <span class="menu-icon">{{ sidebar_icon('settings') }}</span>
             <span class="menu-label">{{ t('menu.demo') }}</span>
@@ -109,11 +123,13 @@
             {% endfor %}
           </div>
         {% endif %}
+        {% include "partials/context_toolbar.html" %}
+        {% block page_actions %}{% endblock %}
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
-            <div class="flash-wrap">
+            <div class="flash-wrap" aria-live="polite" aria-atomic="true">
               {% for category, message in messages %}
-                <div class="flash {{ category }}">{{ message }}</div>
+                <div class="flash {{ category }}" {% if category == "error" %}role="alert"{% else %}role="status"{% endif %}>{{ message }}</div>
               {% endfor %}
             </div>
           {% endif %}
@@ -247,6 +263,60 @@
       });
 
       updateToggleLabel();
+    })();
+  </script>
+  <script>
+    (function () {
+      const storageKey = "cem-last-list-url";
+      const endpoint = {{ (request.endpoint or "")|tojson }};
+      const currentPath = window.location.pathname + window.location.search;
+      const listEndpoints = new Set([
+        "cemetery.search_graves",
+        "cemetery.ownership_cases",
+        "cemetery.billing_workspace",
+        "cemetery.ot_list",
+        "cemetery.work_orders",
+        "cemetery.lapidas",
+        "cemetery.expedientes",
+      ]);
+      const detailEndpoints = new Set([
+        "cemetery.grave_detail",
+        "cemetery.ot_detail",
+        "cemetery.expediente_detail",
+        "cemetery.ownership_case_detail_page",
+        "cemetery.person_edit",
+        "cemetery.billing_receipt",
+      ]);
+
+      if (listEndpoints.has(endpoint)) {
+        localStorage.setItem(storageKey, currentPath);
+      }
+
+      const backBtn = document.getElementById("back-to-list-btn");
+      if (!backBtn || !detailEndpoints.has(endpoint)) return;
+      const lastListPath = localStorage.getItem(storageKey);
+      if (!lastListPath || lastListPath === currentPath) return;
+      backBtn.href = lastListPath;
+      backBtn.hidden = false;
+    })();
+  </script>
+  <script>
+    (function () {
+      if (!window.htmx) return;
+      document.body.addEventListener("htmx:beforeRequest", function (event) {
+        document.body.setAttribute("data-htmx-busy", "1");
+        const target = event.detail && event.detail.target;
+        if (target instanceof HTMLElement) {
+          target.setAttribute("aria-busy", "true");
+        }
+      });
+      document.body.addEventListener("htmx:afterRequest", function (event) {
+        document.body.setAttribute("data-htmx-busy", "0");
+        const target = event.detail && event.detail.target;
+        if (target instanceof HTMLElement) {
+          target.removeAttribute("aria-busy");
+        }
+      });
     })();
   </script>
   <script>

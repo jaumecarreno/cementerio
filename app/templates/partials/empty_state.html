@@ -1,0 +1,7 @@
+<div class="empty-state" role="status">
+  <h3>{{ title }}</h3>
+  <p class="muted">{{ message }}</p>
+  {% if cta_href and cta_label %}
+    <a class="btn primary" href="{{ cta_href }}">{{ cta_label }}</a>
+  {% endif %}
+</div>

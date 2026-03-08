@@ -43,6 +43,7 @@
     hx-get="{{ url_for('cemetery.ownership_cases') }}"
     hx-target="#ownership-cases-table"
     hx-swap="innerHTML"
+    hx-indicator="#ownership-loading"
   >
     <div class="form-grid">
       <div>
@@ -89,6 +90,11 @@
       <button class="btn primary" type="submit">{{ t('common.filter') }}</button>
     </div>
   </form>
+  <div id="ownership-loading">
+    {% with label='Aplicando filtros...' %}
+      {% include 'partials/htmx_indicator.html' %}
+    {% endwith %}
+  </div>
 </div>
 
 <div id="ownership-cases-table">
