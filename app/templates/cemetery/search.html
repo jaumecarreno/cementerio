@@ -31,7 +31,7 @@
     <div class="form-grid search-fields">
       <div>
         <label>{{ t('field.block') }}</label>
-        <select name="bloque">
+        <select name="bloque" id="filter-bloque">
           <option value="">{{ t('search.all') }}</option>
           {% for block in blocks %}
           <option value="{{ block }}" {% if filters.bloque == block %}selected{% endif %}>{{ block }}</option>
@@ -40,7 +40,12 @@
       </div>
       <div>
         <label>{{ t('field.number') }}</label>
-        <input type="number" name="numero" value="{{ filters.numero }}">
+        <select name="numero" id="filter-numero">
+          <option value="">{{ t('search.all') }}</option>
+          {% if filters.numero %}
+            <option value="{{ filters.numero }}" selected>{{ filters.numero }}</option>
+          {% endif %}
+        </select>
       </div>
       <div>
         <label>{{ t('reporting.modality') }}</label>
@@ -62,15 +67,25 @@
       </div>
       <div>
         <label>{{ t('field.row') }}</label>
-        <input type="number" name="fila" value="{{ filters.fila }}">
+        <select name="fila" id="filter-fila">
+          <option value="">{{ t('search.all') }}</option>
+          {% if filters.fila %}
+            <option value="{{ filters.fila }}" selected>{{ filters.fila }}</option>
+          {% endif %}
+        </select>
       </div>
       <div>
         <label>{{ t('field.column') }}</label>
-        <input type="number" name="columna" value="{{ filters.columna }}">
+        <select name="columna" id="filter-columna">
+          <option value="">{{ t('search.all') }}</option>
+          {% if filters.columna %}
+            <option value="{{ filters.columna }}" selected>{{ filters.columna }}</option>
+          {% endif %}
+        </select>
       </div>
       <div>
-        <label>{{ t('field.holder') }}</label>
-        <input type="text" name="titular" value="{{ filters.titular }}">
+        <label>{{ t('field.holder') }} / DNI</label>
+        <input type="text" name="titular" value="{{ filters.titular }}" placeholder="Nombre o DNI/NIF">
       </div>
       <div>
         <label>{{ t('field.deceased') }}</label>
@@ -135,16 +150,105 @@
 <script>
   (function () {
     const storageKey = "cem-search-presets-v1";
+    const blockLocationOptions = {{ block_location_options|tojson }};
+    const allLabel = {{ t('search.all')|tojson }};
     const form = document.getElementById("search-form");
     const select = document.getElementById("saved-filter-select");
     const saveBtn = document.getElementById("save-filter-btn");
     const applyBtn = document.getElementById("apply-filter-btn");
     const deleteBtn = document.getElementById("delete-filter-btn");
     const savedFilterIdInput = document.getElementById("saved_filter_id");
+    const blockField = document.getElementById("filter-bloque");
+    const filaField = document.getElementById("filter-fila");
+    const columnaField = document.getElementById("filter-columna");
+    const numeroField = document.getElementById("filter-numero");
 
     if (!form || !select || !saveBtn || !applyBtn || !deleteBtn || !savedFilterIdInput) return;
 
     const fieldNames = ["bloque", "fila", "columna", "numero", "modalidad", "estado", "con_deuda", "titular", "difunto"];
+    const dependentKeys = ["fila", "columna", "numero"];
+
+    function normalizeSelectValue(rawValue) {
+      const raw = String(rawValue || "").trim();
+      if (!raw) return "";
+      const match = raw.match(/(\d+)/);
+      return match ? match[1] : raw;
+    }
+
+    function collectGlobalOptions(key) {
+      const values = new Set();
+      for (const value of Object.values(blockLocationOptions || {})) {
+        const items = value && Array.isArray(value[key]) ? value[key] : [];
+        for (const item of items) {
+          values.add(String(item));
+        }
+      }
+      return Array.from(values).sort(function (a, b) {
+        return Number(a) - Number(b);
+      });
+    }
+
+    const globalLocationOptions = {
+      filas: collectGlobalOptions("filas"),
+      columnas: collectGlobalOptions("columnas"),
+      numeros: collectGlobalOptions("numeros"),
+    };
+
+    function fillLocationSelect(selectField, values, selectedValue, prefix) {
+      if (!selectField) return;
+      const selected = normalizeSelectValue(selectedValue);
+      selectField.innerHTML = "";
+      const allOption = document.createElement("option");
+      allOption.value = "";
+      allOption.textContent = allLabel;
+      selectField.appendChild(allOption);
+      for (const value of values) {
+        const optionValue = String(value);
+        const option = document.createElement("option");
+        option.value = optionValue;
+        option.textContent = prefix ? (prefix + optionValue) : optionValue;
+        if (optionValue === selected) {
+          option.selected = true;
+        }
+        selectField.appendChild(option);
+      }
+      if (selected && !values.includes(selected)) {
+        const customOption = document.createElement("option");
+        customOption.value = selected;
+        customOption.textContent = prefix ? (prefix + selected) : selected;
+        customOption.selected = true;
+        selectField.appendChild(customOption);
+      }
+    }
+
+    function syncLocationSelects(preferredValues) {
+      const selectedBlock = blockField ? String(blockField.value || "") : "";
+      const perBlock = selectedBlock ? blockLocationOptions[selectedBlock] : null;
+      const source = perBlock || globalLocationOptions;
+      const currentValues = preferredValues || {
+        fila: filaField ? String(filaField.value || "") : "",
+        columna: columnaField ? String(columnaField.value || "") : "",
+        numero: numeroField ? String(numeroField.value || "") : "",
+      };
+      fillLocationSelect(
+        filaField,
+        (source && source.filas ? source.filas : []).map(String),
+        currentValues.fila,
+        "F"
+      );
+      fillLocationSelect(
+        columnaField,
+        (source && source.columnas ? source.columnas : []).map(String),
+        currentValues.columna,
+        "C"
+      );
+      fillLocationSelect(
+        numeroField,
+        (source && source.numeros ? source.numeros : []).map(String),
+        currentValues.numero,
+        "N"
+      );
+    }
 
     function loadStore() {
       try {
@@ -195,7 +299,17 @@
     }
 
     function applyValues(values) {
+      if (blockField) {
+        blockField.value = String(values.bloque || "");
+      }
+      syncLocationSelects({
+        fila: values.fila || "",
+        columna: values.columna || "",
+        numero: values.numero || "",
+      });
+
       for (const name of fieldNames) {
+        if (name === "bloque" || dependentKeys.includes(name)) continue;
         const field = form.elements.namedItem(name);
         if (!field) continue;
         const rawValue = values[name] || "";
@@ -205,6 +319,9 @@
           field.value = rawValue;
         }
       }
+      if (filaField) filaField.value = normalizeSelectValue(values.fila || "");
+      if (columnaField) columnaField.value = normalizeSelectValue(values.columna || "");
+      if (numeroField) numeroField.value = normalizeSelectValue(values.numero || "");
       form.requestSubmit();
     }
 
@@ -245,6 +362,17 @@
       savedFilterIdInput.value = select.value || "";
     });
 
+    if (blockField) {
+      blockField.addEventListener("change", function () {
+        syncLocationSelects();
+      });
+    }
+
+    syncLocationSelects({
+      fila: {{ filters.fila|tojson }},
+      columna: {{ filters.columna|tojson }},
+      numero: {{ filters.numero|tojson }},
+    });
     fillSelect();
   })();
 </script>

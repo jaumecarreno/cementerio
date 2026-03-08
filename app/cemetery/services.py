@@ -9,6 +9,7 @@ from pathlib import Path
 import csv
 import json
 import os
+import re
 import smtplib
 import statistics
 import shutil
@@ -1141,6 +1142,28 @@ def search_sepulturas(filters: dict[str, str]) -> list[dict[str, object]]:
     return list(paged["rows"])
 
 
+def _parse_search_integer(value: str, prefixes: tuple[str, ...] = ()) -> int:
+    raw = (value or "").strip()
+    if not raw:
+        raise ValueError("Valor vacio")
+    try:
+        return int(raw)
+    except ValueError:
+        pass
+    if prefixes:
+        prefix_pattern = "|".join(re.escape(prefix) for prefix in prefixes)
+    else:
+        prefix_pattern = r"[A-Za-z]+"
+    match = re.match(
+        rf"^\s*(?:{prefix_pattern})\s*[-:\/]?\s*(\d+)\s*$",
+        raw,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        raise ValueError("Formato numerico invalido")
+    return int(match.group(1))
+
+
 def search_sepulturas_paged(
     filters: dict[str, str],
     page: int = 1,
@@ -1167,17 +1190,25 @@ def search_sepulturas_paged(
         query = query.filter(Sepultura.bloque.ilike(f"%{filters['bloque']}%"))
     if filters.get("fila"):
         try:
-            query = query.filter(Sepultura.fila == int(filters["fila"]))
+            query = query.filter(
+                Sepultura.fila == _parse_search_integer(filters["fila"], prefixes=("F",))
+            )
         except ValueError:
             return _empty_result()
     if filters.get("columna"):
         try:
-            query = query.filter(Sepultura.columna == int(filters["columna"]))
+            query = query.filter(
+                Sepultura.columna
+                == _parse_search_integer(filters["columna"], prefixes=("C",))
+            )
         except ValueError:
             return _empty_result()
     if filters.get("numero"):
         try:
-            query = query.filter(Sepultura.numero == int(filters["numero"]))
+            query = query.filter(
+                Sepultura.numero
+                == _parse_search_integer(filters["numero"], prefixes=("N",))
+            )
         except ValueError:
             return _empty_result()
     if filters.get("modalidad"):
@@ -1202,7 +1233,9 @@ def search_sepulturas_paged(
     if not sepulturas:
         return _empty_result()
 
-    titular_filter = filters.get("titular", "").strip().lower()
+    titular_filter_raw = filters.get("titular", "").strip()
+    titular_filter = titular_filter_raw.lower()
+    titular_filter_compact = re.sub(r"[\s\-]", "", titular_filter_raw).upper()
     difunto_filter = filters.get("difunto", "").strip().lower()
 
     sepultura_ids = [sep.id for sep in sepulturas]
@@ -1287,6 +1320,7 @@ def search_sepulturas_paged(
     for sep in sepulturas:
         contrato = contract_by_sepultura.get(sep.id)
         titular_name = ""
+        titular_dni = ""
         titular = None
         beneficiario = None
         debt = Decimal("0.00")
@@ -1295,11 +1329,22 @@ def search_sepulturas_paged(
             beneficiario = beneficiario_by_contract.get(contrato.id)
             if titular:
                 titular_name = titular.person.full_name
+                titular_dni = (titular.person.dni_nif or "").strip()
             debt = debt_by_contract.get(contrato.id, Decimal("0.00"))
 
         difuntos = [sd.person.full_name for sd in sep.difuntos]
-        if titular_filter and titular_filter not in titular_name.lower():
-            continue
+        if titular_filter:
+            titular_name_match = titular_filter in titular_name.lower()
+            titular_dni_match = False
+            if titular_dni:
+                titular_dni_lower = titular_dni.lower()
+                titular_dni_compact = re.sub(r"[\s\-]", "", titular_dni).upper()
+                titular_dni_match = titular_filter in titular_dni_lower or (
+                    bool(titular_filter_compact)
+                    and titular_filter_compact in titular_dni_compact
+                )
+            if not titular_name_match and not titular_dni_match:
+                continue
         if difunto_filter and not any(difunto_filter in d.lower() for d in difuntos):
             continue
         if only_with_debt and debt <= Decimal("0.00"):
@@ -1363,6 +1408,45 @@ def list_sepultura_blocks() -> list[str]:
         .all()
     )
     return [str(bloque) for (bloque,) in rows if bloque]
+
+
+def sepultura_location_options_by_block() -> dict[str, dict[str, list[int]]]:
+    rows = (
+        db.session.query(
+            Sepultura.bloque, Sepultura.fila, Sepultura.columna, Sepultura.numero
+        )
+        .filter(Sepultura.org_id == org_id())
+        .order_by(
+            Sepultura.bloque.asc(),
+            Sepultura.fila.asc(),
+            Sepultura.columna.asc(),
+            Sepultura.numero.asc(),
+        )
+        .all()
+    )
+    grouped: dict[str, dict[str, set[int]]] = {}
+    for bloque, fila, columna, numero in rows:
+        block = str(bloque or "").strip()
+        if not block:
+            continue
+        bucket = grouped.setdefault(
+            block, {"filas": set(), "columnas": set(), "numeros": set()}
+        )
+        if fila is not None:
+            bucket["filas"].add(int(fila))
+        if columna is not None:
+            bucket["columnas"].add(int(columna))
+        if numero is not None:
+            bucket["numeros"].add(int(numero))
+
+    result: dict[str, dict[str, list[int]]] = {}
+    for block, values in grouped.items():
+        result[block] = {
+            "filas": sorted(values["filas"]),
+            "columnas": sorted(values["columnas"]),
+            "numeros": sorted(values["numeros"]),
+        }
+    return result
 
 
 def list_sepultura_modalidades() -> list[str]:

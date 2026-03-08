@@ -116,6 +116,7 @@ from app.cemetery.services import (
     reporting_schedule_schema_ready,
     run_reporting_schedule,
     search_sepulturas_paged,
+    sepultura_location_options_by_block,
     set_contract_holder_pensioner,
     sepultura_by_id,
     sepultura_tabs_data,
@@ -1308,6 +1309,7 @@ def search_graves():
         sort_dir=sort_dir,
         money=money,
         blocks=list_sepultura_blocks(),
+        block_location_options=sepultura_location_options_by_block(),
         modalidades=list_sepultura_modalidades(),
         sepultura_states=[state.value for state in SepulturaEstado],
     )
