@@ -19,59 +19,6 @@
   {% set active_global = active_global|default('cemetery') %}
   {% set active_cem = active_cem|default('panel') %}
   <div class="layout">
-    <div class="topbar">
-      <div class="topbar-left">
-        <button type="button" id="nav-toggle" class="nav-toggle" aria-label="{{ t('nav.open_menu') }}" aria-expanded="false">
-          <span></span>
-          <span></span>
-          <span></span>
-        </button>
-        <label class="topbar-search" aria-label="Buscar">
-          <span class="topbar-search-icon" aria-hidden="true">&#128269;</span>
-          <input type="search" placeholder="Buscar...">
-        </label>
-      </div>
-      <div class="topbar-right">
-        <button type="button" class="topbar-icon-btn" aria-label="Notificaciones">
-          &#128276;
-        </button>
-        {% if current_user.is_authenticated %}
-          <details class="user-menu">
-            <summary class="user-menu-trigger">
-              <span class="topbar-user-avatar">{{ (current_user.full_name or current_user.email or "U")[:1]|upper }}</span>
-              <span class="topbar-user-name">{{ current_user.full_name or current_user.email }}</span>
-            </summary>
-            <div class="user-menu-panel">
-              <div class="user-menu-section">
-                <strong>Idioma</strong>
-                <form method="post" action="{{ url_for('auth.set_lang') }}" class="user-menu-inline">
-                  <input type="hidden" name="next" value="{{ request.path }}">
-                  <button type="submit" name="lang" value="es" {% if current_lang=='es' %}class="primary"{% endif %}>ES</button>
-                  <button type="submit" name="lang" value="ca" {% if current_lang=='ca' %}class="primary"{% endif %}>CAT</button>
-                </form>
-              </div>
-              <div class="user-menu-section">
-                <strong>Apariencia</strong>
-                <button
-                  type="button"
-                  id="theme-toggle"
-                  class="theme-toggle-btn"
-                  data-label-when-dark="{{ t('theme.to_light') }}"
-                  data-label-when-light="{{ t('theme.to_dark') }}"
-                >
-                  {{ t('theme.to_light') }}
-                </button>
-              </div>
-              <div class="user-menu-section">
-                <form method="post" action="{{ url_for('auth.logout') }}">
-                  <button type="submit">{{ t('menu.logout') }}</button>
-                </form>
-              </div>
-            </div>
-          </details>
-        {% endif %}
-      </div>
-    </div>
     <div class="content">
       <div id="nav-overlay" class="nav-overlay" hidden></div>
       <aside class="sidebar">
@@ -128,22 +75,51 @@
             <span class="menu-label">{{ t('menu.demo') }}</span>
           </a>
         </nav>
+
+        {% if current_user.is_authenticated %}
+        <div class="sidebar-foot">
+          <details class="user-menu">
+            <summary class="user-menu-trigger">
+              <span class="topbar-user-avatar">{{ (current_user.full_name or current_user.email or "U")[:1]|upper }}</span>
+              <span class="topbar-user-name">{{ current_user.full_name or current_user.email }}</span>
+            </summary>
+            <div class="user-menu-panel">
+              <div class="user-menu-section">
+                <strong>Idioma</strong>
+                <form method="post" action="{{ url_for('auth.set_lang') }}" class="user-menu-inline">
+                  <input type="hidden" name="next" value="{{ request.path }}">
+                  <button type="submit" name="lang" value="es" {% if current_lang=='es' %}class="primary"{% endif %}>ES</button>
+                  <button type="submit" name="lang" value="ca" {% if current_lang=='ca' %}class="primary"{% endif %}>CAT</button>
+                </form>
+              </div>
+              <div class="user-menu-section">
+                <strong>Apariencia</strong>
+                <button
+                  type="button"
+                  id="theme-toggle"
+                  class="theme-toggle-btn"
+                  data-label-when-dark="{{ t('theme.to_light') }}"
+                  data-label-when-light="{{ t('theme.to_dark') }}"
+                >
+                  {{ t('theme.to_light') }}
+                </button>
+              </div>
+              <div class="user-menu-section">
+                <form method="post" action="{{ url_for('auth.logout') }}">
+                  <button type="submit">{{ t('menu.logout') }}</button>
+                </form>
+              </div>
+            </div>
+          </details>
+        </div>
+        {% endif %}
       </aside>
       <main class="main">
-        {% if breadcrumbs %}
-          <div class="breadcrumbs">
-            {% for crumb in breadcrumbs %}
-              {% if crumb.href %}
-                <a class="crumb-link" href="{{ crumb.href }}">{{ crumb.label }}</a>
-              {% else %}
-                <span class="crumb-current">{{ crumb.label }}</span>
-              {% endif %}
-            {% endfor %}
-          </div>
-        {% endif %}
-        {% if not hide_context_toolbar|default(false) %}
-          {% include "partials/context_toolbar.html" %}
-        {% endif %}
+        <button type="button" id="nav-toggle" class="nav-toggle nav-toggle-floating" aria-label="{{ t('nav.open_menu') }}" aria-expanded="false">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
         {% block page_actions %}{% endblock %}
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
