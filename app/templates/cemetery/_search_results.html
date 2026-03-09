@@ -15,8 +15,8 @@
         {% set next_deuda = 'desc' if sort_by == 'deuda' and sort_dir == 'asc' else 'asc' %}
         <th>
           <a
-            href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, saved_filter_id=filters.saved_filter_id, sort_by='ubicacion', sort_dir=next_ubicacion, page=1, page_size=paged.page_size) }}"
-            hx-get="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, saved_filter_id=filters.saved_filter_id, sort_by='ubicacion', sort_dir=next_ubicacion, page=1, page_size=paged.page_size) }}"
+            href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, sort_by='ubicacion', sort_dir=next_ubicacion, page=1, page_size=paged.page_size) }}"
+            hx-get="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, sort_by='ubicacion', sort_dir=next_ubicacion, page=1, page_size=paged.page_size) }}"
             hx-target="#search-results"
             hx-swap="innerHTML"
             hx-indicator="#search-loading"
@@ -25,8 +25,8 @@
         <th>{{ t('reporting.modality') }}</th>
         <th>
           <a
-            href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, saved_filter_id=filters.saved_filter_id, sort_by='estado', sort_dir=next_estado, page=1, page_size=paged.page_size) }}"
-            hx-get="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, saved_filter_id=filters.saved_filter_id, sort_by='estado', sort_dir=next_estado, page=1, page_size=paged.page_size) }}"
+            href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, sort_by='estado', sort_dir=next_estado, page=1, page_size=paged.page_size) }}"
+            hx-get="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, sort_by='estado', sort_dir=next_estado, page=1, page_size=paged.page_size) }}"
             hx-target="#search-results"
             hx-swap="innerHTML"
             hx-indicator="#search-loading"
@@ -34,8 +34,8 @@
         </th>
         <th>
           <a
-            href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, saved_filter_id=filters.saved_filter_id, sort_by='titular', sort_dir=next_titular, page=1, page_size=paged.page_size) }}"
-            hx-get="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, saved_filter_id=filters.saved_filter_id, sort_by='titular', sort_dir=next_titular, page=1, page_size=paged.page_size) }}"
+            href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, sort_by='titular', sort_dir=next_titular, page=1, page_size=paged.page_size) }}"
+            hx-get="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, sort_by='titular', sort_dir=next_titular, page=1, page_size=paged.page_size) }}"
             hx-target="#search-results"
             hx-swap="innerHTML"
             hx-indicator="#search-loading"
@@ -43,8 +43,8 @@
         </th>
         <th>
           <a
-            href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, saved_filter_id=filters.saved_filter_id, sort_by='deuda', sort_dir=next_deuda, page=1, page_size=paged.page_size) }}"
-            hx-get="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, saved_filter_id=filters.saved_filter_id, sort_by='deuda', sort_dir=next_deuda, page=1, page_size=paged.page_size) }}"
+            href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, sort_by='deuda', sort_dir=next_deuda, page=1, page_size=paged.page_size) }}"
+            hx-get="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, sort_by='deuda', sort_dir=next_deuda, page=1, page_size=paged.page_size) }}"
             hx-target="#search-results"
             hx-swap="innerHTML"
             hx-indicator="#search-loading"
@@ -89,8 +89,8 @@
     {% if paged.has_prev %}
       <a
         class="btn"
-        href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, saved_filter_id=filters.saved_filter_id, sort_by=sort_by, sort_dir=sort_dir, page=paged.page-1, page_size=paged.page_size) }}"
-        hx-get="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, saved_filter_id=filters.saved_filter_id, sort_by=sort_by, sort_dir=sort_dir, page=paged.page-1, page_size=paged.page_size) }}"
+        href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, sort_by=sort_by, sort_dir=sort_dir, page=paged.page-1, page_size=paged.page_size) }}"
+        hx-get="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, sort_by=sort_by, sort_dir=sort_dir, page=paged.page-1, page_size=paged.page_size) }}"
         hx-target="#search-results"
         hx-swap="innerHTML"
         hx-indicator="#search-loading"
@@ -100,8 +100,8 @@
     {% if paged.has_next %}
       <a
         class="btn"
-        href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, saved_filter_id=filters.saved_filter_id, sort_by=sort_by, sort_dir=sort_dir, page=paged.page+1, page_size=paged.page_size) }}"
-        hx-get="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, saved_filter_id=filters.saved_filter_id, sort_by=sort_by, sort_dir=sort_dir, page=paged.page+1, page_size=paged.page_size) }}"
+        href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, sort_by=sort_by, sort_dir=sort_dir, page=paged.page+1, page_size=paged.page_size) }}"
+        hx-get="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto, sort_by=sort_by, sort_dir=sort_dir, page=paged.page+1, page_size=paged.page_size) }}"
         hx-target="#search-results"
         hx-swap="innerHTML"
         hx-indicator="#search-loading"
@@ -110,3 +110,4 @@
   </div>
   <p class="small muted">{{ t('search.tip_open_record') }}</p>
 </div>
+

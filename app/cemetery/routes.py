@@ -1256,7 +1256,6 @@ def search_graves():
         "con_deuda": request.values.get("con_deuda", "").strip(),
         "titular": request.values.get("titular", "").strip(),
         "difunto": request.values.get("difunto", "").strip(),
-        "saved_filter_id": request.values.get("saved_filter_id", "").strip(),
     }
     has_search_filters = any(
         filters.get(key)
