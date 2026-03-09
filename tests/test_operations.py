@@ -128,6 +128,40 @@ def test_programada_requires_verified_permits(app, client, login_admin):
         assert case.status == OperationStatus.DOCS_PENDIENTES
 
 
+def test_expediente_detail_select_reflects_current_status(app, client, login_admin):
+    login_admin()
+    with app.app_context():
+        sep = Sepultura.query.filter_by(bloque="B-12", numero=127).first()
+        assert sep is not None
+
+    create = client.post(
+        "/cementerio/expedientes",
+        data={
+            "type": "TRASLADO_CORTO",
+            "source_sepultura_id": str(sep.id),
+            "destination_municipality": "Terrassa",
+        },
+        follow_redirects=True,
+    )
+    assert create.status_code == 200
+
+    with app.app_context():
+        case = OperationCase.query.order_by(OperationCase.id.desc()).first()
+        assert case is not None
+        case_id = case.id
+
+    update = client.post(
+        f"/cementerio/expedientes/{case_id}/estado",
+        data={"status": "DOCS_PENDIENTES"},
+        follow_redirects=True,
+    )
+    assert update.status_code == 200
+
+    detail = client.get(f"/cementerio/expedientes/{case_id}")
+    assert detail.status_code == 200
+    assert b'value="DOCS_PENDIENTES" selected' in detail.data
+
+
 def test_close_traslado_flow_requires_completed_ot_and_generates_acta(
     app, client, login_admin
 ):

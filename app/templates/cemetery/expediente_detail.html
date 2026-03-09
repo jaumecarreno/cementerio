@@ -33,7 +33,7 @@
       <label>Estado</label>
       <select name="status" required>
         {% for item in OperationStatus %}
-        <option value="{{ item.value }}">{{ item.value }}</option>
+        <option value="{{ item.value }}" {% if item == case.status %}selected{% endif %}>{{ item.value }}</option>
         {% endfor %}
       </select>
       <label>Motivo</label>
