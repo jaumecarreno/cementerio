@@ -22,11 +22,18 @@
       hx-swap="innerHTML"
       hx-include="#{{ picker_id }}-q"
       hx-vals='{{ {"picker_id": picker_id, "field_name": field_name}|tojson }}'
+      hx-indicator="#{{ picker_id }}-loading"
     >{{ t('common.search') }}</button>
     <button class="btn" type="button" onclick="window.CemPersonPicker.clear({{ picker_id|tojson }})">{{ t('common.clear') }}</button>
   </div>
 
-  <div id="{{ picker_id }}-results" class="person-picker-results"></div>
+  <div id="{{ picker_id }}-loading">
+    {% with label='Buscando persona...' %}
+      {% include 'partials/htmx_indicator.html' %}
+    {% endwith %}
+  </div>
+
+  <div id="{{ picker_id }}-results" class="person-picker-results" aria-live="polite"></div>
 
   <div class="person-picker-create" id="{{ picker_id }}-create-fields">
     <div class="meta-row">
@@ -96,6 +103,7 @@
         hx-target="#{{ picker_id }}-create-result"
         hx-swap="innerHTML"
         hx-include="#{{ picker_id }}-create-fields input"
+        hx-indicator="#{{ picker_id }}-loading"
       >{{ t('person_picker.create_and_select') }}</button>
     </div>
   </div>

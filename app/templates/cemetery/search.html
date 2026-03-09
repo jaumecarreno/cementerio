@@ -1,24 +1,30 @@
 <!-- Spec 5.3.4 + 9.4.x - Buscador de sepulturas -->
 {% extends "base.html" %}
 {% set active_cem = 'sepulturas' %}
+{% set has_filters = filters.bloque or filters.numero or filters.modalidad or filters.estado or filters.fila or filters.columna or filters.titular or filters.difunto or filters.con_deuda %}
 {% block title %}{{ t('search.title') }}{% endblock %}
 {% block content %}
 <h1 class="page-title">{{ t('search.title') }}</h1>
 
-<div class="box search-shell">
-  <h3>{{ t('search.criteria') }}</h3>
+<div class="box search-shell filter-shell">
+  <div class="results-toolbar">
+    <h3>{{ t('search.criteria') }}</h3>
+  </div>
+
   <form
+    id="search-form"
     class="search-form"
     method="post"
     action="{{ url_for('cemetery.search_graves') }}"
     hx-post="{{ url_for('cemetery.search_graves') }}"
     hx-target="#search-results"
     hx-swap="innerHTML"
+    hx-indicator="#search-loading"
   >
     <div class="form-grid search-fields">
       <div>
         <label>{{ t('field.block') }}</label>
-        <select name="bloque">
+        <select name="bloque" id="filter-bloque">
           <option value="">{{ t('search.all') }}</option>
           {% for block in blocks %}
           <option value="{{ block }}" {% if filters.bloque == block %}selected{% endif %}>{{ block }}</option>
@@ -27,10 +33,15 @@
       </div>
       <div>
         <label>{{ t('field.number') }}</label>
-        <input type="number" name="numero" value="{{ filters.numero }}">
+        <select name="numero" id="filter-numero">
+          <option value="">{{ t('search.all') }}</option>
+          {% if filters.numero %}
+            <option value="{{ filters.numero }}" selected>{{ filters.numero }}</option>
+          {% endif %}
+        </select>
       </div>
       <div>
-        <label>Modalitat</label>
+        <label>{{ t('reporting.modality') }}</label>
         <select name="modalidad">
           <option value="">{{ t('search.all') }}</option>
           {% for modalidad in modalidades %}
@@ -39,7 +50,7 @@
         </select>
       </div>
       <div>
-        <label>Estado</label>
+        <label>{{ t('field.status') }}</label>
         <select name="estado">
           <option value="">{{ t('search.all') }}</option>
           {% for state in sepultura_states %}
@@ -49,15 +60,25 @@
       </div>
       <div>
         <label>{{ t('field.row') }}</label>
-        <input type="number" name="fila" value="{{ filters.fila }}">
+        <select name="fila" id="filter-fila">
+          <option value="">{{ t('search.all') }}</option>
+          {% if filters.fila %}
+            <option value="{{ filters.fila }}" selected>{{ filters.fila }}</option>
+          {% endif %}
+        </select>
       </div>
       <div>
         <label>{{ t('field.column') }}</label>
-        <input type="number" name="columna" value="{{ filters.columna }}">
+        <select name="columna" id="filter-columna">
+          <option value="">{{ t('search.all') }}</option>
+          {% if filters.columna %}
+            <option value="{{ filters.columna }}" selected>{{ filters.columna }}</option>
+          {% endif %}
+        </select>
       </div>
       <div>
-        <label>{{ t('field.holder') }}</label>
-        <input type="text" name="titular" value="{{ filters.titular }}">
+        <label>{{ t('field.holder') }} / DNI</label>
+        <input type="text" name="titular" value="{{ filters.titular }}" placeholder="Nombre o DNI/NIF">
       </div>
       <div>
         <label>{{ t('field.deceased') }}</label>
@@ -66,7 +87,7 @@
       <div class="search-debt-check">
         <label>
           <input type="checkbox" name="con_deuda" value="1" {% if filters.con_deuda %}checked{% endif %}>
-          Deuda
+          {{ t('reporting.debt') }}
         </label>
       </div>
     </div>
@@ -75,9 +96,152 @@
       <button type="submit" class="primary">{{ t('common.search') }}</button>
     </div>
   </form>
+
+  <div id="search-loading">
+    {% with label='Buscando sepulturas...' %}
+      {% include 'partials/htmx_indicator.html' %}
+    {% endwith %}
+  </div>
+
+  {% if has_filters %}
+  <div class="filter-chips" aria-label="Filtros activos">
+    {% if filters.bloque %}
+      <span class="filter-chip">Bloque: {{ filters.bloque }} <a href="{{ url_for('cemetery.search_graves', bloque='', fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto) }}">quitar</a></span>
+    {% endif %}
+    {% if filters.numero %}
+      <span class="filter-chip">Numero: {{ filters.numero }} <a href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero='', modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto) }}">quitar</a></span>
+    {% endif %}
+    {% if filters.modalidad %}
+      <span class="filter-chip">Modalidad: {{ filters.modalidad }} <a href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad='', estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto) }}">quitar</a></span>
+    {% endif %}
+    {% if filters.estado %}
+      <span class="filter-chip">Estado: {{ filters.estado }} <a href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado='', con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto) }}">quitar</a></span>
+    {% endif %}
+    {% if filters.fila %}
+      <span class="filter-chip">Fila: {{ filters.fila }} <a href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila='', columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto) }}">quitar</a></span>
+    {% endif %}
+    {% if filters.columna %}
+      <span class="filter-chip">Columna: {{ filters.columna }} <a href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna='', numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto=filters.difunto) }}">quitar</a></span>
+    {% endif %}
+    {% if filters.titular %}
+      <span class="filter-chip">Titular: {{ filters.titular }} <a href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular='', difunto=filters.difunto) }}">quitar</a></span>
+    {% endif %}
+    {% if filters.difunto %}
+      <span class="filter-chip">Difunto: {{ filters.difunto }} <a href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda=filters.con_deuda, titular=filters.titular, difunto='') }}">quitar</a></span>
+    {% endif %}
+    {% if filters.con_deuda %}
+      <span class="filter-chip">Con deuda <a href="{{ url_for('cemetery.search_graves', bloque=filters.bloque, fila=filters.fila, columna=filters.columna, numero=filters.numero, modalidad=filters.modalidad, estado=filters.estado, con_deuda='', titular=filters.titular, difunto=filters.difunto) }}">quitar</a></span>
+    {% endif %}
+  </div>
+  {% endif %}
 </div>
 
-<div id="search-results" class="search-results-wrap">
+<div id="search-results" class="search-results-wrap" aria-live="polite">
   {% include "cemetery/_search_results.html" %}
 </div>
+
+<script>
+  (function () {
+    const blockLocationOptions = {{ block_location_options|tojson }};
+    const allLabel = {{ t('search.all')|tojson }};
+    const blockField = document.getElementById("filter-bloque");
+    const filaField = document.getElementById("filter-fila");
+    const columnaField = document.getElementById("filter-columna");
+    const numeroField = document.getElementById("filter-numero");
+
+    if (!blockField || !filaField || !columnaField || !numeroField) return;
+
+    function normalizeSelectValue(rawValue) {
+      const raw = String(rawValue || "").trim();
+      if (!raw) return "";
+      const match = raw.match(/(\d+)/);
+      return match ? match[1] : raw;
+    }
+
+    function collectGlobalOptions(key) {
+      const values = new Set();
+      for (const value of Object.values(blockLocationOptions || {})) {
+        const items = value && Array.isArray(value[key]) ? value[key] : [];
+        for (const item of items) {
+          values.add(String(item));
+        }
+      }
+      return Array.from(values).sort(function (a, b) {
+        return Number(a) - Number(b);
+      });
+    }
+
+    const globalLocationOptions = {
+      filas: collectGlobalOptions("filas"),
+      columnas: collectGlobalOptions("columnas"),
+      numeros: collectGlobalOptions("numeros"),
+    };
+
+    function fillLocationSelect(selectField, values, selectedValue, prefix) {
+      if (!selectField) return;
+      const selected = normalizeSelectValue(selectedValue);
+      selectField.innerHTML = "";
+      const allOption = document.createElement("option");
+      allOption.value = "";
+      allOption.textContent = allLabel;
+      selectField.appendChild(allOption);
+      for (const value of values) {
+        const optionValue = String(value);
+        const option = document.createElement("option");
+        option.value = optionValue;
+        option.textContent = prefix ? (prefix + optionValue) : optionValue;
+        if (optionValue === selected) {
+          option.selected = true;
+        }
+        selectField.appendChild(option);
+      }
+      if (selected && !values.includes(selected)) {
+        const customOption = document.createElement("option");
+        customOption.value = selected;
+        customOption.textContent = prefix ? (prefix + selected) : selected;
+        customOption.selected = true;
+        selectField.appendChild(customOption);
+      }
+    }
+
+    function syncLocationSelects(preferredValues) {
+      const selectedBlock = blockField ? String(blockField.value || "") : "";
+      const perBlock = selectedBlock ? blockLocationOptions[selectedBlock] : null;
+      const source = perBlock || globalLocationOptions;
+      const currentValues = preferredValues || {
+        fila: filaField ? String(filaField.value || "") : "",
+        columna: columnaField ? String(columnaField.value || "") : "",
+        numero: numeroField ? String(numeroField.value || "") : "",
+      };
+      fillLocationSelect(
+        filaField,
+        (source && source.filas ? source.filas : []).map(String),
+        currentValues.fila,
+        "F"
+      );
+      fillLocationSelect(
+        columnaField,
+        (source && source.columnas ? source.columnas : []).map(String),
+        currentValues.columna,
+        "C"
+      );
+      fillLocationSelect(
+        numeroField,
+        (source && source.numeros ? source.numeros : []).map(String),
+        currentValues.numero,
+        "N"
+      );
+    }
+
+    blockField.addEventListener("change", function () {
+      syncLocationSelects();
+    });
+
+    syncLocationSelects({
+      fila: {{ filters.fila|tojson }},
+      columna: {{ filters.columna|tojson }},
+      numero: {{ filters.numero|tojson }},
+    });
+  })();
+</script>
 {% endblock %}

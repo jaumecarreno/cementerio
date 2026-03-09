@@ -1,98 +1,84 @@
 {% extends "base.html" %}
 {% set active_global = 'dashboard' %}
+{% set hide_context_toolbar = true %}
 {% block title %}{{ t('menu.dashboard') }}{% endblock %}
 {% block content %}
-<h1 class="page-title">{{ t('menu.dashboard') }}</h1>
+<div class="dashboard-shell">
+  <section class="dashboard-main">
+    <h1 class="page-title">Inicio</h1>
 
-<div class="dashboard-top-actions">
-  <a class="btn primary" href="{{ url_for('cemetery.expedientes', create_type='INHUMACION') }}">Inhumación</a>
-  <a class="btn primary" href="{{ url_for('cemetery.expedientes', create_type='EXHUMACION') }}">Exhumación</a>
-  <a class="btn" href="{{ url_for('cemetery.search_graves') }}">Buscar</a>
-  <a class="btn" href="{{ url_for('cemetery.billing_workspace') }}">Facturacion</a>
-</div>
-
-<div class="panel-grid">
-  <div class="box">
-    <h3>Resumen</h3>
-    <div class="kpi-metrics">
-      <div class="kpi-row">
-        <span>OT abiertas</span>
-        <span class="value">{{ data.kpis.ot_abiertas }}</span>
-      </div>
-      <div class="kpi-row">
-        <span>OT pendientes</span>
-        <span class="value">{{ data.kpis.ot_pendientes }}</span>
-      </div>
-      <div class="kpi-row">
-        <span>Documentos pendientes</span>
-        <span class="value">{{ data.kpis.documentos_pendientes }}</span>
-      </div>
-      <div class="kpi-row">
-        <span>Importe pendiente</span>
-        <span class="value">{{ data.kpis.importe_pendiente }}</span>
-      </div>
-      <div class="kpi-row">
-        <span>Pend. notificar</span>
-        <span class="value">{{ data.kpis.pendientes_notificar }}</span>
+    <div class="dashboard-card dashboard-summary-card">
+      <h3>Resumen</h3>
+      <div class="dashboard-kpi-grid">
+        <article class="dashboard-kpi-item">
+          <p>OT abiertas</p>
+          <strong>{{ data.kpis.ot_abiertas }}</strong>
+          <svg viewBox="0 0 100 26" aria-hidden="true"><path d="M1 23 L18 18 L30 19 L44 12 L57 15 L71 7 L84 10 L99 4"/></svg>
+        </article>
+        <article class="dashboard-kpi-item">
+          <p>OT pendientes</p>
+          <strong>{{ data.kpis.ot_pendientes }}</strong>
+          <svg viewBox="0 0 100 26" aria-hidden="true"><path d="M1 21 L16 13 L31 15 L45 8 L58 12 L72 6 L86 14 L99 9"/></svg>
+        </article>
+        <article class="dashboard-kpi-item">
+          <p>Documentos pendientes</p>
+          <strong>{{ data.kpis.documentos_pendientes }}</strong>
+          <svg viewBox="0 0 100 26" aria-hidden="true"><path d="M1 24 L20 24 L36 24 L50 24 L61 14 L76 6 L89 15 L99 17"/></svg>
+        </article>
+        <article class="dashboard-kpi-item">
+          <p>Importe pendiente</p>
+          <strong>{{ data.kpis.importe_pendiente }}</strong>
+          <svg viewBox="0 0 100 26" aria-hidden="true"><path d="M1 19 L14 21 L28 18 L40 20 L52 9 L66 12 L82 10 L99 3"/></svg>
+        </article>
+        <article class="dashboard-kpi-item">
+          <p>Pend. notificar</p>
+          <strong>{{ data.kpis.pendientes_notificar }}</strong>
+          <svg viewBox="0 0 100 26" aria-hidden="true"><path d="M1 20 L14 16 L28 19 L42 13 L56 8 L70 14 L85 9 L99 12"/></svg>
+        </article>
       </div>
     </div>
-  </div>
-  <div class="box">
-    <h3>{{ t('dashboard.alerts') }}</h3>
-    <ul>
-      {% for alert in data.alerts %}
-      <li>{{ alert }}</li>
-      {% endfor %}
-    </ul>
-  </div>
-</div>
 
-<div class="box compact-activity-box">
-  <h3>Activitat recent</h3>
-  {% if data.recent_activity_by_sepultura %}
-  <div class="activity-groups">
-    {% for group in data.recent_activity_by_sepultura %}
-    <div class="activity-group">
-      <h4>
-        {% if group.open_path %}
-        <a href="{{ group.open_path }}">{{ group.sepultura }}</a>
-        {% else %}
-        {{ group.sepultura }}
-        {% endif %}
-      </h4>
-      <table class="compact-activity-table">
-        <thead>
-          <tr>
-            <th>{{ t('dashboard.date') }}</th>
-            <th>Usuari</th>
-            <th>{{ t('dashboard.change') }}</th>
-            <th>{{ t('dashboard.detail') }}</th>
-            <th>{{ t('common.actions') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in group['items'] %}
-          <tr>
-            <td>{{ item.fecha.strftime('%Y-%m-%d %H:%M') }}</td>
-            <td>{{ item.usuario }}</td>
-            <td>{{ item.tipo }}</td>
-            <td>{{ item.detalle }}</td>
-            <td>
-              {% if item.open_path %}
-              <a class="btn" href="{{ item.open_path }}">Abrir</a>
-              {% else %}
-              -
+    <div class="dashboard-card dashboard-alert-card">
+      <div class="dashboard-card-head">
+        <h3>{{ t('dashboard.alerts') }}</h3>
+        <span class="dashboard-badge">{{ data.alerts|length }}</span>
+      </div>
+      <ul class="dashboard-alert-list">
+        {% for alert in data.alerts %}
+        <li>
+          <span class="dashboard-dot" aria-hidden="true"></span>
+          <span>{{ alert }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
+
+  <aside class="dashboard-side">
+    <div class="dashboard-card dashboard-timeline-card">
+      <h3>Actividad reciente</h3>
+      {% if data.recent_activity_by_sepultura %}
+      <div class="dashboard-timeline">
+        {% for group in data.recent_activity_by_sepultura[:8] %}
+          {% for item in group['items'][:1] %}
+          <article class="dashboard-timeline-item">
+            <div class="dashboard-timeline-date">{{ item.fecha.strftime('%d %b %Y') }}</div>
+            <div class="dashboard-timeline-body">
+              <strong>{{ item.usuario }}</strong>
+              <p>{{ item.tipo }}</p>
+              <p>{{ item.detalle }}</p>
+              {% if group.open_path %}
+              <a class="btn" href="{{ group.open_path }}">Abrir</a>
               {% endif %}
-            </td>
-          </tr>
+            </div>
+          </article>
           {% endfor %}
-        </tbody>
-      </table>
+        {% endfor %}
+      </div>
+      {% else %}
+        <p class="muted">{{ t('dashboard.no_recent_activity') }}</p>
+      {% endif %}
     </div>
-    {% endfor %}
-  </div>
-  {% else %}
-  <p class="muted">{{ t('dashboard.no_recent_activity') }}</p>
-  {% endif %}
+  </aside>
 </div>
 {% endblock %}

@@ -1,212 +1,458 @@
 {% extends "base.html" %}
 {% from "partials/icons.html" import action_icon %}
 {% set active_cem = 'facturacion' %}
-{% block title %}Facturacion{% endblock %}
+{% set billing_view = filters.view or 'pendientes' %}
+{% block title %}{{ t('menu.billing') }}{% endblock %}
 {% block content %}
-<h1 class="page-title">Facturacion</h1>
+<h1 class="page-title">{{ t('menu.billing') }}</h1>
 
-<div class="box">
-  <h3>Filtros</h3>
-  <form method="get" class="form-grid">
-    <div>
-      <label>Estado</label>
-      <select name="status">
-        <option value="">Todos</option>
-        {% for st in BillingDocumentStatus %}
-        <option value="{{ st.value }}" {% if filters.status == st.value %}selected{% endif %}>{{ st.value }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div>
-      <label>Contrato ID</label>
-      <div class="field-picker-row">
-        <input id="billing_filter_contract_id" type="number" name="contract_id" min="1" value="{{ filters.contract_id }}">
-        <button
-          class="icon-btn"
-          type="button"
-          title="Seleccionar contrato desde sepultura"
-          aria-label="Seleccionar contrato desde sepultura"
-          onclick="(function(){var u='{{ url_for('cemetery.expediente_sepultura_picker', target_field='billing_filter_contract_id', label_field='billing_filter_contract_selected', value_mode='contract_id') }}';var w=window.open(u,'cem-picker','width=980,height=720,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes');if(w){w.focus();}else{window.location.href=u;}})();"
-        >{{ action_icon('folder') }}</button>
-      </div>
-      <div class="small muted field-picker-helper" id="billing_filter_contract_selected"></div>
-    </div>
-    <div>
-      <label>Sepultura ID</label>
-      <div class="field-picker-row">
-        <input id="billing_filter_sepultura_id" type="number" name="sepultura_id" min="1" value="{{ filters.sepultura_id }}">
-        <button
-          class="icon-btn"
-          type="button"
-          title="Seleccionar sepultura"
-          aria-label="Seleccionar sepultura"
-          onclick="(function(){var u='{{ url_for('cemetery.expediente_sepultura_picker', target_field='billing_filter_sepultura_id', label_field='billing_filter_sepultura_selected', value_mode='sepultura_id') }}';var w=window.open(u,'cem-picker','width=980,height=720,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes');if(w){w.focus();}else{window.location.href=u;}})();"
-        >{{ action_icon('folder') }}</button>
-      </div>
-      <div class="small muted field-picker-helper" id="billing_filter_sepultura_selected"></div>
-    </div>
-    <div class="actions-row">
-      <button class="btn primary" type="submit">Filtrar</button>
-      <a class="btn" href="{{ url_for('cemetery.billing_workspace') }}">Limpiar</a>
-    </div>
-  </form>
-</div>
-
-<div class="box">
-  <div class="meta-row">
-    <div><strong>Total pendiente en vista:</strong> {{ money(data.pending_total) }}</div>
+<div class="billing-layout">
+  <div class="billing-segments" role="tablist" aria-label="Vistas de facturacion">
+    <a class="billing-segment {% if billing_view == 'pendientes' %}active{% endif %}" href="{{ url_for('cemetery.billing_workspace', view='pendientes', status=filters.status, contract_id=filters.contract_id, sepultura_id=filters.sepultura_id) }}">Por cobrar</a>
+    <a class="billing-segment {% if billing_view == 'cobros' %}active{% endif %}" href="{{ url_for('cemetery.billing_workspace', view='cobros', status=filters.status, contract_id=filters.contract_id, sepultura_id=filters.sepultura_id) }}">Cobros</a>
+    <a class="billing-segment {% if billing_view == 'rectificativas' %}active{% endif %}" href="{{ url_for('cemetery.billing_workspace', view='rectificativas', status=filters.status, contract_id=filters.contract_id, sepultura_id=filters.sepultura_id) }}">Rectificativas</a>
+    <a class="billing-segment {% if billing_view == 'fiscal' %}active{% endif %}" href="{{ url_for('cemetery.billing_workspace', view='fiscal', status=filters.status, contract_id=filters.contract_id, sepultura_id=filters.sepultura_id) }}">Fiscal</a>
   </div>
-</div>
 
-<div class="box">
-  <h3>Crear factura (borrador)</h3>
-  <form method="post" action="{{ url_for('cemetery.billing_create_invoice') }}" class="form-grid">
-    <div>
-      <label>Contrato ID</label>
-      <div class="field-picker-row">
-        <input id="billing_create_contract_id" type="number" name="contract_id" min="1">
-        <button
-          class="icon-btn"
-          type="button"
-          title="Seleccionar contrato desde sepultura"
-          aria-label="Seleccionar contrato desde sepultura"
-          onclick="(function(){var u='{{ url_for('cemetery.expediente_sepultura_picker', target_field='billing_create_contract_id', label_field='billing_create_contract_selected', value_mode='contract_id') }}';var w=window.open(u,'cem-picker','width=980,height=720,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes');if(w){w.focus();}else{window.location.href=u;}})();"
-        >{{ action_icon('folder') }}</button>
+  <div class="box">
+    <h3>{{ t('common.filters') }}</h3>
+    <form method="get" class="form-grid">
+      <input type="hidden" name="view" value="{{ billing_view }}">
+      <div>
+        <label>{{ t('field.status') }}</label>
+        <select name="status">
+          <option value="">{{ t('search.all') }}</option>
+          {% for st in BillingDocumentStatus %}
+          <option value="{{ st.value }}" {% if filters.status == st.value %}selected{% endif %}>{{ st.value }}</option>
+          {% endfor %}
+        </select>
       </div>
-      <div class="small muted field-picker-helper" id="billing_create_contract_selected"></div>
-    </div>
-    <div>
-      <label>Sepultura ID</label>
-      <div class="field-picker-row">
-        <input id="billing_create_sepultura_id" type="number" name="sepultura_id" min="1">
-        <button
-          class="icon-btn"
-          type="button"
-          title="Seleccionar sepultura"
-          aria-label="Seleccionar sepultura"
-          onclick="(function(){var u='{{ url_for('cemetery.expediente_sepultura_picker', target_field='billing_create_sepultura_id', label_field='billing_create_sepultura_selected', value_mode='sepultura_id') }}';var w=window.open(u,'cem-picker','width=980,height=720,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes');if(w){w.focus();}else{window.location.href=u;}})();"
-        >{{ action_icon('folder') }}</button>
+      <div>
+        <label>{{ t('field.contract') }} {{ t('common.id') }}</label>
+        <div class="field-picker-row">
+          <input id="billing_filter_contract_id" type="number" name="contract_id" min="1" value="{{ filters.contract_id }}">
+          <button
+            class="icon-btn"
+            type="button"
+            title="{{ t('billing.select_contract_from_grave') }}"
+            aria-label="{{ t('billing.select_contract_from_grave') }}"
+            onclick="window.CemPopupPicker.open('{{ url_for('cemetery.expediente_sepultura_picker', target_field='billing_filter_contract_id', label_field='billing_filter_contract_selected', value_mode='contract_id') }}');"
+          >{{ action_icon('folder') }}</button>
+        </div>
+        <div class="small muted field-picker-helper" id="billing_filter_contract_selected"></div>
       </div>
-      <div class="small muted field-picker-helper" id="billing_create_sepultura_selected"></div>
-    </div>
-    <div style="grid-column: span 2;">
-      <label>Conceptos (separador <code>|</code>)</label>
-      <input type="text" name="line_concept" placeholder="Mantenimiento 2026|Regularizacion">
-    </div>
-    <div>
-      <label>Cantidades (|)</label>
-      <input type="text" name="line_quantity" placeholder="1|1">
-    </div>
-    <div>
-      <label>Precio unitario (|)</label>
-      <input type="text" name="line_unit_price" placeholder="45.00|12.50">
-    </div>
-    <div>
-      <label>IVA % (|)</label>
-      <input type="text" name="line_tax_rate" placeholder="0|21">
-    </div>
-    <div class="actions-row">
-      <button class="btn primary" type="submit">Crear borrador</button>
-    </div>
-  </form>
-</div>
+      <div>
+        <label>{{ t('field.grave') }} {{ t('common.id') }}</label>
+        <div class="field-picker-row">
+          <input id="billing_filter_sepultura_id" type="number" name="sepultura_id" min="1" value="{{ filters.sepultura_id }}">
+          <button
+            class="icon-btn"
+            type="button"
+            title="{{ t('billing.select_grave') }}"
+            aria-label="{{ t('billing.select_grave') }}"
+            onclick="window.CemPopupPicker.open('{{ url_for('cemetery.expediente_sepultura_picker', target_field='billing_filter_sepultura_id', label_field='billing_filter_sepultura_selected', value_mode='sepultura_id') }}');"
+          >{{ action_icon('folder') }}</button>
+        </div>
+        <div class="small muted field-picker-helper" id="billing_filter_sepultura_selected"></div>
+      </div>
+      <div class="actions-row">
+        <button class="btn primary" type="submit">{{ t('common.filter') }}</button>
+        <a class="btn" href="{{ url_for('cemetery.billing_workspace', view=billing_view) }}">{{ t('common.clear') }}</a>
+      </div>
+    </form>
+  </div>
 
-<div class="box">
-  <h3>Documentos</h3>
-  <table>
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Tipo</th>
-        <th>Numero</th>
-        <th>Estado</th>
-        <th>Fiscal</th>
-        <th>Total</th>
-        <th>Pendiente</th>
-        <th>Acciones</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for doc in data.documents %}
-      <tr>
-        <td>{{ doc.id }}</td>
-        <td>{{ doc.document_type.value }}</td>
-        <td>{{ doc.number or '-' }}</td>
-        <td>{{ doc.status.value }}</td>
-        <td>{{ doc.fiscal_status.value }}</td>
-        <td>{{ money(doc.total_amount) }}</td>
-        <td>{{ money(doc.residual_amount) }}</td>
-        <td>
-          <div class="actions-row" style="flex-wrap:wrap; gap:6px;">
-            {% if doc.status.value == 'DRAFT' and doc.document_type.value == 'INVOICE' %}
-            <form method="post" action="{{ url_for('cemetery.billing_issue_invoice', document_id=doc.id) }}">
-              <button class="btn" type="submit">Emitir</button>
-            </form>
-            {% endif %}
+  <div class="box">
+    <div class="meta-row">
+      <div><strong>{{ t('billing.total_pending_in_view') }}:</strong> {{ money(data.pending_total) }}</div>
+    </div>
+  </div>
 
-            {% if doc.document_type.value == 'INVOICE' and doc.status.value in ['ISSUED','PARTIALLY_PAID'] %}
+  <div class="box">
+    <h3>{{ t('billing.create_draft_invoice') }}</h3>
+    <form method="post" id="invoice-create-form" action="{{ url_for('cemetery.billing_create_invoice') }}" class="form-grid" novalidate>
+      <input type="hidden" name="_view" value="{{ billing_view }}">
+      <input type="hidden" id="line_concept" name="line_concept">
+      <input type="hidden" id="line_quantity" name="line_quantity">
+      <input type="hidden" id="line_unit_price" name="line_unit_price">
+      <input type="hidden" id="line_tax_rate" name="line_tax_rate">
+
+      <div>
+        <label>{{ t('field.contract') }} {{ t('common.id') }}</label>
+        <div class="field-picker-row">
+          <input id="billing_create_contract_id" type="number" name="contract_id" min="1">
+          <button
+            class="icon-btn"
+            type="button"
+            title="{{ t('billing.select_contract_from_grave') }}"
+            aria-label="{{ t('billing.select_contract_from_grave') }}"
+            onclick="window.CemPopupPicker.open('{{ url_for('cemetery.expediente_sepultura_picker', target_field='billing_create_contract_id', label_field='billing_create_contract_selected', value_mode='contract_id') }}');"
+          >{{ action_icon('folder') }}</button>
+        </div>
+        <div class="small muted field-picker-helper" id="billing_create_contract_selected"></div>
+      </div>
+      <div>
+        <label>{{ t('field.grave') }} {{ t('common.id') }}</label>
+        <div class="field-picker-row">
+          <input id="billing_create_sepultura_id" type="number" name="sepultura_id" min="1">
+          <button
+            class="icon-btn"
+            type="button"
+            title="{{ t('billing.select_grave') }}"
+            aria-label="{{ t('billing.select_grave') }}"
+            onclick="window.CemPopupPicker.open('{{ url_for('cemetery.expediente_sepultura_picker', target_field='billing_create_sepultura_id', label_field='billing_create_sepultura_selected', value_mode='sepultura_id') }}');"
+          >{{ action_icon('folder') }}</button>
+        </div>
+        <div class="small muted field-picker-helper" id="billing_create_sepultura_selected"></div>
+      </div>
+
+      <div style="grid-column: 1 / -1;">
+        <label>Lineas de factura</label>
+        <div class="line-editor" id="line-editor" aria-live="polite">
+          <div class="line-editor-row">
+            <input type="text" data-line-concept placeholder="Concepto" required>
+            <input type="number" data-line-qty placeholder="Cantidad" min="0.01" step="0.01" value="1" required>
+            <input type="number" data-line-price placeholder="Precio" min="0" step="0.01" value="0" required>
+            <input type="number" data-line-tax placeholder="IVA %" min="0" step="0.01" value="0" required>
+            <button type="button" class="btn remove-line-btn">Quitar</button>
+          </div>
+        </div>
+        <div class="actions-row">
+          <button type="button" class="btn" id="add-line-btn">Anadir linea</button>
+        </div>
+        <div class="line-editor-summary" id="line-editor-summary">1 linea</div>
+        <div class="inline-error" id="line-editor-error" hidden></div>
+      </div>
+
+      <div class="actions-row">
+        <button class="btn primary" type="submit">{{ t('billing.create_draft') }}</button>
+      </div>
+    </form>
+  </div>
+
+  {% if billing_view == 'pendientes' %}
+  <div class="box table-card">
+    <h3>Documentos pendientes</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>{{ t('field.type') }}</th>
+          <th>{{ t('field.number') }}</th>
+          <th>{{ t('field.status') }}</th>
+          <th>{{ t('billing.fiscal') }}</th>
+          <th>{{ t('common.total') }}</th>
+          <th>{{ t('billing.pending') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set row_count = namespace(value=0) %}
+        {% for doc in data.documents if doc.status.value in ['DRAFT','ISSUED','PARTIALLY_PAID'] %}
+        {% set row_count.value = row_count.value + 1 %}
+        <tr>
+          <td>{{ doc.id }}</td>
+          <td>{{ doc.document_type.value }}</td>
+          <td>{{ doc.number or '-' }}</td>
+          <td>{{ doc.status.value }}</td>
+          <td>{{ doc.fiscal_status.value }}</td>
+          <td>{{ money(doc.total_amount) }}</td>
+          <td>{{ money(doc.residual_amount) }}</td>
+          <td>
+            <div class="actions-row" style="justify-content:flex-start;">
+              {% if doc.status.value == 'DRAFT' and doc.document_type.value == 'INVOICE' %}
+              <form method="post" action="{{ url_for('cemetery.billing_issue_invoice', document_id=doc.id) }}">
+                <input type="hidden" name="_view" value="{{ billing_view }}">
+                <button class="btn" type="submit">{{ t('billing.issue') }}</button>
+              </form>
+              {% endif %}
+              <a class="btn" href="{{ url_for('cemetery.billing_workspace', view='cobros', status=filters.status, contract_id=doc.contract_id or '', sepultura_id=doc.sepultura_id or '') }}">Cobrar</a>
+              <a class="btn" href="{{ url_for('cemetery.billing_workspace', view='rectificativas', status=filters.status, contract_id=doc.contract_id or '', sepultura_id=doc.sepultura_id or '') }}">Rectificar</a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+        {% if row_count.value == 0 %}
+        <tr><td colspan="8">Sin documentos pendientes.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+  {% elif billing_view == 'cobros' %}
+  <div class="box table-card">
+    <h3>Registro de cobros</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>{{ t('field.number') }}</th>
+          <th>{{ t('field.status') }}</th>
+          <th>{{ t('billing.pending') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set row_count = namespace(value=0) %}
+        {% for doc in data.documents if doc.document_type.value == 'INVOICE' and doc.status.value in ['ISSUED','PARTIALLY_PAID','PAID'] %}
+        {% set row_count.value = row_count.value + 1 %}
+        <tr>
+          <td>{{ doc.id }}</td>
+          <td>{{ doc.number or '-' }}</td>
+          <td>{{ doc.status.value }}</td>
+          <td>{{ money(doc.residual_amount) }}</td>
+          <td>
+            {% if doc.status.value in ['ISSUED','PARTIALLY_PAID'] %}
             <form method="post" action="{{ url_for('cemetery.billing_register_payment', document_id=doc.id) }}" class="actions-row">
+              <input type="hidden" name="_view" value="{{ billing_view }}">
               <input type="hidden" name="idempotency_key" value="pay-{{ doc.id }}-{{ doc.residual_amount }}">
-              <input type="text" name="amount" placeholder="Importe" style="width:100px;">
+              <input type="text" name="amount" placeholder="{{ t('common.amount') }}" style="width:120px;" required>
               <select name="method">
                 {% for pm in PaymentMethod %}
                 <option value="{{ pm.value }}">{{ pm.value }}</option>
                 {% endfor %}
               </select>
-              <button class="btn primary" type="submit">Cobrar</button>
+              <button class="btn primary" type="submit">{{ t('billing.collect') }}</button>
             </form>
+            {% else %}
+            <span class="muted">Documento pagado</span>
             {% endif %}
-
-            {% if doc.document_type.value == 'INVOICE' and doc.status.value != 'DRAFT' %}
+          </td>
+        </tr>
+        {% endfor %}
+        {% if row_count.value == 0 %}
+        <tr><td colspan="5">No hay documentos para cobro.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+  {% elif billing_view == 'rectificativas' %}
+  <div class="box table-card">
+    <h3>Rectificacion de facturas</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>{{ t('field.number') }}</th>
+          <th>{{ t('field.status') }}</th>
+          <th>{{ t('common.total') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set row_count = namespace(value=0) %}
+        {% for doc in data.documents if doc.document_type.value == 'INVOICE' and doc.status.value != 'DRAFT' %}
+        {% set row_count.value = row_count.value + 1 %}
+        <tr>
+          <td>{{ doc.id }}</td>
+          <td>{{ doc.number or '-' }}</td>
+          <td>{{ doc.status.value }}</td>
+          <td>{{ money(doc.total_amount) }}</td>
+          <td>
             <form method="post" action="{{ url_for('cemetery.billing_create_credit_note', document_id=doc.id) }}" class="actions-row">
-              <input type="text" name="amount" placeholder="Importe rectificar" style="width:130px;">
-              <input type="text" name="concept" placeholder="Concepto" style="width:150px;">
-              <button class="btn" type="submit">Rectificativa</button>
+              <input type="hidden" name="_view" value="{{ billing_view }}">
+              <input type="text" name="amount" placeholder="{{ t('billing.rectify_amount') }}" style="width:130px;" required>
+              <input type="text" name="concept" placeholder="{{ t('billing.concept') }}" style="width:200px;" required>
+              <button class="btn" type="submit">{{ t('billing.rectification') }}</button>
             </form>
-            {% endif %}
-          </div>
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="8">Sin documentos.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+          </td>
+        </tr>
+        {% endfor %}
+        {% if row_count.value == 0 %}
+        <tr><td colspan="5">No hay facturas emitidas para rectificar.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+
+    <h3 style="margin-top:18px;">Rectificativas emitidas</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>{{ t('field.number') }}</th>
+          <th>{{ t('field.status') }}</th>
+          <th>{{ t('common.total') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set cn_count = namespace(value=0) %}
+        {% for doc in data.documents if doc.document_type.value == 'CREDIT_NOTE' %}
+        {% set cn_count.value = cn_count.value + 1 %}
+        <tr>
+          <td>{{ doc.id }}</td>
+          <td>{{ doc.number or '-' }}</td>
+          <td>{{ doc.status.value }}</td>
+          <td>{{ money(doc.total_amount) }}</td>
+        </tr>
+        {% endfor %}
+        {% if cn_count.value == 0 %}
+        <tr><td colspan="4">Sin rectificativas.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="box table-card">
+    <h3>{{ t('billing.recent_fiscal_submissions') }}</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>{{ t('common.document') }}</th>
+          <th>{{ t('billing.provider') }}</th>
+          <th>{{ t('field.status') }}</th>
+          <th>{{ t('billing.attempts') }}</th>
+          <th>{{ t('billing.error') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for sub in data.recent_submissions %}
+        <tr>
+          <td>{{ sub.id }}</td>
+          <td>{{ sub.document_id }}</td>
+          <td>{{ sub.provider_name or '-' }}</td>
+          <td>{{ sub.status.value }}</td>
+          <td>{{ sub.attempt_count }}</td>
+          <td>{{ sub.error_message or '-' }}</td>
+          <td>
+            <form method="post" action="{{ url_for('cemetery.billing_retry_submission', submission_id=sub.id) }}">
+              <input type="hidden" name="_view" value="{{ billing_view }}">
+              <button class="btn" type="submit">{{ t('billing.retry') }}</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7">{{ t('billing.no_submissions') }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
 </div>
 
-<div class="box">
-  <h3>Envios fiscales recientes</h3>
-  <table>
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Documento</th>
-        <th>Proveedor</th>
-        <th>Estado</th>
-        <th>Intentos</th>
-        <th>Error</th>
-        <th>Accion</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for sub in data.recent_submissions %}
-      <tr>
-        <td>{{ sub.id }}</td>
-        <td>{{ sub.document_id }}</td>
-        <td>{{ sub.provider_name or '-' }}</td>
-        <td>{{ sub.status.value }}</td>
-        <td>{{ sub.attempt_count }}</td>
-        <td>{{ sub.error_message or '-' }}</td>
-        <td>
-          <form method="post" action="{{ url_for('cemetery.billing_retry_submission', submission_id=sub.id) }}">
-            <button class="btn" type="submit">Reintentar</button>
-          </form>
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="7">Sin envios registrados.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+<script>
+  (function () {
+    const form = document.getElementById("invoice-create-form");
+    const editor = document.getElementById("line-editor");
+    const addBtn = document.getElementById("add-line-btn");
+    const summary = document.getElementById("line-editor-summary");
+    const errorBox = document.getElementById("line-editor-error");
+    const hiddenConcept = document.getElementById("line_concept");
+    const hiddenQty = document.getElementById("line_quantity");
+    const hiddenPrice = document.getElementById("line_unit_price");
+    const hiddenTax = document.getElementById("line_tax_rate");
+
+    if (!form || !editor || !addBtn || !summary || !errorBox || !hiddenConcept || !hiddenQty || !hiddenPrice || !hiddenTax) {
+      return;
+    }
+
+    function lineRowTemplate() {
+      const row = document.createElement("div");
+      row.className = "line-editor-row";
+      row.innerHTML = [
+        '<input type="text" data-line-concept placeholder="Concepto" required>',
+        '<input type="number" data-line-qty placeholder="Cantidad" min="0.01" step="0.01" value="1" required>',
+        '<input type="number" data-line-price placeholder="Precio" min="0" step="0.01" value="0" required>',
+        '<input type="number" data-line-tax placeholder="IVA %" min="0" step="0.01" value="0" required>',
+        '<button type="button" class="btn remove-line-btn">Quitar</button>'
+      ].join("");
+      return row;
+    }
+
+    function syncSummary() {
+      const count = editor.querySelectorAll(".line-editor-row").length;
+      summary.textContent = count + (count === 1 ? " linea" : " lineas");
+    }
+
+    function showError(message) {
+      errorBox.hidden = false;
+      errorBox.textContent = message;
+    }
+
+    function clearError() {
+      errorBox.hidden = true;
+      errorBox.textContent = "";
+    }
+
+    addBtn.addEventListener("click", function () {
+      editor.appendChild(lineRowTemplate());
+      syncSummary();
+    });
+
+    editor.addEventListener("click", function (event) {
+      const removeBtn = event.target.closest(".remove-line-btn");
+      if (!removeBtn) return;
+      const rows = editor.querySelectorAll(".line-editor-row");
+      if (rows.length <= 1) {
+        showError("La factura necesita al menos una linea.");
+        return;
+      }
+      const row = removeBtn.closest(".line-editor-row");
+      if (row) {
+        row.remove();
+      }
+      syncSummary();
+      clearError();
+    });
+
+    form.addEventListener("submit", function (event) {
+      clearError();
+      const concepts = [];
+      const quantities = [];
+      const prices = [];
+      const taxes = [];
+      const rows = editor.querySelectorAll(".line-editor-row");
+      if (!rows.length) {
+        event.preventDefault();
+        showError("Debes anadir al menos una linea.");
+        return;
+      }
+
+      for (const row of rows) {
+        const conceptEl = row.querySelector("[data-line-concept]");
+        const qtyEl = row.querySelector("[data-line-qty]");
+        const priceEl = row.querySelector("[data-line-price]");
+        const taxEl = row.querySelector("[data-line-tax]");
+
+        const concept = conceptEl ? String(conceptEl.value || "").trim() : "";
+        const qty = qtyEl ? Number(qtyEl.value || 0) : 0;
+        const price = priceEl ? Number(priceEl.value || 0) : 0;
+        const tax = taxEl ? Number(taxEl.value || 0) : 0;
+
+        if (!concept) {
+          event.preventDefault();
+          showError("Cada linea debe tener concepto.");
+          return;
+        }
+        if (!Number.isFinite(qty) || qty <= 0) {
+          event.preventDefault();
+          showError("La cantidad debe ser mayor que cero.");
+          return;
+        }
+        if (!Number.isFinite(price) || price < 0) {
+          event.preventDefault();
+          showError("El precio unitario no puede ser negativo.");
+          return;
+        }
+        if (!Number.isFinite(tax) || tax < 0) {
+          event.preventDefault();
+          showError("El IVA no puede ser negativo.");
+          return;
+        }
+
+        concepts.push(concept);
+        quantities.push(String(qty));
+        prices.push(String(price.toFixed(2)));
+        taxes.push(String(tax));
+      }
+
+      hiddenConcept.value = concepts.join("|");
+      hiddenQty.value = quantities.join("|");
+      hiddenPrice.value = prices.join("|");
+      hiddenTax.value = taxes.join("|");
+    });
+
+    syncSummary();
+  })();
+</script>
 {% endblock %}

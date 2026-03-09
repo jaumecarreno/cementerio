@@ -6,20 +6,39 @@
 {% from "partials/icons.html" import action_icon %}
 <h1 class="page-title">{{ t('field.grave') }} {{ data.sepultura.location_label }}</h1>
 
-<div class="box">
-  <div class="meta-row">
-    <div><strong>Modalidad:</strong> {{ data.sepultura.modalidad }}</div>
-    <div><strong>Estado:</strong> {{ data.sepultura.estado.value }}</div>
-    {% if data.contrato %}
-    <div>
-      <strong>Contrato:</strong>
-      C{{ data.contrato.id }} -
-      {{ 'LLOGUER' if data.contrato.tipo.value == 'USO_INMEDIATO' else data.contrato.tipo.value }}
-      ({{ data.contrato.fecha_inicio }} - {{ data.contrato.fecha_fin }})
+{% set area = 'resumen' %}
+{% if data.tab in ['titularidad', 'titulares', 'beneficiarios', 'difuntos'] %}
+  {% set area = 'personas' %}
+{% elif data.tab in ['movimientos', 'notas', 'lapidas'] %}
+  {% set area = 'operativa' %}
+{% elif data.tab == 'facturacion' %}
+  {% set area = 'facturacion' %}
+{% endif %}
+
+<section class="grave-header">
+  <div class="grave-header-top">
+    <div class="grave-kpis">
+      <span class="kpi-pill">Modalidad: {{ data.sepultura.modalidad }}</span>
+      <span class="kpi-pill">Estado: {{ data.sepultura.estado.value }}</span>
+      {% if data.contrato %}
+      <span class="kpi-pill">Contrato: C{{ data.contrato.id }}</span>
+      {% else %}
+      <span class="kpi-pill">Sin contrato</span>
+      {% endif %}
+      <span class="kpi-pill pending">Pendiente: {{ money(data.billing_summary.pending_amount) }}</span>
     </div>
-    {% endif %}
+    <div class="quick-actions">
+      {% if data.contrato %}
+      <a class="btn primary" href="{{ url_for('cemetery.billing_workspace', contract_id=data.contrato.id, sepultura_id=data.sepultura.id, view='pendientes') }}">Facturacion</a>
+      {% else %}
+      <a class="btn primary" href="{{ url_for('cemetery.billing_workspace', sepultura_id=data.sepultura.id, view='pendientes') }}">Facturacion</a>
+      {% endif %}
+      <a class="btn" href="{{ url_for('cemetery.expedientes', prefill_source_sepultura_id=data.sepultura.id) }}">Nuevo expediente</a>
+      <a class="btn" href="{{ url_for('cemetery.ot_new', sepultura_id=data.sepultura.id, category='FUNERARIA') }}">Nueva OT</a>
+      <a class="btn" href="{{ url_for('cemetery.ownership_cases', prefill_contract_id=data.contrato.id) if data.contrato else url_for('cemetery.ownership_cases') }}">{{ t('cem.ownership') }}</a>
+    </div>
   </div>
-  {% if data.tab != 'principal' %}
+
   <div class="quick-actions">
     <form class="inline-form" method="post" action="{{ url_for('cemetery.change_state', sepultura_id=data.sepultura.id) }}">
       <select name="estado">
@@ -30,34 +49,37 @@
       </select>
       <button type="submit">Cambiar estado</button>
     </form>
-    {% if data.contrato %}
-    <a class="btn" href="{{ url_for('cemetery.billing_workspace', contract_id=data.contrato.id, sepultura_id=data.sepultura.id) }}">Facturacion</a>
-    {% else %}
-    <a class="btn" href="{{ url_for('cemetery.billing_workspace', sepultura_id=data.sepultura.id) }}">Facturacion</a>
-    {% endif %}
-    <a class="btn" href="{{ url_for('cemetery.expedientes', prefill_source_sepultura_id=data.sepultura.id) }}">Nuevo expediente</a>
     {% if not data.contrato %}
     <a class="btn" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='derecho') }}">Crear derecho funerario</a>
     {% endif %}
-    <a class="btn" href="{{ url_for('cemetery.ot_new', sepultura_id=data.sepultura.id, category='FUNERARIA') }}">Nueva OT</a>
-    <a class="btn" href="{{ url_for('cemetery.ownership_cases') }}">{{ t('cem.ownership') }}</a>
-    <a class="btn" href="{{ url_for('cemetery.lapidas', sepultura_id=data.sepultura.id) }}">LÃ¡pidas</a>
+    <a class="btn" href="{{ url_for('cemetery.lapidas', sepultura_id=data.sepultura.id) }}">Lapidas</a>
   </div>
-  {% endif %}
+</section>
+
+<div class="grave-area-tabs" role="tablist" aria-label="Areas de ficha">
+  <a class="grave-area-tab {% if area == 'resumen' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='principal') }}">Resumen</a>
+  <a class="grave-area-tab {% if area == 'personas' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='titularidad') }}">Personas</a>
+  <a class="grave-area-tab {% if area == 'operativa' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='movimientos') }}">Operativa</a>
+  <a class="grave-area-tab {% if area == 'facturacion' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='facturacion') }}">Facturacion</a>
 </div>
 
-<div class="cem-submenu">
-  <a class="tab-link {% if data.tab == 'principal' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='principal') }}">Principal</a>
-  <a class="tab-link {% if data.tab == 'resumen' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='resumen') }}">Resumen</a>
-  <a class="tab-link {% if data.tab == 'titularidad' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='titularidad') }}">Titularidad</a>
-  <a class="tab-link {% if data.tab == 'titulares' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='titulares') }}">Titulares</a>
-  <a class="tab-link {% if data.tab == 'beneficiarios' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='beneficiarios') }}">Beneficiarios</a>
-  <a class="tab-link {% if data.tab == 'difuntos' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='difuntos') }}">Difuntos</a>
-  <a class="tab-link {% if data.tab == 'movimientos' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='movimientos') }}">Movimientos</a>
-  <a class="tab-link {% if data.tab == 'facturacion' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='facturacion') }}">Facturacion</a>
-  <a class="tab-link {% if data.tab == 'derecho' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='derecho') }}">{{ t('cem.rights') }}</a>
-  <a class="tab-link {% if data.tab == 'notas' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='notas') }}">Notas</a>
-  <a class="tab-link {% if data.tab == 'lapidas' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='lapidas') }}">{{ t('cem.engraving') }}</a>
+<div class="grave-subtabs">
+  {% if area == 'resumen' %}
+    <a class="grave-subtab {% if data.tab == 'principal' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='principal') }}">Principal</a>
+    <a class="grave-subtab {% if data.tab == 'resumen' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='resumen') }}">Ficha</a>
+    <a class="grave-subtab {% if data.tab == 'derecho' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='derecho') }}">{{ t('cem.rights') }}</a>
+  {% elif area == 'personas' %}
+    <a class="grave-subtab {% if data.tab == 'titularidad' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='titularidad') }}">Titularidad</a>
+    <a class="grave-subtab {% if data.tab == 'titulares' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='titulares') }}">Titulares</a>
+    <a class="grave-subtab {% if data.tab == 'beneficiarios' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='beneficiarios') }}">Beneficiarios</a>
+    <a class="grave-subtab {% if data.tab == 'difuntos' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='difuntos') }}">Difuntos</a>
+  {% elif area == 'operativa' %}
+    <a class="grave-subtab {% if data.tab == 'movimientos' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='movimientos') }}">Movimientos</a>
+    <a class="grave-subtab {% if data.tab == 'notas' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='notas') }}">Notas</a>
+    <a class="grave-subtab {% if data.tab == 'lapidas' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='lapidas') }}">{{ t('cem.engraving') }}</a>
+  {% else %}
+    <a class="grave-subtab {% if data.tab == 'facturacion' %}active{% endif %}" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='facturacion') }}">Documentos</a>
+  {% endif %}
 </div>
 
 {% if data.tab == 'principal' %}

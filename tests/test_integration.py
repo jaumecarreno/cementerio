@@ -47,7 +47,33 @@ def test_search_graves_filters_by_modalidad_estado_deuda_and_shows_sepultura_id(
             tipo_lapida="Resina",
             orientacion="Nord",
         )
+        titular = Person(
+            org_id=cemetery.org_id,
+            first_name="Titular",
+            last_name="Busqueda ZZ",
+            dni_nif="11112222Z",
+        )
         db.session.add(sep)
+        db.session.add(titular)
+        db.session.flush()
+        contract = DerechoFunerarioContrato(
+            org_id=cemetery.org_id,
+            sepultura_id=sep.id,
+            tipo=DerechoTipo.CONCESION,
+            fecha_inicio=date(date.today().year - 1, 1, 1),
+            fecha_fin=date(date.today().year + 2, 12, 31),
+            annual_fee_amount=Decimal("10.00"),
+            estado="ACTIVO",
+        )
+        db.session.add(contract)
+        db.session.flush()
+        owner = OwnershipRecord(
+            org_id=cemetery.org_id,
+            contract_id=contract.id,
+            person_id=titular.id,
+            start_date=date(date.today().year - 1, 1, 1),
+        )
+        db.session.add(owner)
         db.session.commit()
         expected_location = f"ZZ-TST / F1 C1 / N9901 - {sep.id}".encode()
 
@@ -74,6 +100,27 @@ def test_search_graves_filters_by_modalidad_estado_deuda_and_shows_sepultura_id(
     )
     assert only_deuda.status_code == 200
     assert expected_location not in only_deuda.data
+
+    by_titular_name = client.post(
+        "/cementerio/sepulturas/buscar",
+        data={"titular": "Busqueda ZZ"},
+    )
+    assert by_titular_name.status_code == 200
+    assert expected_location in by_titular_name.data
+
+    by_titular_dni = client.post(
+        "/cementerio/sepulturas/buscar",
+        data={"titular": "11112222z"},
+    )
+    assert by_titular_dni.status_code == 200
+    assert expected_location in by_titular_dni.data
+
+    by_prefixed_location = client.post(
+        "/cementerio/sepulturas/buscar",
+        data={"bloque": "ZZ-TST", "fila": "F1", "columna": "C1", "numero": "N9901"},
+    )
+    assert by_prefixed_location.status_code == 200
+    assert expected_location in by_prefixed_location.data
 
 
 def test_grave_detail_shows_contract_number_and_facturacion_tab(app, client, login_admin):

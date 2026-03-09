@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from enum import Enum
 
@@ -1488,13 +1488,25 @@ def seed_demo_data(session) -> None:
         full_name="Operario Cementerio",
         password_hash=generate_password_hash("operario123"),
     )
-    session.add_all([admin, operario])
+    comercial = User(
+        email="comercial@smsft.local",
+        full_name="Presentacion Comercial",
+        password_hash=generate_password_hash("comercial123"),
+    )
+    operativo = User(
+        email="operativo@smsft.local",
+        full_name="Presentacion Operativa",
+        password_hash=generate_password_hash("operativo123"),
+    )
+    session.add_all([admin, operario, comercial, operativo])
     session.flush()
 
     session.add_all(
         [
             Membership(user_id=admin.id, org_id=org.id, role="admin"),
             Membership(user_id=operario.id, org_id=org.id, role="operator"),
+            Membership(user_id=comercial.id, org_id=org.id, role="operator"),
+            Membership(user_id=operativo.id, org_id=org.id, role="admin"),
         ]
     )
 
@@ -1726,6 +1738,10 @@ def seed_demo_data(session) -> None:
 
     session.add(SepulturaDifunto(org_id=org.id, sepultura_id=sep_1.id, person_id=difunto_1.id, notes="Cadàver"))
 
+    current_utc = utcnow()
+    week_ago = current_utc - timedelta(days=7)
+    two_weeks_ago = current_utc - timedelta(days=14)
+
     draft_doc = BillingDocumentV2(
         org_id=org.id,
         contract_id=contrato_1.id,
@@ -1749,7 +1765,7 @@ def seed_demo_data(session) -> None:
         currency="EUR",
         total_amount=Decimal("50.00"),
         residual_amount=Decimal("50.00"),
-        issued_at=utcnow(),
+        issued_at=current_utc - timedelta(days=2),
         created_by_user_id=admin.id,
     )
     partial_doc = BillingDocumentV2(
@@ -1763,7 +1779,7 @@ def seed_demo_data(session) -> None:
         currency="EUR",
         total_amount=Decimal("40.50"),
         residual_amount=Decimal("20.50"),
-        issued_at=utcnow(),
+        issued_at=current_utc - timedelta(days=4),
         created_by_user_id=admin.id,
     )
     paid_doc = BillingDocumentV2(
@@ -1777,7 +1793,7 @@ def seed_demo_data(session) -> None:
         currency="EUR",
         total_amount=Decimal("30.00"),
         residual_amount=Decimal("0.00"),
-        issued_at=utcnow(),
+        issued_at=current_utc - timedelta(days=1),
         created_by_user_id=admin.id,
     )
     cancelled_doc = BillingDocumentV2(
@@ -1791,11 +1807,39 @@ def seed_demo_data(session) -> None:
         currency="EUR",
         total_amount=Decimal("35.00"),
         residual_amount=Decimal("0.00"),
-        issued_at=utcnow(),
-        cancelled_at=utcnow(),
+        issued_at=week_ago,
+        cancelled_at=week_ago + timedelta(hours=8),
         created_by_user_id=admin.id,
     )
-    session.add_all([draft_doc, issued_doc, partial_doc, paid_doc, cancelled_doc])
+    old_pending_doc = BillingDocumentV2(
+        org_id=org.id,
+        contract_id=contrato_legacy.id,
+        sepultura_id=sep_6.id,
+        document_type=BillingDocumentType.INVOICE,
+        status=BillingDocumentStatus.ISSUED,
+        fiscal_status=FiscalSubmissionStatus.ACCEPTED,
+        number="F-DEMO-2026-000005",
+        currency="EUR",
+        total_amount=Decimal("120.00"),
+        residual_amount=Decimal("120.00"),
+        issued_at=two_weeks_ago + timedelta(days=1),
+        created_by_user_id=admin.id,
+    )
+    recent_paid_doc = BillingDocumentV2(
+        org_id=org.id,
+        contract_id=contrato_2.id,
+        sepultura_id=sep_5.id,
+        document_type=BillingDocumentType.INVOICE,
+        status=BillingDocumentStatus.PAID,
+        fiscal_status=FiscalSubmissionStatus.ACCEPTED,
+        number="F-DEMO-2026-000006",
+        currency="EUR",
+        total_amount=Decimal("85.00"),
+        residual_amount=Decimal("0.00"),
+        issued_at=current_utc - timedelta(days=3),
+        created_by_user_id=admin.id,
+    )
+    session.add_all([draft_doc, issued_doc, partial_doc, paid_doc, cancelled_doc, old_pending_doc, recent_paid_doc])
     session.flush()
 
     credit_note = BillingDocumentV2(
@@ -1810,7 +1854,7 @@ def seed_demo_data(session) -> None:
         currency="EUR",
         total_amount=Decimal("35.00"),
         residual_amount=Decimal("0.00"),
-        issued_at=utcnow(),
+        issued_at=week_ago + timedelta(days=1),
         created_by_user_id=admin.id,
     )
     session.add(credit_note)
@@ -1901,6 +1945,7 @@ def seed_demo_data(session) -> None:
         receipt_number="R-DEMO-2026-000001",
         external_reference="seed-partial",
         created_by_user_id=admin.id,
+        paid_at=current_utc - timedelta(days=2),
     )
     paid_payment = PaymentV2(
         org_id=org.id,
@@ -1910,8 +1955,19 @@ def seed_demo_data(session) -> None:
         receipt_number="R-DEMO-2026-000002",
         external_reference="seed-paid",
         created_by_user_id=admin.id,
+        paid_at=week_ago + timedelta(days=2),
     )
-    session.add_all([partial_payment, paid_payment])
+    recent_payment = PaymentV2(
+        org_id=org.id,
+        document_id=recent_paid_doc.id,
+        amount=Decimal("85.00"),
+        method=PaymentMethod.TRANSFERENCIA,
+        receipt_number="R-DEMO-2026-000003",
+        external_reference="seed-recent-paid",
+        created_by_user_id=admin.id,
+        paid_at=current_utc - timedelta(days=1),
+    )
+    session.add_all([partial_payment, paid_payment, recent_payment])
     session.flush()
     session.add_all(
         [
@@ -1926,6 +1982,12 @@ def seed_demo_data(session) -> None:
                 payment_id=paid_payment.id,
                 document_id=paid_doc.id,
                 amount=Decimal("30.00"),
+            ),
+            PaymentAllocationV2(
+                org_id=org.id,
+                payment_id=recent_payment.id,
+                document_id=recent_paid_doc.id,
+                amount=Decimal("85.00"),
             ),
         ]
     )
@@ -2268,21 +2330,97 @@ def seed_demo_data(session) -> None:
         ]
     )
 
-    session.add(
-        WorkOrder(
-            org_id=org.id,
-            code="OT-2026-000001",
-            title="Revision inicial de zona B-12",
-            description="OT de ejemplo para panel operativo",
-            category=WorkOrderCategory.MANTENIMIENTO,
-            type_code=wo_type_lap.code,
-            priority=WorkOrderPriority.MEDIA,
-            status=WorkOrderStatus.PLANIFICADA,
-            sepultura_id=sep_1.id,
-            due_at=utcnow(),
-            created_by_user_id=admin.id,
-            updated_by_user_id=admin.id,
-        )
+    session.add_all(
+        [
+            WorkOrder(
+                org_id=org.id,
+                code="OT-2026-000001",
+                title="Revision inicial de zona B-12",
+                description="OT de ejemplo para panel operativo",
+                category=WorkOrderCategory.MANTENIMIENTO,
+                type_code=wo_type_lap.code,
+                priority=WorkOrderPriority.MEDIA,
+                status=WorkOrderStatus.PLANIFICADA,
+                sepultura_id=sep_1.id,
+                assigned_user_id=operario.id,
+                planned_start_at=current_utc + timedelta(hours=3),
+                due_at=current_utc + timedelta(hours=26),
+                created_at=current_utc - timedelta(days=1),
+                created_by_user_id=admin.id,
+                updated_by_user_id=admin.id,
+            ),
+            WorkOrder(
+                org_id=org.id,
+                code="OT-2026-000002",
+                title="Validar expediente exhumacion B-20",
+                description="Revisión documental pendiente de firma",
+                category=WorkOrderCategory.ADMINISTRATIVA,
+                type_code=wo_type_docs.code,
+                priority=WorkOrderPriority.ALTA,
+                status=WorkOrderStatus.EN_CURSO,
+                sepultura_id=sep_5.id,
+                assigned_user_id=admin.id,
+                started_at=current_utc - timedelta(hours=5),
+                due_at=current_utc - timedelta(hours=2),
+                created_at=current_utc - timedelta(days=2),
+                created_by_user_id=admin.id,
+                updated_by_user_id=admin.id,
+            ),
+            WorkOrder(
+                org_id=org.id,
+                code="OT-2026-000003",
+                title="Preparación inhumación B-12",
+                description="Checklist completo y cierre operativo",
+                category=WorkOrderCategory.FUNERARIA,
+                type_code=wo_type_inhum.code,
+                priority=WorkOrderPriority.ALTA,
+                status=WorkOrderStatus.COMPLETADA,
+                sepultura_id=sep_1.id,
+                assigned_user_id=operario.id,
+                started_at=current_utc - timedelta(days=3, hours=6),
+                completed_at=current_utc - timedelta(days=3, hours=1),
+                due_at=current_utc - timedelta(days=3) + timedelta(hours=8),
+                created_at=current_utc - timedelta(days=4),
+                created_by_user_id=admin.id,
+                updated_by_user_id=admin.id,
+            ),
+            WorkOrder(
+                org_id=org.id,
+                code="OT-2026-000004",
+                title="Exhumación programada B-22",
+                description="Reprogramada por disponibilidad de equipo",
+                category=WorkOrderCategory.FUNERARIA,
+                type_code=wo_type_exhum.code,
+                priority=WorkOrderPriority.URGENTE,
+                status=WorkOrderStatus.ASIGNADA,
+                sepultura_id=sep_6.id,
+                assigned_user_id=operario.id,
+                due_at=current_utc + timedelta(hours=10),
+                created_at=current_utc - timedelta(hours=20),
+                created_by_user_id=admin.id,
+                updated_by_user_id=admin.id,
+            ),
+            WorkOrder(
+                org_id=org.id,
+                code="OT-2026-000005",
+                title="Stock lapidas bajo mínimo",
+                description="Lanzar pedido y confirmar fecha de entrega",
+                category=WorkOrderCategory.MANTENIMIENTO,
+                type_code=wo_type_stock.code,
+                priority=WorkOrderPriority.MEDIA,
+                status=WorkOrderStatus.COMPLETADA,
+                area_type=WorkOrderAreaType.GENERAL,
+                area_code="ALM-CEN-01",
+                location_text="Almacén central",
+                assigned_user_id=admin.id,
+                started_at=week_ago + timedelta(days=1),
+                completed_at=week_ago + timedelta(days=1, hours=6),
+                due_at=week_ago + timedelta(days=2),
+                created_at=week_ago,
+                created_by_user_id=admin.id,
+                updated_by_user_id=admin.id,
+            ),
+        ]
     )
 
     successor_1 = Person(

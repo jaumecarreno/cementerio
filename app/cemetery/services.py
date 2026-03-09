@@ -9,6 +9,7 @@ from pathlib import Path
 import csv
 import json
 import os
+import re
 import smtplib
 import statistics
 import shutil
@@ -1141,6 +1142,28 @@ def search_sepulturas(filters: dict[str, str]) -> list[dict[str, object]]:
     return list(paged["rows"])
 
 
+def _parse_search_integer(value: str, prefixes: tuple[str, ...] = ()) -> int:
+    raw = (value or "").strip()
+    if not raw:
+        raise ValueError("Valor vacio")
+    try:
+        return int(raw)
+    except ValueError:
+        pass
+    if prefixes:
+        prefix_pattern = "|".join(re.escape(prefix) for prefix in prefixes)
+    else:
+        prefix_pattern = r"[A-Za-z]+"
+    match = re.match(
+        rf"^\s*(?:{prefix_pattern})\s*[-:\/]?\s*(\d+)\s*$",
+        raw,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        raise ValueError("Formato numerico invalido")
+    return int(match.group(1))
+
+
 def search_sepulturas_paged(
     filters: dict[str, str],
     page: int = 1,
@@ -1167,17 +1190,25 @@ def search_sepulturas_paged(
         query = query.filter(Sepultura.bloque.ilike(f"%{filters['bloque']}%"))
     if filters.get("fila"):
         try:
-            query = query.filter(Sepultura.fila == int(filters["fila"]))
+            query = query.filter(
+                Sepultura.fila == _parse_search_integer(filters["fila"], prefixes=("F",))
+            )
         except ValueError:
             return _empty_result()
     if filters.get("columna"):
         try:
-            query = query.filter(Sepultura.columna == int(filters["columna"]))
+            query = query.filter(
+                Sepultura.columna
+                == _parse_search_integer(filters["columna"], prefixes=("C",))
+            )
         except ValueError:
             return _empty_result()
     if filters.get("numero"):
         try:
-            query = query.filter(Sepultura.numero == int(filters["numero"]))
+            query = query.filter(
+                Sepultura.numero
+                == _parse_search_integer(filters["numero"], prefixes=("N",))
+            )
         except ValueError:
             return _empty_result()
     if filters.get("modalidad"):
@@ -1202,7 +1233,9 @@ def search_sepulturas_paged(
     if not sepulturas:
         return _empty_result()
 
-    titular_filter = filters.get("titular", "").strip().lower()
+    titular_filter_raw = filters.get("titular", "").strip()
+    titular_filter = titular_filter_raw.lower()
+    titular_filter_compact = re.sub(r"[\s\-]", "", titular_filter_raw).upper()
     difunto_filter = filters.get("difunto", "").strip().lower()
 
     sepultura_ids = [sep.id for sep in sepulturas]
@@ -1287,6 +1320,7 @@ def search_sepulturas_paged(
     for sep in sepulturas:
         contrato = contract_by_sepultura.get(sep.id)
         titular_name = ""
+        titular_dni = ""
         titular = None
         beneficiario = None
         debt = Decimal("0.00")
@@ -1295,11 +1329,22 @@ def search_sepulturas_paged(
             beneficiario = beneficiario_by_contract.get(contrato.id)
             if titular:
                 titular_name = titular.person.full_name
+                titular_dni = (titular.person.dni_nif or "").strip()
             debt = debt_by_contract.get(contrato.id, Decimal("0.00"))
 
         difuntos = [sd.person.full_name for sd in sep.difuntos]
-        if titular_filter and titular_filter not in titular_name.lower():
-            continue
+        if titular_filter:
+            titular_name_match = titular_filter in titular_name.lower()
+            titular_dni_match = False
+            if titular_dni:
+                titular_dni_lower = titular_dni.lower()
+                titular_dni_compact = re.sub(r"[\s\-]", "", titular_dni).upper()
+                titular_dni_match = titular_filter in titular_dni_lower or (
+                    bool(titular_filter_compact)
+                    and titular_filter_compact in titular_dni_compact
+                )
+            if not titular_name_match and not titular_dni_match:
+                continue
         if difunto_filter and not any(difunto_filter in d.lower() for d in difuntos):
             continue
         if only_with_debt and debt <= Decimal("0.00"):
@@ -1363,6 +1408,45 @@ def list_sepultura_blocks() -> list[str]:
         .all()
     )
     return [str(bloque) for (bloque,) in rows if bloque]
+
+
+def sepultura_location_options_by_block() -> dict[str, dict[str, list[int]]]:
+    rows = (
+        db.session.query(
+            Sepultura.bloque, Sepultura.fila, Sepultura.columna, Sepultura.numero
+        )
+        .filter(Sepultura.org_id == org_id())
+        .order_by(
+            Sepultura.bloque.asc(),
+            Sepultura.fila.asc(),
+            Sepultura.columna.asc(),
+            Sepultura.numero.asc(),
+        )
+        .all()
+    )
+    grouped: dict[str, dict[str, set[int]]] = {}
+    for bloque, fila, columna, numero in rows:
+        block = str(bloque or "").strip()
+        if not block:
+            continue
+        bucket = grouped.setdefault(
+            block, {"filas": set(), "columnas": set(), "numeros": set()}
+        )
+        if fila is not None:
+            bucket["filas"].add(int(fila))
+        if columna is not None:
+            bucket["columnas"].add(int(columna))
+        if numero is not None:
+            bucket["numeros"].add(int(numero))
+
+    result: dict[str, dict[str, list[int]]] = {}
+    for block, values in grouped.items():
+        result[block] = {
+            "filas": sorted(values["filas"]),
+            "columnas": sorted(values["columnas"]),
+            "numeros": sorted(values["numeros"]),
+        }
+    return result
 
 
 def list_sepultura_modalidades() -> list[str]:
@@ -3723,31 +3807,6 @@ def _purge_org_operational_data() -> None:
             synchronize_session=False
         )
 
-    operation_ids: list[int] = []
-    if _has("operation_case"):
-        operation_ids = [
-            row[0]
-            for row in db.session.query(OperationCase.id)
-            .filter_by(org_id=oid)
-            .all()
-        ]
-    if operation_ids:
-        if _has("operation_status_log"):
-            db.session.query(OperationStatusLog).filter(
-                OperationStatusLog.operation_case_id.in_(operation_ids)
-            ).delete(synchronize_session=False)
-        if _has("operation_document"):
-            db.session.query(OperationDocument).filter(
-                OperationDocument.operation_case_id.in_(operation_ids)
-            ).delete(synchronize_session=False)
-        if _has("operation_permit"):
-            db.session.query(OperationPermit).filter(
-                OperationPermit.operation_case_id.in_(operation_ids)
-            ).delete(synchronize_session=False)
-        db.session.query(OperationCase).filter(
-            OperationCase.id.in_(operation_ids)
-        ).delete(synchronize_session=False)
-
     if _has("orden_trabajo"):
         db.session.query(OrdenTrabajo).filter_by(org_id=oid).delete(
             synchronize_session=False
@@ -3834,6 +3893,33 @@ def _purge_org_operational_data() -> None:
         db.session.query(WorkOrderType).filter_by(org_id=oid).delete(synchronize_session=False)
     if _has("work_order"):
         db.session.query(WorkOrder).filter_by(org_id=oid).delete(synchronize_session=False)
+
+    # Work orders can reference operation_case; purge them first, then operation data.
+    operation_ids: list[int] = []
+    if _has("operation_case"):
+        operation_ids = [
+            row[0]
+            for row in db.session.query(OperationCase.id)
+            .filter_by(org_id=oid)
+            .all()
+        ]
+    if operation_ids:
+        if _has("operation_status_log"):
+            db.session.query(OperationStatusLog).filter(
+                OperationStatusLog.operation_case_id.in_(operation_ids)
+            ).delete(synchronize_session=False)
+        if _has("operation_document"):
+            db.session.query(OperationDocument).filter(
+                OperationDocument.operation_case_id.in_(operation_ids)
+            ).delete(synchronize_session=False)
+        if _has("operation_permit"):
+            db.session.query(OperationPermit).filter(
+                OperationPermit.operation_case_id.in_(operation_ids)
+            ).delete(synchronize_session=False)
+        db.session.query(OperationCase).filter(
+            OperationCase.id.in_(operation_ids)
+        ).delete(synchronize_session=False)
+
     if _has("fiscal_submission_v2"):
         db.session.query(FiscalSubmissionV2).filter_by(org_id=oid).delete(
             synchronize_session=False
@@ -3897,35 +3983,6 @@ def _purge_org_operational_data() -> None:
     if _has("person"):
         db.session.query(Person).filter_by(org_id=oid).delete(
             synchronize_session=False
-        )
-    if _has("operation_status_log", "operation_case"):
-        db.session.execute(
-            text(
-                "DELETE FROM operation_status_log "
-                "WHERE operation_case_id IN (SELECT id FROM operation_case WHERE org_id = :oid)"
-            ),
-            {"oid": oid},
-        )
-    if _has("operation_document", "operation_case"):
-        db.session.execute(
-            text(
-                "DELETE FROM operation_document "
-                "WHERE operation_case_id IN (SELECT id FROM operation_case WHERE org_id = :oid)"
-            ),
-            {"oid": oid},
-        )
-    if _has("operation_permit", "operation_case"):
-        db.session.execute(
-            text(
-                "DELETE FROM operation_permit "
-                "WHERE operation_case_id IN (SELECT id FROM operation_case WHERE org_id = :oid)"
-            ),
-            {"oid": oid},
-        )
-    if _has("operation_case"):
-        db.session.execute(
-            text("DELETE FROM operation_case WHERE org_id = :oid"),
-            {"oid": oid},
         )
     db.session.commit()
 
@@ -4254,8 +4311,8 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 dni_nif=_demo_spanish_dni(idx),
                 telefono=_demo_phone(idx, mobile=True),
                 telefono2=_demo_phone(8000 + idx, mobile=True),
-                email=f"titular{idx:03d}@terrassa.demo",
-                email2=f"familia{idx:03d}@mail.demo" if idx % 4 == 0 else "",
+                email=f"titular{idx:03d}@familia.local",
+                email2=f"contacto{idx:03d}@familia.local" if idx % 4 == 0 else "",
                 direccion=address["legacy"],
                 direccion_linea=address["line"],
                 codigo_postal=address["postal_code"],
@@ -4265,7 +4322,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 notas=(
                     "Titular con expediente pendiente"
                     if idx <= 80
-                    else "Titular demo"
+                    else "Titular con historico de renovaciones"
                 ),
             )
         )
@@ -4282,8 +4339,8 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 dni_nif=_demo_spanish_dni(4000 + idx),
                 telefono=_demo_phone(12000 + idx, mobile=True),
                 telefono2=_demo_phone(22000 + idx, mobile=False),
-                email=f"persona{idx:03d}@mail.demo",
-                email2=f"alterno{idx:03d}@mail.demo" if idx % 5 == 0 else "",
+                email=f"persona{idx:03d}@soporte.local",
+                email2=f"alterno{idx:03d}@soporte.local" if idx % 5 == 0 else "",
                 direccion=address["legacy"],
                 direccion_linea=address["line"],
                 codigo_postal=address["postal_code"],
@@ -4389,7 +4446,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
             pensioner_since_date=date(2024, 1, 1) if is_pensioner else None,
             is_provisional=is_provisional,
             provisional_until=date(2036, 1, 1) if is_provisional else None,
-            notes="Titularidad demo",
+            notes="Titularidad en seguimiento administrativo",
         )
         ownership_records.append(record)
         owner_person_by_contract_id[contract.id] = record.person_id
@@ -4429,7 +4486,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 org_id=oid,
                 sepultura_id=sep.id,
                 person_id=extras[(idx - 1) % len(extras)].id,
-                notes=f"Restos previos demo {idx:03d}",
+                notes=f"Restos historicos verificados {idx:03d}",
             )
         )
     db.session.add_all(remains)
@@ -4493,8 +4550,8 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
             WorkOrder(
                 org_id=oid,
                 code=f"OT-2026-{idx:06d}",
-                title=f"OT DEMO {idx:04d}",
-                description="Orden de trabajo demo",
+                title=f"OT-2026-{idx:04d} Intervencion programada",
+                description="Orden de trabajo programada para circuito de presentacion",
                 category=category,
                 type_code=type_code,
                 priority=WorkOrderPriority.MEDIA if idx % 4 else WorkOrderPriority.ALTA,
@@ -4599,7 +4656,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                     "Inhumacion pendiente de documentacion"
                     if op_type == OperationType.INHUMACION
                     and status in {OperationStatus.BORRADOR, OperationStatus.DOCS_PENDIENTES}
-                    else "Operacion demo"
+                    else "Operacion en tramitacion"
                 ),
                 created_by_user_id=default_operator_id,
                 managed_by_user_id=secondary_operator_id,
@@ -4650,7 +4707,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                     verified_by_user_id=default_operator_id
                     if permit_status == OperationPermitStatus.VERIFIED
                     else None,
-                    notes="Permiso demo",
+                    notes="Permiso presentado por registro",
                 )
             )
 
@@ -4687,7 +4744,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 verified_by_user_id=default_operator_id
                 if acta_status == OperationPermitStatus.VERIFIED
                 else None,
-                notes="Acta demo",
+                notes="Acta validada por operativa",
             )
         )
         operation_documents.append(
@@ -4704,7 +4761,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 uploaded_at=case.created_at + timedelta(days=2) if idx % 3 == 0 else None,
                 verified_at=None,
                 verified_by_user_id=None,
-                notes="Documento adicional demo",
+                notes="Documento adicional de soporte",
             )
         )
 
@@ -4715,7 +4772,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 to_status=OperationStatus.BORRADOR.value,
                 changed_at=case.created_at,
                 changed_by_user_id=default_operator_id,
-                reason="Alta demo",
+                reason="Alta por carga de escenario",
             )
         )
         if case.status != OperationStatus.BORRADOR:
@@ -4726,7 +4783,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                     to_status=case.status.value,
                     changed_at=case.created_at + timedelta(days=1),
                     changed_by_user_id=secondary_operator_id,
-                    reason="Evolucion demo",
+                    reason="Cambio de estado segun calendario",
                 )
             )
 
@@ -4794,11 +4851,11 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
             assigned_to_user_id=user_id if user_id and idx % 4 == 0 else None,
             resolution_number=resolution_number,
             rejection_reason=(
-                f"Falta documentacion demo {idx:03d}"
+                f"Falta documento acreditativo {idx:03d}"
                 if status == OwnershipTransferStatus.REJECTED
                 else None
             ),
-            notes=f"Caso demo {idx:03d}",
+            notes=f"Caso en curso {idx:03d}",
             internal_notes="Dataset de demostracion",
         )
         if transfer_type == OwnershipTransferType.PROVISIONAL:
@@ -5055,7 +5112,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
         status = BillingDocumentStatus.ISSUED
         fiscal_status = FiscalSubmissionStatus.ACCEPTED
         residual_amount = total_amount
-        number: str | None = f"F-DEMO-2026-{doc_counter:06d}"
+        number: str | None = f"F-2026-{doc_counter:06d}"
         document_issued_at = issued_at
         submission_status = FiscalSubmissionStatus.ACCEPTED
         submission_error = ""
@@ -5132,13 +5189,13 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                     provider_name=(
                         "blocked_no_provider"
                         if submission_status in {FiscalSubmissionStatus.RETRYING, FiscalSubmissionStatus.PENDING}
-                        else "demo_provider"
+                        else "fiscal_provider"
                     ),
                     attempt_count=1,
                     external_submission_id=(
                         f"SUB-{document.number}" if submission_status == FiscalSubmissionStatus.ACCEPTED else ""
                     ),
-                    request_payload_json='{"mode":"demo"}',
+                    request_payload_json='{"mode":"seed"}',
                     response_payload_json='{"status":"ok"}'
                     if submission_status == FiscalSubmissionStatus.ACCEPTED
                     else '{"status":"blocked"}',
@@ -5158,8 +5215,8 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 document_id=document.id,
                 amount=payment_amount,
                 method=PaymentMethod.EFECTIVO,
-                receipt_number=f"R-DEMO-2026-{receipt_counter:06d}",
-                external_reference=f"demo-{document.id}",
+                receipt_number=f"R-2026-{receipt_counter:06d}",
+                external_reference=f"pago-{document.id}",
                 paid_at=issued_at + timedelta(days=5),
                 created_by_user_id=user_id,
                 created_at=issued_at + timedelta(days=5),
@@ -5187,7 +5244,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 document_type=BillingDocumentType.CREDIT_NOTE,
                 status=BillingDocumentStatus.ISSUED,
                 fiscal_status=FiscalSubmissionStatus.ACCEPTED,
-                number=f"NC-DEMO-2026-{doc_counter:06d}",
+                number=f"NC-2026-{doc_counter:06d}",
                 currency="EUR",
                 total_amount=credit_note_amount,
                 residual_amount=Decimal("0.00"),
@@ -5218,10 +5275,10 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                     org_id=oid,
                     document_id=credit_note.id,
                     status=FiscalSubmissionStatus.ACCEPTED,
-                    provider_name="demo_provider",
+                    provider_name="fiscal_provider",
                     attempt_count=1,
                     external_submission_id=f"SUB-{credit_note.number}",
-                    request_payload_json='{"mode":"demo"}',
+                    request_payload_json='{"mode":"seed"}',
                     response_payload_json='{"status":"ok"}',
                     error_message="",
                     last_attempt_at=credit_note.issued_at,
@@ -5239,8 +5296,8 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
         lapida_stocks.append(
             LapidaStock(
                 org_id=oid,
-                codigo=f"LAP-DEMO-{idx:02d}",
-                descripcion=f"Modelo lapida demo {idx:02d}",
+                codigo=f"LAP-STD-{idx:02d}",
+                descripcion=f"Modelo lapida estandar {idx:02d}",
                 estado="ACTIVO",
                 available_qty=25 + idx,
             )
@@ -5259,7 +5316,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 lapida_stock_id=stock.id,
                 movimiento="ENTRADA",
                 quantity=quantity,
-                notes=f"Entrada demo {idx:03d}",
+                notes=f"Entrada por reposicion {idx:03d}",
             )
         )
     for idx in range(1, 31):
@@ -5273,7 +5330,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 movimiento="SALIDA",
                 quantity=quantity,
                 sepultura_id=sepulturas[(idx * 3) % 300].id,
-                notes=f"Salida demo {idx:03d}",
+                notes=f"Salida para instalacion {idx:03d}",
             )
         )
     db.session.add_all(lapida_movements)
@@ -5290,7 +5347,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
             InscripcionLateral(
                 org_id=oid,
                 sepultura_id=sepulturas[(idx - 1) % 300].id,
-                texto=f"Inscripcion demo {idx:03d}",
+                texto=f"Inscripcion lateral {idx:03d}",
                 estado=inscripcion_states[idx - 1],
             )
         )

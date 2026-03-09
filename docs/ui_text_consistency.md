@@ -58,3 +58,19 @@ Se homogenizó el estilo de acciones:
 
 - Verbos base: **Crear**, **Guardar**, **Abrir**, **Actualizar**, **Registrar**, **Imprimir**.
 - CTAs ambiguos o abreviados se reemplazaron por acciones explícitas cuando aplicaba.
+
+## 6) Guía corta de tono para demo (formal/institucional)
+
+Para mantener una interfaz homogénea en entorno de demostración institucional:
+
+- **Tono**: formal, claro y operativo. Evitar coloquialismos y abreviaturas ambiguas.
+- **Botones**: usar verbos de acción explícitos (`Crear`, `Guardar`, `Filtrar`, `Actualizar`, `Abrir`, `Imprimir`).
+- **Flashes**: redactar mensajes neutrales y accionables (qué pasó + qué puede hacer la persona usuaria).
+- **Estados vacíos**: usar fórmulas consistentes (`Sin resultados`, `Sin documentos`, `Sin programaciones`) y, cuando aplique, añadir siguiente paso sugerido.
+- **Acentuación y terminología**: respetar siempre glosario (`Facturación`, `Navegación`, `Titularidad`, `Derecho funerario`).
+
+Aplicación en esta pasada:
+
+- Sustitución de textos hardcodeados por `t(...)` en navegación base y vistas de cementerio de uso frecuente.
+- Normalización ortográfica de etiquetas y títulos comerciales en pantallas de facturación, búsqueda, órdenes y programación de informes.
+- Homogeneización de vacíos y acciones con claves compartidas de i18n.

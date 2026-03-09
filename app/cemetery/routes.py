@@ -116,6 +116,7 @@ from app.cemetery.services import (
     reporting_schedule_schema_ready,
     run_reporting_schedule,
     search_sepulturas_paged,
+    sepultura_location_options_by_block,
     set_contract_holder_pensioner,
     sepultura_by_id,
     sepultura_tabs_data,
@@ -1256,6 +1257,20 @@ def search_graves():
         "titular": request.values.get("titular", "").strip(),
         "difunto": request.values.get("difunto", "").strip(),
     }
+    has_search_filters = any(
+        filters.get(key)
+        for key in [
+            "bloque",
+            "fila",
+            "columna",
+            "numero",
+            "modalidad",
+            "estado",
+            "con_deuda",
+            "titular",
+            "difunto",
+        ]
+    )
     page = request.values.get("page", type=int, default=1) or 1
     page_size = request.values.get("page_size", type=int, default=25) or 25
     sort_by = request.values.get("sort_by", "ubicacion").strip() or "ubicacion"
@@ -1264,7 +1279,7 @@ def search_graves():
         search_sepulturas_paged(
             filters, page=page, page_size=page_size, sort_by=sort_by, sort_dir=sort_dir
         )
-        if any(filters.values())
+        if has_search_filters
         else {
             "rows": [],
             "total": 0,
@@ -1293,6 +1308,7 @@ def search_graves():
         sort_dir=sort_dir,
         money=money,
         blocks=list_sepultura_blocks(),
+        block_location_options=sepultura_location_options_by_block(),
         modalidades=list_sepultura_modalidades(),
         sepultura_states=[state.value for state in SepulturaEstado],
     )
@@ -1780,10 +1796,14 @@ def remove_beneficiary(contract_id: int):
     return redirect(url_for("cemetery.search_graves"))
 
 def _billing_workspace_filters() -> dict[str, str]:
+    view = (request.args.get("view") or "pendientes").strip().lower()
+    if view not in {"pendientes", "cobros", "rectificativas", "fiscal"}:
+        view = "pendientes"
     return {
         "status": request.args.get("status", "").strip(),
         "contract_id": request.args.get("contract_id", "").strip(),
         "sepultura_id": request.args.get("sepultura_id", "").strip(),
+        "view": view,
     }
 
 
@@ -1803,6 +1823,13 @@ def billing_workspace():
     )
 
 
+def _billing_redirect_with_view(default_view: str = "pendientes"):
+    view = (request.form.get("_view") or request.args.get("view") or default_view).strip().lower()
+    if view not in {"pendientes", "cobros", "rectificativas", "fiscal"}:
+        view = default_view
+    return redirect(url_for("cemetery.billing_workspace", view=view))
+
+
 @cemetery_bp.post("/facturacion/invoices")
 @login_required
 @require_membership
@@ -1813,7 +1840,7 @@ def billing_create_invoice():
         flash(f"Factura borrador creada ({document.id})", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("cemetery.billing_workspace"))
+    return _billing_redirect_with_view(default_view="pendientes")
 
 
 @cemetery_bp.post("/facturacion/invoices/<int:document_id>/issue")
@@ -1825,7 +1852,7 @@ def billing_issue_invoice(document_id: int):
         flash(f"Factura emitida: {document.number}", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("cemetery.billing_workspace"))
+    return _billing_redirect_with_view(default_view="pendientes")
 
 
 @cemetery_bp.post("/facturacion/invoices/<int:document_id>/payments")
@@ -1855,7 +1882,7 @@ def billing_register_payment(document_id: int):
         return redirect(url_for("cemetery.billing_receipt", payment_id=payment.id))
     except ValueError as exc:
         flash(str(exc), "error")
-        return redirect(url_for("cemetery.billing_workspace"))
+        return _billing_redirect_with_view(default_view="cobros")
 
 
 @cemetery_bp.post("/facturacion/invoices/<int:document_id>/credit-note")
@@ -1868,7 +1895,7 @@ def billing_create_credit_note(document_id: int):
         flash(f"Rectificativa emitida: {note.number}", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("cemetery.billing_workspace"))
+    return _billing_redirect_with_view(default_view="rectificativas")
 
 
 @cemetery_bp.get("/facturacion/receipts/<int:payment_id>")
@@ -1892,7 +1919,7 @@ def billing_retry_submission(submission_id: int):
         flash(f"Reintento fiscal registrado en estado {submission.status.value}", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("cemetery.billing_workspace"))
+    return _billing_redirect_with_view(default_view="fiscal")
 
 
 @cemetery_bp.route("/sepulturas/alta-masiva", methods=["GET", "POST"])

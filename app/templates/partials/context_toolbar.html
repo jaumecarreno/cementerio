@@ -1,0 +1,27 @@
+<div class="context-toolbar" role="toolbar" aria-label="Acciones de contexto">
+  <div class="context-toolbar-left">
+    {% if request.endpoint == 'cemetery.search_graves' %}
+      <a class="btn primary" href="{{ url_for('cemetery.search_graves') }}">Buscar sepulturas</a>
+      <a class="btn" href="{{ url_for('cemetery.billing_workspace') }}">Facturacion</a>
+      <a class="btn" href="{{ url_for('cemetery.ot_list') }}">Ordenes de trabajo</a>
+    {% elif request.endpoint == 'cemetery.grave_detail' and data and data.sepultura %}
+      <a class="btn primary" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='principal') }}">Resumen</a>
+      <a class="btn" href="{{ url_for('cemetery.grave_detail', sepultura_id=data.sepultura.id, tab='facturacion') }}">Facturacion</a>
+      <a class="btn" href="{{ url_for('cemetery.ot_new', sepultura_id=data.sepultura.id, category='FUNERARIA') }}">Nueva OT</a>
+      <a class="btn" href="{{ url_for('cemetery.ownership_cases', prefill_contract_id=data.contrato.id) if data.contrato else url_for('cemetery.ownership_cases') }}">Titularidad</a>
+    {% elif request.endpoint == 'cemetery.billing_workspace' %}
+      <a class="btn primary" href="{{ url_for('cemetery.billing_workspace') }}">Facturacion</a>
+      <a class="btn" href="{{ url_for('cemetery.billing_workspace', view='cobros') }}">Cobros</a>
+      <a class="btn" href="{{ url_for('cemetery.billing_workspace', view='rectificativas') }}">Rectificativas</a>
+      <a class="btn" href="{{ url_for('cemetery.search_graves') }}">Buscar sepulturas</a>
+    {% else %}
+      <a class="btn primary" href="{{ url_for('cemetery.search_graves') }}">Operativa</a>
+      <a class="btn" href="{{ url_for('cemetery.ownership_cases') }}">Titularidad</a>
+      <a class="btn" href="{{ url_for('cemetery.billing_workspace') }}">Facturacion</a>
+      <a class="btn" href="{{ url_for('cemetery.reporting') }}">Informes</a>
+    {% endif %}
+  </div>
+  <div class="context-toolbar-right">
+    <a id="back-to-list-btn" class="btn secondary" href="{{ url_for('dashboard_page') }}" hidden>Volver al ultimo listado</a>
+  </div>
+</div>

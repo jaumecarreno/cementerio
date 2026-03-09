@@ -20,8 +20,41 @@
   {%- else -%}{{ key }}
   {%- endif -%}
 {%- endmacro %}
+
+{% macro report_impact(key) -%}
+  {%- if key == 'ot_carga_equipos' -%}Reducción de tiempo administrativo
+  {%- elif key == 'ot_sla_cumplimiento' -%}Cumplimiento y previsibilidad operativa
+  {%- elif key == 'ot_calendario_faenas' -%}Planificación diaria y coordinación en campo
+  {%- elif key == 'deuda_aging' -%}Seguimiento de impagos
+  {%- elif key == 'deuda_recaudacion' -%}Mejora de caja y anticipación financiera
+  {%- elif key == 'deuda' -%}Priorización de cobro por contrato
+  {%- else -%}Seguimiento operativo
+  {%- endif -%}
+{%- endmacro %}
 {% block content %}
 <h1 class="page-title">{{ t('reporting.title') }}</h1>
+
+{% set prioritized_kpis = [
+  'ot_carga_equipos',
+  'ot_sla_cumplimiento',
+  'deuda_recaudacion',
+  'deuda_aging',
+  'deuda',
+  'ot_calendario_faenas'
+] %}
+
+<div class="box">
+  <h3>KPIs priorizados para reunión (primer pliegue)</h3>
+  <p class="reporting-kpi-hint">Selecciona primero estos 6 indicadores para contar impacto operativo y financiero en menos de 10 minutos.</p>
+  <div class="reporting-kpi-grid">
+    {% for key in prioritized_kpis %}
+    <a class="reporting-kpi-card" href="{{ url_for('cemetery.reporting', report=key, profile=filters.profile, page_size=paged.page_size, cadence_preset=filters.cadence_preset or 'weekly') }}">
+      <strong>{{ report_label(key) }}</strong>
+      <span class="status-pill status-reporting-impact">{{ report_impact(key) }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</div>
 
 <div class="box">
   <h3>{{ t('reporting.report_and_filters') }}</h3>
