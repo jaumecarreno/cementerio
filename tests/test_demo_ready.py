@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+from unittest.mock import patch
 
 from app.core.demo_people import is_generic_demo_name
 from app.core.extensions import db
@@ -508,6 +509,17 @@ def test_demo_actions_can_be_disabled_by_config(app, client, login_admin):
     finally:
         app.config["DEMO_ACTIONS_ENABLED"] = prev_demo_flag
     assert response.status_code == 403
+
+
+def test_demo_reset_handles_internal_errors_gracefully(app, client, login_admin):
+    login_admin()
+    with patch(
+        "app.cemetery.services.reset_demo_org_data_to_zero",
+        side_effect=RuntimeError("boom"),
+    ):
+        response = client.post("/demo/reset", follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/demo")
 
 
 def test_seed_demo_data_person_names_are_not_generic(app):

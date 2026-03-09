@@ -3807,31 +3807,6 @@ def _purge_org_operational_data() -> None:
             synchronize_session=False
         )
 
-    operation_ids: list[int] = []
-    if _has("operation_case"):
-        operation_ids = [
-            row[0]
-            for row in db.session.query(OperationCase.id)
-            .filter_by(org_id=oid)
-            .all()
-        ]
-    if operation_ids:
-        if _has("operation_status_log"):
-            db.session.query(OperationStatusLog).filter(
-                OperationStatusLog.operation_case_id.in_(operation_ids)
-            ).delete(synchronize_session=False)
-        if _has("operation_document"):
-            db.session.query(OperationDocument).filter(
-                OperationDocument.operation_case_id.in_(operation_ids)
-            ).delete(synchronize_session=False)
-        if _has("operation_permit"):
-            db.session.query(OperationPermit).filter(
-                OperationPermit.operation_case_id.in_(operation_ids)
-            ).delete(synchronize_session=False)
-        db.session.query(OperationCase).filter(
-            OperationCase.id.in_(operation_ids)
-        ).delete(synchronize_session=False)
-
     if _has("orden_trabajo"):
         db.session.query(OrdenTrabajo).filter_by(org_id=oid).delete(
             synchronize_session=False
@@ -3918,6 +3893,33 @@ def _purge_org_operational_data() -> None:
         db.session.query(WorkOrderType).filter_by(org_id=oid).delete(synchronize_session=False)
     if _has("work_order"):
         db.session.query(WorkOrder).filter_by(org_id=oid).delete(synchronize_session=False)
+
+    # Work orders can reference operation_case; purge them first, then operation data.
+    operation_ids: list[int] = []
+    if _has("operation_case"):
+        operation_ids = [
+            row[0]
+            for row in db.session.query(OperationCase.id)
+            .filter_by(org_id=oid)
+            .all()
+        ]
+    if operation_ids:
+        if _has("operation_status_log"):
+            db.session.query(OperationStatusLog).filter(
+                OperationStatusLog.operation_case_id.in_(operation_ids)
+            ).delete(synchronize_session=False)
+        if _has("operation_document"):
+            db.session.query(OperationDocument).filter(
+                OperationDocument.operation_case_id.in_(operation_ids)
+            ).delete(synchronize_session=False)
+        if _has("operation_permit"):
+            db.session.query(OperationPermit).filter(
+                OperationPermit.operation_case_id.in_(operation_ids)
+            ).delete(synchronize_session=False)
+        db.session.query(OperationCase).filter(
+            OperationCase.id.in_(operation_ids)
+        ).delete(synchronize_session=False)
+
     if _has("fiscal_submission_v2"):
         db.session.query(FiscalSubmissionV2).filter_by(org_id=oid).delete(
             synchronize_session=False
@@ -3981,35 +3983,6 @@ def _purge_org_operational_data() -> None:
     if _has("person"):
         db.session.query(Person).filter_by(org_id=oid).delete(
             synchronize_session=False
-        )
-    if _has("operation_status_log", "operation_case"):
-        db.session.execute(
-            text(
-                "DELETE FROM operation_status_log "
-                "WHERE operation_case_id IN (SELECT id FROM operation_case WHERE org_id = :oid)"
-            ),
-            {"oid": oid},
-        )
-    if _has("operation_document", "operation_case"):
-        db.session.execute(
-            text(
-                "DELETE FROM operation_document "
-                "WHERE operation_case_id IN (SELECT id FROM operation_case WHERE org_id = :oid)"
-            ),
-            {"oid": oid},
-        )
-    if _has("operation_permit", "operation_case"):
-        db.session.execute(
-            text(
-                "DELETE FROM operation_permit "
-                "WHERE operation_case_id IN (SELECT id FROM operation_case WHERE org_id = :oid)"
-            ),
-            {"oid": oid},
-        )
-    if _has("operation_case"):
-        db.session.execute(
-            text("DELETE FROM operation_case WHERE org_id = :oid"),
-            {"oid": oid},
         )
     db.session.commit()
 
