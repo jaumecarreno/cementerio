@@ -174,6 +174,37 @@ def test_parse_fields_warns_when_dni_has_no_holder_name():
     assert any("documento de identidad detectado" in warning.lower() for warning in warnings)
 
 
+def test_parse_fields_extracts_real_catalan_dni_layout():
+    sample_text = """
+REINO DE ESPAÑA
+DOCUMENTO NACIONAL DE IDENTIDAD
+
+DNI 45646530V
+
+APELLIDOS / COGNOMS
+CARREÑO
+ZORRILLA
+
+NOMBRE / NOM
+JAUME
+
+SEXO / SEXE
+M
+"""
+    extracted, _confidence, warnings = _parse_fields_with_meta(
+        sample_text,
+        static_lines=set(),
+        strict=True,
+    )
+
+    assert extracted["documento_numero"] == "45646530V"
+    assert extracted["documento_tipo"] == "DNI"
+    assert extracted["apellido1"] == "CARREÑO"
+    assert extracted["apellido2"] == "ZORRILLA"
+    assert extracted["nombre_difunto"] == "JAUME"
+    assert not any("no se han podido aislar nombre/apellidos" in w.lower() for w in warnings)
+
+
 def test_subtract_static_template_removes_fixed_lines_and_keeps_values():
     blank_template_text = """
 NOMBRE DEL FALLECIDO/A

@@ -37,6 +37,25 @@ _LABEL_KEYWORDS = {
     "intervalo",
 }
 
+_DNI_STOP_LABEL_HINTS = {
+    "sexo",
+    "sexe",
+    "nacionalidad",
+    "nacionalitat",
+    "nacimiento",
+    "naixement",
+    "emision",
+    "emissio",
+    "validez",
+    "validesa",
+    "num. soporte",
+    "num soporte",
+    "dni",
+    "documento nacional",
+    "national identity card",
+    "reino de espana",
+}
+
 
 class InhumationAIInputError(ValueError):
     """Raised when upload payload is invalid."""
@@ -883,6 +902,82 @@ def _extract_identity_value(
     return ""
 
 
+def _is_dni_stop_label(line: str) -> bool:
+    normalized = _normalize_token(line)
+    if not normalized:
+        return True
+    for hint in _DNI_STOP_LABEL_HINTS:
+        if hint in normalized:
+            return True
+    if normalized.count("/") >= 1 and len(normalized.split()) >= 2:
+        return True
+    return False
+
+
+def _extract_block_after_label(
+    text: str, label_patterns: list[str], max_lines: int = 2
+) -> list[str]:
+    if not text.strip():
+        return []
+    lines = [line.strip() for line in text.splitlines()]
+    for idx, line in enumerate(lines):
+        if not line:
+            continue
+        matched = any(re.search(pattern, line, re.IGNORECASE) for pattern in label_patterns)
+        if not matched:
+            continue
+        collected: list[str] = []
+        cursor = idx + 1
+        while cursor < len(lines) and len(collected) < max_lines:
+            current = lines[cursor].strip()
+            cursor += 1
+            if not current:
+                if collected:
+                    break
+                continue
+            if _is_dni_stop_label(current):
+                break
+            if not _looks_like_identity_name_value(current):
+                if collected:
+                    break
+                continue
+            value = _clean_value(current)
+            if value:
+                collected.append(value)
+        if collected:
+            return collected
+    return []
+
+
+def _looks_like_identity_name_value(line: str) -> bool:
+    if not line:
+        return False
+    if ":" in line or "/" in line:
+        return False
+    if any(ch.isdigit() for ch in line):
+        return False
+    normalized = _normalize_token(line)
+    if not normalized:
+        return False
+    blocked_fragments = {
+        "causa",
+        "fallecido",
+        "documento",
+        "nacional",
+        "identidad",
+        "numero",
+        "intervalo",
+    }
+    if any(fragment in normalized for fragment in blocked_fragments):
+        return False
+    cleaned = re.sub(r"[^A-Za-zÁÉÍÓÚÜÑáéíóúüñÇç'\\-\\s]", "", line).strip()
+    if len(cleaned) < 2:
+        return False
+    if len(normalized.split()) > 6:
+        return False
+    return True
+
+
 def _split_spanish_name(full_name: str) -> tuple[str, str, str]:
     tokens = [part for part in full_name.split() if part]
     if len(tokens) < 3:
@@ -1328,9 +1423,66 @@ def _parse_fields_with_meta(
         strict=strict,
     )
 
+    dni_name_block = _extract_block_after_label(
+        clean_text,
+        [
+            r"\bnombre\b",
+            r"\bnom\b",
+            r"nombre\s*/\s*(?:name|nom)",
+        ],
+        max_lines=2,
+    )
+    if dni_name_block:
+        _set_candidate(
+            extracted,
+            confidence,
+            warnings,
+            "nombre_difunto",
+            _clean_value(" ".join(dni_name_block)),
+            0.88,
+            static_lines=static_lines,
+            strict=strict,
+        )
+
+    dni_last_names_block = _extract_block_after_label(
+        clean_text,
+        [
+            r"\bapellidos\b",
+            r"\bcognoms?\b",
+            r"apellidos\s*/\s*(?:surnames?|cognoms?)",
+        ],
+        max_lines=3,
+    )
+    if dni_last_names_block:
+        if len(dni_last_names_block) >= 2:
+            last_name = dni_last_names_block[0]
+            second_last_name = dni_last_names_block[1]
+        else:
+            last_name, second_last_name = _split_last_names(dni_last_names_block[0])
+        _set_candidate(
+            extracted,
+            confidence,
+            warnings,
+            "apellido1",
+            last_name,
+            0.88,
+            static_lines=static_lines,
+            strict=strict,
+        )
+        _set_candidate(
+            extracted,
+            confidence,
+            warnings,
+            "apellido2",
+            second_last_name,
+            0.88,
+            static_lines=static_lines,
+            strict=strict,
+        )
+
     generic_name = _extract_identity_value(
         clean_text,
-        [r"nombre(?:\s*/\s*name)?", r"name"],
+        [r"nombre(?:\s*/\s*(?:name|nom))?", r"nom", r"name"],
         max_chars=100,
     )
     if generic_name:
@@ -1380,7 +1532,7 @@ def _parse_fields_with_meta(
 
     generic_last_names = _extract_identity_value(
         clean_text,
-        [r"apellidos?(?:\s*/\s*surnames?)?", r"surnames?"],
+        [r"apellidos(?:\s*/\s*(?:surnames?|cognoms?))?", r"cognoms?", r"surnames?"],
         max_chars=120,
     )
     if generic_last_names:
