@@ -866,6 +866,15 @@ def _split_spanish_name(full_name: str) -> tuple[str, str, str]:
     return " ".join(tokens[:-2]), tokens[-2], tokens[-1]
 
 
+def _split_last_names(value: str) -> tuple[str, str]:
+    tokens = [part for part in value.split() if part]
+    if not tokens:
+        return "", ""
+    if len(tokens) == 1:
+        return tokens[0], ""
+    return " ".join(tokens[:-1]), tokens[-1]
+
+
 def _extract_document(normalized_text: str) -> tuple[str, str, float]:
     dni_nie_match = re.search(r"\b([xyz]\d{7}[a-z]|\d{8}[a-z])\b", normalized_text, re.IGNORECASE)
     if dni_nie_match:
@@ -1109,6 +1118,9 @@ def _looks_like_only_label(value: str) -> bool:
         "intervalo h d m a",
         "hora minutos",
         "dia mes ano",
+        "nombre",
+        "apellido",
+        "apellidos",
         "nombre del fallecido/a",
         "primer apellido",
         "segundo apellido",
@@ -1266,6 +1278,90 @@ def _parse_fields_with_meta(
         static_lines=static_lines,
         strict=strict,
     )
+
+    generic_name = ""
+    generic_name_match = re.search(
+        r"(?:^|\n)\s*(?:nombre|name)\s*[:\-]\s*([^\n]{1,100})",
+        clean_text,
+        re.IGNORECASE,
+    )
+    if generic_name_match:
+        generic_name = _clean_value(generic_name_match.group(1))
+    if generic_name:
+        if len(generic_name.split()) >= 3:
+            first, last, second = _split_spanish_name(generic_name)
+            _set_candidate(
+                extracted,
+                confidence,
+                warnings,
+                "nombre_difunto",
+                first,
+                0.78,
+                static_lines=static_lines,
+                strict=strict,
+            )
+            _set_candidate(
+                extracted,
+                confidence,
+                warnings,
+                "apellido1",
+                last,
+                0.76,
+                static_lines=static_lines,
+                strict=strict,
+            )
+            _set_candidate(
+                extracted,
+                confidence,
+                warnings,
+                "apellido2",
+                second,
+                0.76,
+                static_lines=static_lines,
+                strict=strict,
+            )
+        else:
+            _set_candidate(
+                extracted,
+                confidence,
+                warnings,
+                "nombre_difunto",
+                generic_name,
+                0.76,
+                static_lines=static_lines,
+                strict=strict,
+            )
+
+    generic_last_names = ""
+    generic_last_match = re.search(
+        r"(?:^|\n)\s*(?:apellidos?|surnames?)\s*[:\-]\s*([^\n]{1,120})",
+        clean_text,
+        re.IGNORECASE,
+    )
+    if generic_last_match:
+        generic_last_names = _clean_value(generic_last_match.group(1))
+    if generic_last_names:
+        last_name, second_last_name = _split_last_names(generic_last_names)
+        _set_candidate(
+            extracted,
+            confidence,
+            warnings,
+            "apellido1",
+            last_name,
+            0.76,
+            static_lines=static_lines,
+            strict=strict,
+        )
+        _set_candidate(
+            extracted,
+            confidence,
+            warnings,
+            "apellido2",
+            second_last_name,
+            0.74,
+            static_lines=static_lines,
+            strict=strict,
+        )
 
     document_type, document_number, doc_conf = _extract_document(normalized_text)
     _set_candidate(
@@ -1511,8 +1607,18 @@ def _set_candidate(
     if not allowed:
         warnings.append(f"Valor descartado para {key}: {reason}.")
         return
+    new_score = float(score)
+    if key in extracted:
+        previous_score = float(confidence.get(key, 0.0) or 0.0)
+        if previous_score > new_score:
+            return
+        if previous_score == new_score:
+            previous_value = _normalize_token(str(extracted.get(key, "")))
+            current_value = _normalize_token(candidate)
+            if len(previous_value) >= len(current_value):
+                return
     extracted[key] = candidate
-    confidence[key] = float(score)
+    confidence[key] = new_score
 
 
 def _candidate_allowed(

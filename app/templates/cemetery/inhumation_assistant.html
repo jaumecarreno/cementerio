@@ -8,14 +8,284 @@
 
 <div class="inhumation-cert-page">
   <form class="inhumation-certificate" id="inhumation-certificate-form" onsubmit="return false;">
-    <section class="box inhumation-cert-card">
-      <h3 class="inhumation-cert-title">Certificacion medica</h3>
+    <details class="box inhumation-cert-toggle">
+      <summary class="inhumation-cert-toggle-summary">Certificado medico de defuncion</summary>
+      <div class="inhumation-cert-toggle-body">
+        <section class="box inhumation-cert-card">
+          <h3 class="inhumation-cert-title">Certificado medico de defuncion</h3>
+          <div class="inhumation-ai-upload-row">
+            <div class="inhumation-field">
+              <label for="inhumation-document-upload">Certificado o documento (PDF/JPG/JPEG/PNG)</label>
+              <input
+                id="inhumation-document-upload"
+                name="inhumation_document_upload"
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+              >
+            </div>
+            <div class="inhumation-ai-btn-wrap">
+              <button
+                class="btn secondary inhumation-ai-btn"
+                id="inhumation-ai-extract-btn"
+                type="button"
+                aria-live="polite"
+              >
+                <span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span>
+                <span class="inhumation-ai-btn-label">Extraer con IA</span>
+              </button>
+            </div>
+          </div>
+          <div id="inhumation-ai-review-banner" class="warning inhumation-ai-feedback" hidden>
+            Datos extraidos automaticamente. Revise la informacion antes de guardar.
+          </div>
+          <div id="inhumation-ai-error-banner" class="flash error inhumation-ai-feedback" hidden role="alert"></div>
+          <div id="inhumation-ai-warning-banner" class="warning inhumation-ai-feedback" hidden></div>
+
+          <div class="inhumation-cert-grid inhumation-cols-5">
+            <div class="inhumation-field">
+              <label>Numero de certificado</label>
+              <input type="text" name="certificate_number">
+            </div>
+            <div class="inhumation-field">
+              <label>Nombre del medico</label>
+              <input type="text" name="doctor_name">
+            </div>
+            <div class="inhumation-field">
+              <label>Colegiado en</label>
+              <input type="text" name="doctor_registered_in">
+            </div>
+            <div class="inhumation-field">
+              <label>Numero de colegiado</label>
+              <input type="text" name="doctor_registration_number">
+            </div>
+            <div class="inhumation-field">
+              <label>Ejercicio profesional en</label>
+              <input type="text" name="doctor_professional_practice">
+            </div>
+          </div>
+        </section>
+
+        <section class="box inhumation-cert-card">
+          <h3 class="inhumation-cert-title">Datos del difunto y documento</h3>
+          <div class="inhumation-cert-grid inhumation-cols-4">
+            <div class="inhumation-field">
+              <label>Nombre</label>
+              <input type="text" name="first_name">
+            </div>
+            <div class="inhumation-field">
+              <label>Primer apellido</label>
+              <input type="text" name="last_name">
+            </div>
+            <div class="inhumation-field">
+              <label>Segundo apellido</label>
+              <input type="text" name="second_last_name">
+            </div>
+            <div class="inhumation-field">
+              <label>Documento de identidad</label>
+              <div class="inhumation-identity-inline">
+                <select name="document_type">
+                  <option value=""></option>
+                  <option value="DNI">DNI</option>
+                  <option value="NIE">NIE</option>
+                  <option value="PASAPORTE">Pasaporte</option>
+                </select>
+                <input type="text" name="document_number" placeholder="Numero">
+              </div>
+            </div>
+          </div>
+          <div class="inhumation-cert-grid inhumation-cols-2">
+            <div class="inhumation-field">
+              <label>Fecha de nacimiento (dia, mes, ano)</label>
+              <div class="inhumation-subfields inhumation-subfields-3">
+                <input type="number" name="birth_day" min="1" max="31" placeholder="Dia">
+                <input type="number" name="birth_month" min="1" max="12" placeholder="Mes">
+                <input type="number" name="birth_year" min="1800" max="2200" placeholder="Ano">
+              </div>
+            </div>
+            <div class="inhumation-field">
+              <label>Sexo</label>
+              <select name="sex">
+                <option value=""></option>
+                <option value="M">Masculino</option>
+                <option value="F">Femenino</option>
+                <option value="X">No especificado</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <section class="box inhumation-cert-card">
+          <h3 class="inhumation-cert-title">Datos de defuncion</h3>
+          <div class="inhumation-cert-grid inhumation-cols-3">
+            <div class="inhumation-field">
+              <label>Hora de la defuncion (hora:minutos)</label>
+              <div class="inhumation-subfields inhumation-subfields-2">
+                <input type="number" name="death_hour" min="0" max="23" placeholder="Hora">
+                <input type="number" name="death_minute" min="0" max="59" placeholder="Min">
+              </div>
+            </div>
+            <div class="inhumation-field">
+              <label>Fecha de la defuncion (dia, mes, ano)</label>
+              <div class="inhumation-subfields inhumation-subfields-3">
+                <input type="number" name="death_day" min="1" max="31" placeholder="Dia">
+                <input type="number" name="death_month" min="1" max="12" placeholder="Mes">
+                <input type="number" name="death_year" min="1800" max="2200" placeholder="Ano">
+              </div>
+            </div>
+            <div class="inhumation-field">
+              <label>Lugar en el que ocurrio la defuncion</label>
+              <select name="death_place">
+                <option value=""></option>
+                <option value="DOMICILIO_PARTICULAR">Domicilio particular</option>
+                <option value="CENTRO_HOSPITALARIO">Centro hospitalario</option>
+                <option value="RESIDENCIA_SOCIOSANITARIA">Residencia sociosanitaria</option>
+                <option value="LUGAR_TRABAJO">Lugar de trabajo</option>
+                <option value="OTRO">Otro lugar</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <section class="box inhumation-cert-card">
+          <h3 class="inhumation-cert-title">Causas de la defuncion</h3>
+          <div class="inhumation-cause-table">
+            <div class="inhumation-cause-row">
+              <p class="inhumation-cause-name">Causa inmediata</p>
+              <div class="inhumation-field">
+                <label>Motivo</label>
+                <input type="text" name="immediate_cause_reason">
+              </div>
+              <div class="inhumation-field">
+                <label>Intervalo (h, d, m, a)</label>
+                <div class="inhumation-subfields inhumation-subfields-4">
+                  <input type="number" name="immediate_hours" min="0" placeholder="H">
+                  <input type="number" name="immediate_days" min="0" placeholder="D">
+                  <input type="number" name="immediate_months" min="0" placeholder="M">
+                  <input type="number" name="immediate_years" min="0" placeholder="A">
+                </div>
+              </div>
+            </div>
+            <div class="inhumation-cause-row">
+              <p class="inhumation-cause-name">Causas antecedentes</p>
+              <div class="inhumation-field">
+                <label>Debido a</label>
+                <input type="text" name="antecedent_cause_reason">
+              </div>
+              <div class="inhumation-field">
+                <label>Intervalo (h, d, m, a)</label>
+                <div class="inhumation-subfields inhumation-subfields-4">
+                  <input type="number" name="antecedent_hours" min="0" placeholder="H">
+                  <input type="number" name="antecedent_days" min="0" placeholder="D">
+                  <input type="number" name="antecedent_months" min="0" placeholder="M">
+                  <input type="number" name="antecedent_years" min="0" placeholder="A">
+                </div>
+              </div>
+            </div>
+            <div class="inhumation-cause-row">
+              <p class="inhumation-cause-name">Causa inicial o fundamental</p>
+              <div class="inhumation-field">
+                <label>Causa</label>
+                <input type="text" name="root_cause_reason">
+              </div>
+              <div class="inhumation-field">
+                <label>Intervalo (h, d, m, a)</label>
+                <div class="inhumation-subfields inhumation-subfields-4">
+                  <input type="number" name="root_hours" min="0" placeholder="H">
+                  <input type="number" name="root_days" min="0" placeholder="D">
+                  <input type="number" name="root_months" min="0" placeholder="M">
+                  <input type="number" name="root_years" min="0" placeholder="A">
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="box inhumation-cert-card">
+          <h3 class="inhumation-cert-title">Informacion complementaria</h3>
+          <div class="inhumation-cert-grid inhumation-cols-2">
+            <div class="inhumation-field">
+              <label>Ha habido indicios de muerte violenta?</label>
+              <div class="inhumation-choice-group">
+                <label><input type="radio" name="violent_death_signs" value="SI"> Si</label>
+                <label><input type="radio" name="violent_death_signs" value="NO"> No</label>
+              </div>
+            </div>
+            <div class="inhumation-field">
+              <label>Se practico autopsia?</label>
+              <div class="inhumation-choice-group">
+                <label><input type="radio" name="autopsy_done" value="SI"> Si</label>
+                <label><input type="radio" name="autopsy_done" value="NO"> No</label>
+              </div>
+            </div>
+          </div>
+          <div class="inhumation-cert-grid inhumation-cols-2">
+            <div class="inhumation-field">
+              <label>Consecuencia directa o indirecta de</label>
+              <select name="death_consequence">
+                <option value=""></option>
+                <option value="ACCIDENTE_TRAFICO">Accidente de trafico</option>
+                <option value="ACCIDENTE_LABORAL">Accidente laboral</option>
+              </select>
+            </div>
+            <div class="inhumation-field">
+              <label>Fecha del accidente (dia, mes, ano)</label>
+              <div class="inhumation-subfields inhumation-subfields-3">
+                <input type="number" name="accident_day" min="1" max="31" placeholder="Dia">
+                <input type="number" name="accident_month" min="1" max="12" placeholder="Mes">
+                <input type="number" name="accident_year" min="1800" max="2200" placeholder="Ano">
+              </div>
+            </div>
+          </div>
+          <div class="inhumation-cert-grid inhumation-cols-2">
+            <div class="inhumation-field">
+              <label>Existen riesgos infecciosos?</label>
+              <div class="inhumation-choice-group">
+                <label><input type="radio" name="infectious_risk" value="SI"> Si</label>
+                <label><input type="radio" name="infectious_risk" value="NO"> No</label>
+              </div>
+            </div>
+            <div class="inhumation-field">
+              <label>Enfermedad infecciosa y grupo</label>
+              <div class="inhumation-identity-inline">
+                <input type="text" name="infectious_disease" placeholder="Enfermedad">
+                <select name="infectious_group">
+                  <option value=""></option>
+                  <option value="I">Grupo I</option>
+                  <option value="II">Grupo II</option>
+                  <option value="III">Grupo III</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="inhumation-cert-grid inhumation-cols-2">
+            <div class="inhumation-field">
+              <label>Posibilidad de incineracion?</label>
+              <div class="inhumation-choice-group">
+                <label><input type="radio" name="incineration_possible" value="SI"> Si</label>
+                <label><input type="radio" name="incineration_possible" value="NO"> No</label>
+              </div>
+            </div>
+            <div class="inhumation-field">
+              <label>Incineracion condicionada por</label>
+              <div class="inhumation-check-grid">
+                <label><input type="checkbox" name="incineration_conditions" value="MARCAPASOS"> Retirada de marcapasos</label>
+                <label><input type="checkbox" name="incineration_conditions" value="ISOTOPOS"> Tratamiento con isotopos radiactivos</label>
+                <label><input type="checkbox" name="incineration_conditions" value="PROTESIS"> Existencia de protesis</label>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </details>
+
+    <section class="box inhumation-cert-card inhumation-holder-card">
+      <h3 class="inhumation-cert-title">Datos del titular</h3>
       <div class="inhumation-ai-upload-row">
         <div class="inhumation-field">
-          <label for="inhumation-document-upload">Certificado o documento (PDF/JPG/JPEG/PNG)</label>
+          <label for="holder-document-upload">DNI del titular (PDF/JPG/JPEG/PNG)</label>
           <input
-            id="inhumation-document-upload"
-            name="inhumation_document_upload"
+            id="holder-document-upload"
+            name="holder_document_upload"
             type="file"
             accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
           >
@@ -23,7 +293,7 @@
         <div class="inhumation-ai-btn-wrap">
           <button
             class="btn secondary inhumation-ai-btn"
-            id="inhumation-ai-extract-btn"
+            id="holder-ai-extract-btn"
             type="button"
             aria-live="polite"
           >
@@ -32,243 +302,24 @@
           </button>
         </div>
       </div>
-      <div id="inhumation-ai-review-banner" class="warning inhumation-ai-feedback" hidden>
-        Datos extraidos automaticamente. Revise la informacion antes de guardar.
+      <div id="holder-ai-review-banner" class="warning inhumation-ai-feedback" hidden>
+        Datos del titular extraidos automaticamente. Revise la informacion antes de guardar.
       </div>
-      <div id="inhumation-ai-error-banner" class="flash error inhumation-ai-feedback" hidden role="alert"></div>
-      <div id="inhumation-ai-warning-banner" class="warning inhumation-ai-feedback" hidden></div>
+      <div id="holder-ai-error-banner" class="flash error inhumation-ai-feedback" hidden role="alert"></div>
+      <div id="holder-ai-warning-banner" class="warning inhumation-ai-feedback" hidden></div>
 
-      <div class="inhumation-cert-grid inhumation-cols-4">
-        <div class="inhumation-field">
-          <label>Nombre del medico</label>
-          <input type="text" name="doctor_name">
-        </div>
-        <div class="inhumation-field">
-          <label>Colegiado en</label>
-          <input type="text" name="doctor_registered_in">
-        </div>
-        <div class="inhumation-field">
-          <label>Numero de colegiado</label>
-          <input type="text" name="doctor_registration_number">
-        </div>
-        <div class="inhumation-field">
-          <label>Ejercicio profesional en</label>
-          <input type="text" name="doctor_professional_practice">
-        </div>
-      </div>
-    </section>
-
-    <section class="box inhumation-cert-card">
-      <h3 class="inhumation-cert-title">Datos del difunto y documento</h3>
-      <div class="inhumation-cert-grid inhumation-cols-4">
-        <div class="inhumation-field">
-          <label>Numero de certificado</label>
-          <input type="text" name="certificate_number">
-        </div>
+      <div class="inhumation-cert-grid inhumation-cols-3">
         <div class="inhumation-field">
           <label>Nombre</label>
-          <input type="text" name="first_name">
+          <input type="text" name="holder_first_name">
         </div>
         <div class="inhumation-field">
           <label>Primer apellido</label>
-          <input type="text" name="last_name">
+          <input type="text" name="holder_last_name">
         </div>
         <div class="inhumation-field">
           <label>Segundo apellido</label>
-          <input type="text" name="second_last_name">
-        </div>
-      </div>
-      <div class="inhumation-cert-grid inhumation-cols-3">
-        <div class="inhumation-field">
-          <label>Fecha de nacimiento (dia, mes, ano)</label>
-          <div class="inhumation-subfields inhumation-subfields-3">
-            <input type="number" name="birth_day" min="1" max="31" placeholder="Dia">
-            <input type="number" name="birth_month" min="1" max="12" placeholder="Mes">
-            <input type="number" name="birth_year" min="1800" max="2200" placeholder="Ano">
-          </div>
-        </div>
-        <div class="inhumation-field">
-          <label>Sexo</label>
-          <select name="sex">
-            <option value=""></option>
-            <option value="M">Masculino</option>
-            <option value="F">Femenino</option>
-            <option value="X">No especificado</option>
-          </select>
-        </div>
-        <div class="inhumation-field">
-          <label>Documento de identidad</label>
-          <div class="inhumation-identity-inline">
-            <select name="document_type">
-              <option value=""></option>
-              <option value="DNI">DNI</option>
-              <option value="NIE">NIE</option>
-              <option value="PASAPORTE">Pasaporte</option>
-            </select>
-            <input type="text" name="document_number" placeholder="Numero">
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="box inhumation-cert-card">
-      <h3 class="inhumation-cert-title">Datos de defuncion</h3>
-      <div class="inhumation-cert-grid inhumation-cols-3">
-        <div class="inhumation-field">
-          <label>Hora de la defuncion (hora:minutos)</label>
-          <div class="inhumation-subfields inhumation-subfields-2">
-            <input type="number" name="death_hour" min="0" max="23" placeholder="Hora">
-            <input type="number" name="death_minute" min="0" max="59" placeholder="Min">
-          </div>
-        </div>
-        <div class="inhumation-field">
-          <label>Fecha de la defuncion (dia, mes, ano)</label>
-          <div class="inhumation-subfields inhumation-subfields-3">
-            <input type="number" name="death_day" min="1" max="31" placeholder="Dia">
-            <input type="number" name="death_month" min="1" max="12" placeholder="Mes">
-            <input type="number" name="death_year" min="1800" max="2200" placeholder="Ano">
-          </div>
-        </div>
-        <div class="inhumation-field">
-          <label>Lugar en el que ocurrio la defuncion</label>
-          <select name="death_place">
-            <option value=""></option>
-            <option value="DOMICILIO_PARTICULAR">Domicilio particular</option>
-            <option value="CENTRO_HOSPITALARIO">Centro hospitalario</option>
-            <option value="RESIDENCIA_SOCIOSANITARIA">Residencia sociosanitaria</option>
-            <option value="LUGAR_TRABAJO">Lugar de trabajo</option>
-            <option value="OTRO">Otro lugar</option>
-          </select>
-        </div>
-      </div>
-    </section>
-
-    <section class="box inhumation-cert-card">
-      <h3 class="inhumation-cert-title">Causas de la defuncion</h3>
-      <div class="inhumation-cause-table">
-        <div class="inhumation-cause-row">
-          <p class="inhumation-cause-name">Causa inmediata</p>
-          <div class="inhumation-field">
-            <label>Motivo</label>
-            <input type="text" name="immediate_cause_reason">
-          </div>
-          <div class="inhumation-field">
-            <label>Intervalo (h, d, m, a)</label>
-            <div class="inhumation-subfields inhumation-subfields-4">
-              <input type="number" name="immediate_hours" min="0" placeholder="H">
-              <input type="number" name="immediate_days" min="0" placeholder="D">
-              <input type="number" name="immediate_months" min="0" placeholder="M">
-              <input type="number" name="immediate_years" min="0" placeholder="A">
-            </div>
-          </div>
-        </div>
-        <div class="inhumation-cause-row">
-          <p class="inhumation-cause-name">Causas antecedentes</p>
-          <div class="inhumation-field">
-            <label>Debido a</label>
-            <input type="text" name="antecedent_cause_reason">
-          </div>
-          <div class="inhumation-field">
-            <label>Intervalo (h, d, m, a)</label>
-            <div class="inhumation-subfields inhumation-subfields-4">
-              <input type="number" name="antecedent_hours" min="0" placeholder="H">
-              <input type="number" name="antecedent_days" min="0" placeholder="D">
-              <input type="number" name="antecedent_months" min="0" placeholder="M">
-              <input type="number" name="antecedent_years" min="0" placeholder="A">
-            </div>
-          </div>
-        </div>
-        <div class="inhumation-cause-row">
-          <p class="inhumation-cause-name">Causa inicial o fundamental</p>
-          <div class="inhumation-field">
-            <label>Causa</label>
-            <input type="text" name="root_cause_reason">
-          </div>
-          <div class="inhumation-field">
-            <label>Intervalo (h, d, m, a)</label>
-            <div class="inhumation-subfields inhumation-subfields-4">
-              <input type="number" name="root_hours" min="0" placeholder="H">
-              <input type="number" name="root_days" min="0" placeholder="D">
-              <input type="number" name="root_months" min="0" placeholder="M">
-              <input type="number" name="root_years" min="0" placeholder="A">
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="box inhumation-cert-card">
-      <h3 class="inhumation-cert-title">Informacion complementaria</h3>
-      <div class="inhumation-cert-grid inhumation-cols-2">
-        <div class="inhumation-field">
-          <label>Ha habido indicios de muerte violenta?</label>
-          <div class="inhumation-choice-group">
-            <label><input type="radio" name="violent_death_signs" value="SI"> Si</label>
-            <label><input type="radio" name="violent_death_signs" value="NO"> No</label>
-          </div>
-        </div>
-        <div class="inhumation-field">
-          <label>Se practico autopsia?</label>
-          <div class="inhumation-choice-group">
-            <label><input type="radio" name="autopsy_done" value="SI"> Si</label>
-            <label><input type="radio" name="autopsy_done" value="NO"> No</label>
-          </div>
-        </div>
-      </div>
-      <div class="inhumation-cert-grid inhumation-cols-2">
-        <div class="inhumation-field">
-          <label>Consecuencia directa o indirecta de</label>
-          <select name="death_consequence">
-            <option value=""></option>
-            <option value="ACCIDENTE_TRAFICO">Accidente de trafico</option>
-            <option value="ACCIDENTE_LABORAL">Accidente laboral</option>
-          </select>
-        </div>
-        <div class="inhumation-field">
-          <label>Fecha del accidente (dia, mes, ano)</label>
-          <div class="inhumation-subfields inhumation-subfields-3">
-            <input type="number" name="accident_day" min="1" max="31" placeholder="Dia">
-            <input type="number" name="accident_month" min="1" max="12" placeholder="Mes">
-            <input type="number" name="accident_year" min="1800" max="2200" placeholder="Ano">
-          </div>
-        </div>
-      </div>
-      <div class="inhumation-cert-grid inhumation-cols-2">
-        <div class="inhumation-field">
-          <label>Existen riesgos infecciosos?</label>
-          <div class="inhumation-choice-group">
-            <label><input type="radio" name="infectious_risk" value="SI"> Si</label>
-            <label><input type="radio" name="infectious_risk" value="NO"> No</label>
-          </div>
-        </div>
-        <div class="inhumation-field">
-          <label>Enfermedad infecciosa y grupo</label>
-          <div class="inhumation-identity-inline">
-            <input type="text" name="infectious_disease" placeholder="Enfermedad">
-            <select name="infectious_group">
-              <option value=""></option>
-              <option value="I">Grupo I</option>
-              <option value="II">Grupo II</option>
-              <option value="III">Grupo III</option>
-            </select>
-          </div>
-        </div>
-      </div>
-      <div class="inhumation-cert-grid inhumation-cols-2">
-        <div class="inhumation-field">
-          <label>Posibilidad de incineracion?</label>
-          <div class="inhumation-choice-group">
-            <label><input type="radio" name="incineration_possible" value="SI"> Si</label>
-            <label><input type="radio" name="incineration_possible" value="NO"> No</label>
-          </div>
-        </div>
-        <div class="inhumation-field">
-          <label>Incineracion condicionada por</label>
-          <div class="inhumation-check-grid">
-            <label><input type="checkbox" name="incineration_conditions" value="MARCAPASOS"> Retirada de marcapasos</label>
-            <label><input type="checkbox" name="incineration_conditions" value="ISOTOPOS"> Tratamiento con isotopos radiactivos</label>
-            <label><input type="checkbox" name="incineration_conditions" value="PROTESIS"> Existencia de protesis</label>
-          </div>
+          <input type="text" name="holder_second_last_name">
         </div>
       </div>
     </section>
@@ -282,28 +333,17 @@
   (function () {
     const form = document.getElementById("inhumation-certificate-form");
     if (!form) return;
-    const fileInput = document.getElementById("inhumation-document-upload");
-    const actionBtn = document.getElementById("inhumation-ai-extract-btn");
-    const actionBtnLabel = actionBtn ? actionBtn.querySelector(".inhumation-ai-btn-label") : null;
-    const reviewBanner = document.getElementById("inhumation-ai-review-banner");
-    const errorBanner = document.getElementById("inhumation-ai-error-banner");
-    const warningBanner = document.getElementById("inhumation-ai-warning-banner");
     const continueBtn = document.getElementById("inhumation-continue-btn");
+    const certificateToggle = form.querySelector(".inhumation-cert-toggle");
     const endpointUrl = "{{ url_for('cemetery.inhumation_assistant_extract_document') }}";
     const allowedExtensions = new Set(["pdf", "jpg", "jpeg", "png"]);
     const confidenceThreshold = Number("{{ config.get('INHUMATION_AI_MIN_CONFIDENCE', '0.80') }}") || 0.8;
     const loadingLabel = "Procesando...";
     const idleLabel = "Extraer con IA";
-    let isLoading = false;
 
     function hasValue(value) {
       if (value === null || value === undefined) return false;
       return String(value).trim() !== "";
-    }
-
-    function selectedFile() {
-      if (!fileInput || !fileInput.files || !fileInput.files.length) return null;
-      return fileInput.files[0];
     }
 
     function fileExtension(filename) {
@@ -318,38 +358,11 @@
       return allowedExtensions.has(ext);
     }
 
-    function setLoading(nextLoading) {
-      isLoading = !!nextLoading;
-      if (!actionBtn) return;
-      actionBtn.disabled = isLoading || !fileLooksValid(selectedFile());
-      actionBtn.classList.toggle("is-loading", isLoading);
-      actionBtn.setAttribute("aria-busy", isLoading ? "true" : "false");
-      if (actionBtnLabel) {
-        actionBtnLabel.textContent = isLoading ? loadingLabel : idleLabel;
+    function escapeName(name) {
+      if (window.CSS && typeof window.CSS.escape === "function") {
+        return window.CSS.escape(name);
       }
-    }
-
-    function resetMessages() {
-      if (errorBanner) {
-        errorBanner.hidden = true;
-        errorBanner.textContent = "";
-      }
-      if (warningBanner) {
-        warningBanner.hidden = true;
-        warningBanner.textContent = "";
-      }
-    }
-
-    function showError(message) {
-      if (!errorBanner) return;
-      errorBanner.textContent = message;
-      errorBanner.hidden = false;
-    }
-
-    function showWarnings(messages) {
-      if (!warningBanner || !messages || !messages.length) return;
-      warningBanner.textContent = messages.join(" ");
-      warningBanner.hidden = false;
+      return String(name).replace(/"/g, '\\"');
     }
 
     function markAutofilled(element, confidence) {
@@ -419,21 +432,14 @@
       return 1;
     }
 
-    function escapeName(name) {
-      if (window.CSS && typeof window.CSS.escape === "function") {
-        return window.CSS.escape(name);
-      }
-      return String(name).replace(/"/g, '\\"');
-    }
-
-    function applyNormalizedData(normalizedData, confidenceMap) {
+    function applyDataMap(normalizedData, confidenceMap, minConfidence) {
       if (!normalizedData || typeof normalizedData !== "object") return 0;
       let applied = 0;
       Object.entries(normalizedData).forEach(function (entry) {
         const name = entry[0];
         const value = entry[1];
         const rawScore = confidenceMap && hasValue(confidenceMap[name]) ? Number(confidenceMap[name]) : null;
-        if (rawScore !== null && !Number.isNaN(rawScore) && rawScore < confidenceThreshold) return;
+        if (rawScore !== null && !Number.isNaN(rawScore) && rawScore < minConfidence) return;
         const fields = Array.from(form.querySelectorAll('[name="' + escapeName(name) + '"]'));
         if (!fields.length) return;
         applied += applySingleValue(fields, value, rawScore);
@@ -441,115 +447,256 @@
       return applied;
     }
 
-    async function runExtraction() {
-      const file = selectedFile();
-      if (!fileLooksValid(file)) {
-        showError("Selecciona un fichero PDF, JPG, JPEG o PNG valido.");
-        return;
+    function splitSpanishName(fullName) {
+      const parts = String(fullName || "")
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+      if (!parts.length) {
+        return { first: "", last: "", second: "" };
       }
-      resetMessages();
-      setLoading(true);
-
-      const body = new FormData();
-      body.append("document", file);
-      let response;
-      try {
-        response = await fetch(endpointUrl, {
-          method: "POST",
-          body: body,
-          headers: {
-            "X-Requested-With": "fetch"
-          }
-        });
-      } catch (_error) {
-        setLoading(false);
-        showError("No se pudo conectar con el servicio de extraccion. Intentalo de nuevo.");
-        return;
+      if (parts.length === 1) {
+        return { first: parts[0], last: "", second: "" };
       }
-
-      const responseContentType = (response.headers.get("content-type") || "").toLowerCase();
-      if (!responseContentType.includes("application/json")) {
-        let rawText = "";
-        try {
-          rawText = await response.text();
-        } catch (_error) {
-          rawText = "";
-        }
-        setLoading(false);
-        const shortText = String(rawText || "")
-          .replace(/\s+/g, " ")
-          .trim()
-          .slice(0, 140);
-        const fallbackMessage = response.status >= 500
-          ? "El servicio tardo demasiado o fallo en el servidor."
-          : "El servicio devolvio una respuesta inesperada.";
-        showError(
-          "Error de extraccion (" +
-            response.status +
-            "). " +
-            (shortText || fallbackMessage)
-        );
-        return;
+      if (parts.length === 2) {
+        return { first: parts[0], last: parts[1], second: "" };
       }
-
-      let payload;
-      try {
-        payload = await response.json();
-      } catch (_error) {
-        setLoading(false);
-        showError(
-          "Error de extraccion (" +
-            response.status +
-            "). Respuesta JSON invalida del servidor."
-        );
-        return;
+      if (parts.length === 3) {
+        return { first: parts[0], last: parts[1], second: parts[2] };
       }
-
-      setLoading(false);
-      const warnings = Array.isArray(payload && payload.warnings) ? payload.warnings : [];
-      if (!response.ok || !payload || payload.success !== true) {
-        showError(
-          warnings.length
-            ? warnings.join(" ")
-            : "No se pudo extraer informacion fiable del documento."
-        );
-        if (reviewBanner) {
-          reviewBanner.hidden = true;
-        }
-        return;
-      }
-
-      const applied = applyNormalizedData(payload.normalized_data || {}, payload.confidence || {});
-      if (applied > 0 && reviewBanner) {
-        reviewBanner.hidden = false;
-      }
-      if (applied === 0) {
-        showError("No se han encontrado campos autocompletables con confianza suficiente.");
-      }
-      if (warnings.length) {
-        showWarnings(warnings);
-      }
+      return {
+        first: parts.slice(0, parts.length - 2).join(" "),
+        last: parts[parts.length - 2],
+        second: parts[parts.length - 1],
+      };
     }
 
-    if (fileInput) {
-      fileInput.addEventListener("change", function () {
-        if (reviewBanner) {
-          reviewBanner.hidden = true;
+    function mapCertificatePayload(payload) {
+      return {
+        normalizedData: payload && payload.normalized_data ? payload.normalized_data : {},
+        confidenceMap: payload && payload.confidence ? payload.confidence : {},
+      };
+    }
+
+    function mapHolderPayload(payload) {
+      const normalized = payload && payload.normalized_data ? payload.normalized_data : {};
+      const fieldsExtracted = payload && payload.fields_extracted ? payload.fields_extracted : {};
+      const sourceConfidence = payload && payload.confidence ? payload.confidence : {};
+      const normalizedData = {};
+      const confidenceMap = {};
+
+      function setValue(targetName, value, score) {
+        if (!hasValue(value)) return;
+        if (hasValue(normalizedData[targetName])) return;
+        normalizedData[targetName] = String(value).trim();
+        if (hasValue(score) && !Number.isNaN(Number(score))) {
+          confidenceMap[targetName] = Number(score);
         }
+      }
+
+      setValue("holder_first_name", normalized.first_name, sourceConfidence.first_name);
+      setValue("holder_last_name", normalized.last_name, sourceConfidence.last_name);
+      setValue("holder_second_last_name", normalized.second_last_name, sourceConfidence.second_last_name);
+
+      setValue("holder_first_name", fieldsExtracted.nombre_difunto, sourceConfidence.nombre_difunto);
+      setValue("holder_last_name", fieldsExtracted.apellido1, sourceConfidence.apellido1);
+      setValue("holder_second_last_name", fieldsExtracted.apellido2, sourceConfidence.apellido2);
+
+      if (
+        (!hasValue(normalizedData.holder_first_name) || !hasValue(normalizedData.holder_last_name)) &&
+        hasValue(fieldsExtracted.nombre_completo_difunto)
+      ) {
+        const split = splitSpanishName(fieldsExtracted.nombre_completo_difunto);
+        setValue("holder_first_name", split.first, sourceConfidence.nombre_completo_difunto || 0.82);
+        setValue("holder_last_name", split.last, sourceConfidence.nombre_completo_difunto || 0.82);
+        setValue("holder_second_last_name", split.second, sourceConfidence.nombre_completo_difunto || 0.82);
+      }
+
+      return { normalizedData: normalizedData, confidenceMap: confidenceMap };
+    }
+
+    function createExtractionController(options) {
+      const fileInput = document.getElementById(options.fileInputId);
+      const actionBtn = document.getElementById(options.buttonId);
+      if (!fileInput || !actionBtn) return;
+
+      const actionBtnLabel = actionBtn.querySelector(".inhumation-ai-btn-label");
+      const reviewBanner = options.reviewBannerId ? document.getElementById(options.reviewBannerId) : null;
+      const errorBanner = options.errorBannerId ? document.getElementById(options.errorBannerId) : null;
+      const warningBanner = options.warningBannerId ? document.getElementById(options.warningBannerId) : null;
+      const mapPayload = typeof options.mapPayload === "function" ? options.mapPayload : mapCertificatePayload;
+      const minConfidence = Number(options.minConfidence) || confidenceThreshold;
+      let isLoading = false;
+
+      function selectedFile() {
+        if (!fileInput.files || !fileInput.files.length) return null;
+        return fileInput.files[0];
+      }
+
+      function setLoading(nextLoading) {
+        isLoading = !!nextLoading;
+        actionBtn.disabled = isLoading || !fileLooksValid(selectedFile());
+        actionBtn.classList.toggle("is-loading", isLoading);
+        actionBtn.setAttribute("aria-busy", isLoading ? "true" : "false");
+        if (actionBtnLabel) {
+          actionBtnLabel.textContent = isLoading ? loadingLabel : idleLabel;
+        }
+      }
+
+      function resetMessages() {
+        if (errorBanner) {
+          errorBanner.hidden = true;
+          errorBanner.textContent = "";
+        }
+        if (warningBanner) {
+          warningBanner.hidden = true;
+          warningBanner.textContent = "";
+        }
+      }
+
+      function showError(message) {
+        if (!errorBanner) return;
+        errorBanner.textContent = message;
+        errorBanner.hidden = false;
+      }
+
+      function showWarnings(messages) {
+        if (!warningBanner || !messages || !messages.length) return;
+        warningBanner.textContent = messages.join(" ");
+        warningBanner.hidden = false;
+      }
+
+      async function runExtraction() {
+        const file = selectedFile();
+        if (!fileLooksValid(file)) {
+          showError("Selecciona un fichero PDF, JPG, JPEG o PNG valido.");
+          return;
+        }
+        resetMessages();
+        setLoading(true);
+
+        const body = new FormData();
+        body.append("document", file);
+        let response;
+        try {
+          response = await fetch(endpointUrl, {
+            method: "POST",
+            body: body,
+            headers: { "X-Requested-With": "fetch" }
+          });
+        } catch (_error) {
+          setLoading(false);
+          showError("No se pudo conectar con el servicio de extraccion. Intentalo de nuevo.");
+          return;
+        }
+
+        const responseContentType = (response.headers.get("content-type") || "").toLowerCase();
+        if (!responseContentType.includes("application/json")) {
+          let rawText = "";
+          try {
+            rawText = await response.text();
+          } catch (_error) {
+            rawText = "";
+          }
+          setLoading(false);
+          const shortText = String(rawText || "")
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 140);
+          const fallbackMessage = response.status >= 500
+            ? "El servicio tardo demasiado o fallo en el servidor."
+            : "El servicio devolvio una respuesta inesperada.";
+          showError(
+            "Error de extraccion (" + response.status + "). " + (shortText || fallbackMessage)
+          );
+          return;
+        }
+
+        let payload;
+        try {
+          payload = await response.json();
+        } catch (_error) {
+          setLoading(false);
+          showError(
+            "Error de extraccion (" + response.status + "). Respuesta JSON invalida del servidor."
+          );
+          return;
+        }
+
+        setLoading(false);
+        const warnings = Array.isArray(payload && payload.warnings) ? payload.warnings : [];
+        if (!response.ok || !payload || payload.success !== true) {
+          showError(
+            warnings.length ? warnings.join(" ") : "No se pudo extraer informacion fiable del documento."
+          );
+          if (reviewBanner) reviewBanner.hidden = true;
+          return;
+        }
+
+        const mapped = mapPayload(payload);
+        const applied = applyDataMap(
+          mapped.normalizedData || {},
+          mapped.confidenceMap || {},
+          minConfidence
+        );
+
+        if (applied > 0 && reviewBanner) {
+          reviewBanner.hidden = false;
+        }
+        if (applied === 0) {
+          showError(
+            options.emptyMessage || "No se han encontrado campos autocompletables con confianza suficiente."
+          );
+        }
+        if (warnings.length) {
+          showWarnings(warnings);
+        }
+        if (typeof options.onApplied === "function") {
+          options.onApplied(applied, payload);
+        }
+      }
+
+      fileInput.addEventListener("change", function () {
+        if (reviewBanner) reviewBanner.hidden = true;
         resetMessages();
         setLoading(false);
       });
-    }
 
-    if (actionBtn) {
       actionBtn.addEventListener("click", function () {
         if (!isLoading) {
           runExtraction();
         }
       });
+
+      setLoading(false);
     }
 
-    setLoading(false);
+    createExtractionController({
+      fileInputId: "inhumation-document-upload",
+      buttonId: "inhumation-ai-extract-btn",
+      reviewBannerId: "inhumation-ai-review-banner",
+      errorBannerId: "inhumation-ai-error-banner",
+      warningBannerId: "inhumation-ai-warning-banner",
+      mapPayload: mapCertificatePayload,
+      minConfidence: confidenceThreshold,
+      onApplied: function (applied) {
+        if (applied > 0 && certificateToggle) {
+          certificateToggle.open = true;
+        }
+      }
+    });
+
+    createExtractionController({
+      fileInputId: "holder-document-upload",
+      buttonId: "holder-ai-extract-btn",
+      reviewBannerId: "holder-ai-review-banner",
+      errorBannerId: "holder-ai-error-banner",
+      warningBannerId: "holder-ai-warning-banner",
+      mapPayload: mapHolderPayload,
+      minConfidence: confidenceThreshold,
+      emptyMessage: "No se han detectado datos del titular con confianza suficiente."
+    });
+
     if (continueBtn) {
       continueBtn.disabled = true;
       continueBtn.setAttribute("aria-disabled", "true");

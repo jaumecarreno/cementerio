@@ -1965,6 +1965,49 @@ tr:last-child td {
   gap: 8px;
 }
 
+.inhumation-cert-toggle {
+  padding: 0;
+  overflow: hidden;
+}
+
+.inhumation-cert-toggle-summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 8px 10px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.inhumation-cert-toggle-summary::-webkit-details-marker {
+  display: none;
+}
+
+.inhumation-cert-toggle-summary::after {
+  content: "\25BE";
+  font-size: 11px;
+  color: var(--text-soft);
+  transition: transform 0.18s ease;
+}
+
+.inhumation-cert-toggle[open] .inhumation-cert-toggle-summary::after {
+  transform: rotate(180deg);
+}
+
+.inhumation-cert-toggle-body {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+}
+
 .inhumation-cert-card {
   display: grid;
   gap: 8px;
@@ -1990,6 +2033,10 @@ tr:last-child td {
 
 .inhumation-cols-4 {
   grid-template-columns: repeat(4, minmax(140px, 1fr));
+}
+
+.inhumation-cols-5 {
+  grid-template-columns: repeat(5, minmax(130px, 1fr));
 }
 
 .inhumation-cols-3 {
@@ -2194,6 +2241,7 @@ tr:last-child td {
     grid-template-columns: repeat(3, minmax(120px, 1fr));
   }
 
+  .inhumation-cols-5,
   .inhumation-cols-4 {
     grid-template-columns: repeat(2, minmax(180px, 1fr));
   }
@@ -2221,6 +2269,7 @@ tr:last-child td {
   }
 
   .inhumation-cols-4,
+  .inhumation-cols-5,
   .inhumation-cols-3,
   .inhumation-cols-2,
   .inhumation-cause-row {

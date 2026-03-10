@@ -371,23 +371,28 @@ def test_inhumation_assistant_page_renders_certificate_layout(app, client, login
 
     html = response.get_data(as_text=True)
     assert "Asistente para crear una inhum" in html
-    assert "Certific" in html
+    assert "Certificado medico de defuncion" in html
     assert "Datos del difunto y documento" in html
+    assert "Datos del titular" in html
     assert "certificado" in html.lower()
     assert "hora:minutos" in html.lower()
     assert "incineraci" in html.lower()
     assert "Continuar" in html
     assert 'id="inhumation-continue-btn"' in html
+    assert 'class="box inhumation-cert-toggle"' in html
+    assert 'class="box inhumation-cert-toggle" open' not in html
 
-    cert_pos = html.find("Certific")
+    cert_pos = html.find("Certificado medico de defuncion")
     doctor_pos = html.find('name="doctor_name"')
+    cert_number_pos = html.find('name="certificate_number"')
     difunto_pos = html.find("Datos del difunto y documento")
     defuncion_pos = html.find("Datos de defunci")
     assert cert_pos != -1
     assert doctor_pos != -1
+    assert cert_number_pos != -1
     assert difunto_pos != -1
     assert defuncion_pos != -1
-    assert cert_pos < doctor_pos < difunto_pos < defuncion_pos
+    assert cert_pos < cert_number_pos < doctor_pos < difunto_pos < defuncion_pos
 
     assert html.count('name="doctor_name"') == 1
     assert html.count('name="doctor_registered_in"') == 1
@@ -396,6 +401,11 @@ def test_inhumation_assistant_page_renders_certificate_layout(app, client, login
 
     assert 'id="inhumation-document-upload"' in html
     assert 'id="inhumation-ai-extract-btn"' in html
+    assert 'id="holder-document-upload"' in html
+    assert 'id="holder-ai-extract-btn"' in html
+    assert 'name="holder_first_name"' in html
+    assert 'name="holder_last_name"' in html
+    assert 'name="holder_second_last_name"' in html
     assert "Extraer con IA" in html
     assert "Datos extraidos automaticamente. Revise la informacion antes de guardar." in html
     assert 'id="inhumation-ai-extract-btn"' in html and "type=\"button\"" in html
