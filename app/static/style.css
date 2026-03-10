@@ -1956,98 +1956,171 @@ tr:last-child td {
   padding: 4px 10px;
 }
 
-.inhumation-assistant-card {
-  display: grid;
-  gap: 16px;
+.inhumation-cert-page {
+  max-width: 1460px;
 }
 
-.inhumation-card-head {
+.inhumation-certificate {
+  display: grid;
+  gap: 8px;
+}
+
+.inhumation-cert-card {
+  display: grid;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.inhumation-cert-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.inhumation-cert-grid {
   display: grid;
   gap: 6px;
 }
 
-.inhumation-card-head h3 {
-  margin: 0;
+.inhumation-cols-4 {
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
 }
 
-.inhumation-card-head p {
-  margin: 0;
+.inhumation-cols-3 {
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
 }
 
-.inhumation-form {
-  display: grid;
-  gap: 14px;
+.inhumation-cols-2 {
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
 }
 
-.inhumation-fieldset {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px;
-  display: grid;
-  gap: 12px;
-  background: var(--surface-2);
-}
-
-.inhumation-fieldset legend {
-  padding: 0 6px;
+.inhumation-field label {
+  margin-bottom: 3px;
+  font-size: 11px;
   font-weight: 700;
-  color: var(--text-soft);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
-.inhumation-inline-grid {
+.inhumation-certificate input,
+.inhumation-certificate select,
+.inhumation-certificate textarea {
+  min-height: 31px;
+  padding: 4px 7px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.inhumation-subfields {
   display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 4px;
 }
 
-.inhumation-inline-fields {
+.inhumation-subfields-2 {
+  grid-template-columns: repeat(2, minmax(70px, 1fr));
+}
+
+.inhumation-subfields-3 {
+  grid-template-columns: repeat(3, minmax(70px, 1fr));
+}
+
+.inhumation-subfields-4 {
+  grid-template-columns: repeat(4, minmax(62px, 1fr));
+}
+
+.inhumation-identity-inline {
   display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(4, minmax(70px, 1fr));
+  gap: 4px;
+  grid-template-columns: minmax(96px, 0.6fr) minmax(120px, 1fr);
 }
 
-.inhumation-inline-fields select,
-.inhumation-inline-fields input {
-  width: 100%;
-}
-
-.inhumation-cause-block {
-  border: 1px dashed var(--border);
-  border-radius: 10px;
-  padding: 10px;
+.inhumation-cause-table {
   display: grid;
-  gap: 10px;
+  gap: 6px;
 }
 
-.inhumation-cause-block h4 {
+.inhumation-cause-row {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  padding: 6px;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: minmax(160px, 190px) 1fr minmax(250px, 320px);
+  align-items: end;
+}
+
+.inhumation-cause-name {
   margin: 0;
-  font-size: 14px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
   color: var(--text-soft);
 }
 
-.inhumation-radio-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(2, minmax(180px, 1fr));
-}
-
-.inhumation-radio-group {
-  display: flex;
-  gap: 12px;
+.inhumation-choice-group {
+  min-height: 31px;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px;
   flex-wrap: wrap;
-  margin-top: 6px;
 }
 
-.inhumation-checkbox-grid {
+.inhumation-choice-group label,
+.inhumation-check-grid label {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.inhumation-choice-group input[type="radio"],
+.inhumation-check-grid input[type="checkbox"] {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+}
+
+.inhumation-check-grid {
   display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(3, minmax(180px, 1fr));
-  margin-top: 6px;
+  gap: 4px;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.inhumation-actions {
+  margin-top: 2px;
 }
 
 @media (max-width: 1200px) {
   .dashboard-kpi-grid {
     grid-template-columns: repeat(3, minmax(120px, 1fr));
+  }
+
+  .inhumation-cols-4 {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+
+  .inhumation-cause-row {
+    grid-template-columns: minmax(140px, 180px) 1fr;
   }
 }
 
@@ -2068,17 +2141,15 @@ tr:last-child td {
     grid-template-columns: repeat(2, minmax(120px, 1fr));
   }
 
-  .inhumation-inline-grid,
-  .inhumation-radio-grid {
+  .inhumation-cols-4,
+  .inhumation-cols-3,
+  .inhumation-cols-2,
+  .inhumation-cause-row {
     grid-template-columns: 1fr;
   }
 
-  .inhumation-inline-fields {
-    grid-template-columns: repeat(2, minmax(80px, 1fr));
-  }
-
-  .inhumation-checkbox-grid {
-    grid-template-columns: 1fr;
+  .inhumation-subfields-4 {
+    grid-template-columns: repeat(2, minmax(68px, 1fr));
   }
 }
 

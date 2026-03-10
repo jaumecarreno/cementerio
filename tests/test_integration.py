@@ -364,15 +364,32 @@ def test_inhumation_assistant_requires_login(client):
     assert "/auth/login" in response.headers.get("Location", "")
 
 
-def test_inhumation_assistant_page_renders_difunto_card(app, client, login_admin):
+def test_inhumation_assistant_page_renders_certificate_layout(app, client, login_admin):
     login_admin()
     response = client.get("/cementerio/inhumaciones/asistente")
     assert response.status_code == 200
 
     html = response.get_data(as_text=True)
     assert "Asistente para crear una inhumación" in html
-    assert "Difunto" in html
+    assert "Certificación médica" in html
+    assert "Datos del difunto y documento" in html
     assert "Número de certificado" in html
     assert "Hora de la defunción (hora:minutos)" in html
     assert "Incineración condicionada por" in html
     assert "Continuar (próximamente)" in html
+    assert 'type="button" disabled' in html
+
+    cert_pos = html.find("Certificación médica")
+    doctor_pos = html.find('name="doctor_name"')
+    difunto_pos = html.find("Datos del difunto y documento")
+    defuncion_pos = html.find("Datos de defunción")
+    assert cert_pos != -1
+    assert doctor_pos != -1
+    assert difunto_pos != -1
+    assert defuncion_pos != -1
+    assert cert_pos < doctor_pos < difunto_pos < defuncion_pos
+
+    assert html.count('name="doctor_name"') == 1
+    assert html.count('name="doctor_registered_in"') == 1
+    assert html.count('name="doctor_registration_number"') == 1
+    assert html.count('name="doctor_professional_practice"') == 1
