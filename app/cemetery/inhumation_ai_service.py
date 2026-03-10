@@ -999,14 +999,22 @@ def _extract_bank_name(text: str) -> str:
         text,
         [
             r"entidad(?:\s+bancaria)?",
-            r"banco",
-            r"bank",
+            r"nombre\s+del?\s+banco",
+            r"bank\s+name",
+            r"banco(?:\s+de\s+la\s+cuenta)?",
         ],
         max_chars=110,
     )
     if direct:
-        cleaned = _clean_value(re.split(r"\b(?:iban|dni|nif|nie)\b", direct, maxsplit=1, flags=re.IGNORECASE)[0])
-        if cleaned and len(cleaned.split()) >= 1:
+        cleaned = _clean_value(
+            re.split(
+                r"\b(?:iban|dni|nif|nie|swift|bic)\b",
+                direct,
+                maxsplit=1,
+                flags=re.IGNORECASE,
+            )[0]
+        )
+        if cleaned and len(cleaned.split()) >= 1 and not _looks_like_swift_bic(cleaned):
             return cleaned
 
     bank_hints = (
@@ -1030,12 +1038,32 @@ def _extract_bank_name(text: str) -> str:
         token = _normalize_token(candidate)
         if "nombre del banco" in token or "entidad bancaria" in token:
             continue
+        if _looks_like_swift_bic(candidate):
+            continue
+        if "swift" in token or "bic" in token:
+            continue
+        if "ing direct" in token:
+            return "ING Direct"
         if not any(hint in token for hint in bank_hints):
             continue
         if sum(ch.isdigit() for ch in candidate) > 4:
             continue
         return candidate
     return ""
+
+
+def _looks_like_swift_bic(value: str) -> bool:
+    token = _normalize_token(value)
+    if not token:
+        return False
+    if "swift" in token or "bic" in token:
+        return True
+    compact = re.sub(r"[^A-Za-z0-9]", "", value or "").upper()
+    if not compact:
+        return False
+    if re.fullmatch(r"[A-Z]{6}[A-Z0-9]{2}(?:[A-Z0-9]{3})?", compact):
+        return True
+    return False
 
 
 def _is_dni_stop_label(line: str) -> bool:

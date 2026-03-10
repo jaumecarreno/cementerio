@@ -241,6 +241,23 @@ Entidad bancaria: Banco Santander, S.A.
     assert normalized_confidence["billing_iban"] >= 0.9
 
 
+def test_parse_billing_ignores_bic_and_keeps_bank_name():
+    sample_text = """
+CERTIFICADO DE TITULARIDAD DE CUENTA
+Titular de la cuenta: JAUME CARRENO ZORRILLA
+DNI/NIF del titular: 45646530V
+IBAN: ES79 1465 9999 9999 9999 9999
+BIC/SWIFT: INGDESMMXXX
+Entidad bancaria: ING Direct
+"""
+    extracted, raw_confidence = _parse_fields(sample_text)
+    normalized, _normalized_confidence = _normalize_for_form(extracted, raw_confidence)
+
+    assert extracted["banco_nombre"] == "ING Direct"
+    assert normalized["billing_bank_name"] == "ING Direct"
+    assert extracted["iban_cuenta"] == "ES7914659999999999999999"
+
+
 def test_subtract_static_template_removes_fixed_lines_and_keeps_values():
     blank_template_text = """
 NOMBRE DEL FALLECIDO/A
