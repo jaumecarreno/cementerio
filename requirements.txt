@@ -8,3 +8,5 @@ psycopg[binary]==3.2.3
 python-dotenv==1.0.1
 gunicorn==23.0.0
 pytest==8.3.4
+openai==1.108.1
+pypdf==5.4.0

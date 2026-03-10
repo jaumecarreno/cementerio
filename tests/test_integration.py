@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from io import BytesIO
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
@@ -349,14 +350,13 @@ def test_dashboard_shows_inhumacion_button_before_resumen(app, client, login_adm
     html = response.get_data(as_text=True)
 
     assert "/cementerio/inhumaciones/asistente" in html
-    assert "Inhumación" in html
+    assert "Inhum" in html
 
-    inhumacion_pos = html.find("Inhumación")
+    inhumacion_pos = html.find("Inhum")
     resumen_pos = html.find("Resumen")
     assert inhumacion_pos != -1
     assert resumen_pos != -1
     assert inhumacion_pos < resumen_pos
-
 
 def test_inhumation_assistant_requires_login(client):
     response = client.get("/cementerio/inhumaciones/asistente", follow_redirects=False)
@@ -370,19 +370,19 @@ def test_inhumation_assistant_page_renders_certificate_layout(app, client, login
     assert response.status_code == 200
 
     html = response.get_data(as_text=True)
-    assert "Asistente para crear una inhumación" in html
-    assert "Certificación médica" in html
+    assert "Asistente para crear una inhum" in html
+    assert "Certific" in html
     assert "Datos del difunto y documento" in html
-    assert "Número de certificado" in html
-    assert "Hora de la defunción (hora:minutos)" in html
-    assert "Incineración condicionada por" in html
-    assert "Continuar (próximamente)" in html
-    assert 'type="button" disabled' in html
+    assert "certificado" in html.lower()
+    assert "hora:minutos" in html.lower()
+    assert "incineraci" in html.lower()
+    assert "Continuar" in html
+    assert 'id="inhumation-continue-btn"' in html
 
-    cert_pos = html.find("Certificación médica")
+    cert_pos = html.find("Certific")
     doctor_pos = html.find('name="doctor_name"')
     difunto_pos = html.find("Datos del difunto y documento")
-    defuncion_pos = html.find("Datos de defunción")
+    defuncion_pos = html.find("Datos de defunci")
     assert cert_pos != -1
     assert doctor_pos != -1
     assert difunto_pos != -1
@@ -393,3 +393,91 @@ def test_inhumation_assistant_page_renders_certificate_layout(app, client, login
     assert html.count('name="doctor_registered_in"') == 1
     assert html.count('name="doctor_registration_number"') == 1
     assert html.count('name="doctor_professional_practice"') == 1
+
+    assert 'id="inhumation-document-upload"' in html
+    assert 'id="inhumation-ai-extract-btn"' in html
+    assert "Extraer con IA" in html
+    assert "Datos extraidos automaticamente. Revise la informacion antes de guardar." in html
+    assert 'id="inhumation-ai-extract-btn"' in html and "type=\"button\"" in html
+
+
+def test_inhumation_assistant_extract_document_requires_login(client):
+    response = client.post(
+        "/cementerio/inhumaciones/asistente/extraer-documento",
+        data={},
+        content_type="multipart/form-data",
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    assert "/auth/login" in response.headers.get("Location", "")
+
+
+def test_inhumation_assistant_extract_document_returns_400_without_file(
+    app, client, login_admin
+):
+    login_admin()
+    response = client.post(
+        "/cementerio/inhumaciones/asistente/extraer-documento",
+        data={},
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload is not None
+    assert payload["success"] is False
+    assert isinstance(payload["warnings"], list)
+    assert payload["normalized_data"] == {}
+
+
+def test_inhumation_assistant_extract_document_returns_400_for_bad_extension(
+    app, client, login_admin
+):
+    login_admin()
+    response = client.post(
+        "/cementerio/inhumaciones/asistente/extraer-documento",
+        data={"document": (BytesIO(b"dummy"), "certificado.txt")},
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload is not None
+    assert payload["success"] is False
+    assert payload["normalized_data"] == {}
+    assert "formato" in " ".join(payload["warnings"]).lower()
+
+
+def test_inhumation_assistant_extract_document_returns_200_with_mocked_service(
+    app, client, login_admin, monkeypatch
+):
+    login_admin()
+    import app.cemetery.routes as cemetery_routes
+
+    def fake_extract(_file_obj):
+        return {
+            "success": True,
+            "raw_text": "texto extraido",
+            "fields_extracted": {"nombre_difunto": "Juan"},
+            "normalized_data": {"first_name": "Juan"},
+            "confidence": {"first_name": 0.93},
+            "needs_review": True,
+            "warnings": [],
+        }
+
+    monkeypatch.setattr(cemetery_routes, "extract_inhumation_document", fake_extract)
+
+    response = client.post(
+        "/cementerio/inhumaciones/asistente/extraer-documento",
+        data={"document": (BytesIO(b"%PDF-1.4"), "certificado.pdf")},
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload is not None
+    assert payload["success"] is True
+    assert payload["raw_text"] == "texto extraido"
+    assert payload["fields_extracted"]["nombre_difunto"] == "Juan"
+    assert payload["normalized_data"]["first_name"] == "Juan"
+    assert "confidence" in payload
+    assert "needs_review" in payload
+    assert "warnings" in payload
+

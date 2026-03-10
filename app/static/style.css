@@ -2110,6 +2110,76 @@ tr:last-child td {
   margin-top: 2px;
 }
 
+.inhumation-ai-upload-row {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: minmax(300px, 1fr) auto;
+  align-items: end;
+}
+
+.inhumation-ai-btn-wrap {
+  display: flex;
+  align-items: end;
+}
+
+.inhumation-ai-btn {
+  min-height: 31px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inhumation-ai-icon {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.inhumation-ai-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.inhumation-ai-btn.is-loading {
+  pointer-events: none;
+  opacity: 0.82;
+}
+
+.inhumation-ai-btn.is-loading .inhumation-ai-icon {
+  display: none;
+}
+
+.inhumation-ai-btn.is-loading::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 2px solid var(--border);
+  border-top-color: var(--btn-primary-bg);
+  animation: spin 0.8s linear infinite;
+}
+
+.inhumation-ai-feedback {
+  margin: 0;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.inhumation-ai-autofilled {
+  border-color: #7fa8f4 !important;
+  background: #edf4ff !important;
+}
+
+.inhumation-ai-field-autofilled label {
+  color: #2d63c8;
+}
+
 @media (max-width: 1200px) {
   .dashboard-kpi-grid {
     grid-template-columns: repeat(3, minmax(120px, 1fr));
@@ -2150,6 +2220,19 @@ tr:last-child td {
 
   .inhumation-subfields-4 {
     grid-template-columns: repeat(2, minmax(68px, 1fr));
+  }
+
+  .inhumation-ai-upload-row {
+    grid-template-columns: 1fr;
+  }
+
+  .inhumation-ai-btn-wrap {
+    width: 100%;
+  }
+
+  .inhumation-ai-btn {
+    width: 100%;
+    justify-content: center;
   }
 }
 

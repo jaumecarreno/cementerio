@@ -1,17 +1,46 @@
 {% extends "base.html" %}
 {% set active_global = 'dashboard' %}
 {% set hide_context_toolbar = true %}
-{% block title %}Asistente de Inhumación{% endblock %}
+{% block title %}Asistente de Inhumacion{% endblock %}
 {% block content %}
-<h1 class="page-title">Asistente para crear una inhumación</h1>
+{% from "partials/icons.html" import action_icon %}
+<h1 class="page-title">Asistente para crear una inhumacion</h1>
 
 <div class="inhumation-cert-page">
-  <form class="inhumation-certificate" onsubmit="return false;">
+  <form class="inhumation-certificate" id="inhumation-certificate-form" onsubmit="return false;">
     <section class="box inhumation-cert-card">
-      <h3 class="inhumation-cert-title">Certificación médica</h3>
+      <h3 class="inhumation-cert-title">Certificacion medica</h3>
+      <div class="inhumation-ai-upload-row">
+        <div class="inhumation-field">
+          <label for="inhumation-document-upload">Certificado o documento (PDF/JPG/JPEG/PNG)</label>
+          <input
+            id="inhumation-document-upload"
+            name="inhumation_document_upload"
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+          >
+        </div>
+        <div class="inhumation-ai-btn-wrap">
+          <button
+            class="btn secondary inhumation-ai-btn"
+            id="inhumation-ai-extract-btn"
+            type="button"
+            aria-live="polite"
+          >
+            <span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span>
+            <span class="inhumation-ai-btn-label">Extraer con IA</span>
+          </button>
+        </div>
+      </div>
+      <div id="inhumation-ai-review-banner" class="warning inhumation-ai-feedback" hidden>
+        Datos extraidos automaticamente. Revise la informacion antes de guardar.
+      </div>
+      <div id="inhumation-ai-error-banner" class="flash error inhumation-ai-feedback" hidden role="alert"></div>
+      <div id="inhumation-ai-warning-banner" class="warning inhumation-ai-feedback" hidden></div>
+
       <div class="inhumation-cert-grid inhumation-cols-4">
         <div class="inhumation-field">
-          <label>Nombre del médico</label>
+          <label>Nombre del medico</label>
           <input type="text" name="doctor_name">
         </div>
         <div class="inhumation-field">
@@ -19,7 +48,7 @@
           <input type="text" name="doctor_registered_in">
         </div>
         <div class="inhumation-field">
-          <label>Número de colegiado</label>
+          <label>Numero de colegiado</label>
           <input type="text" name="doctor_registration_number">
         </div>
         <div class="inhumation-field">
@@ -33,7 +62,7 @@
       <h3 class="inhumation-cert-title">Datos del difunto y documento</h3>
       <div class="inhumation-cert-grid inhumation-cols-4">
         <div class="inhumation-field">
-          <label>Número de certificado</label>
+          <label>Numero de certificado</label>
           <input type="text" name="certificate_number">
         </div>
         <div class="inhumation-field">
@@ -51,11 +80,11 @@
       </div>
       <div class="inhumation-cert-grid inhumation-cols-3">
         <div class="inhumation-field">
-          <label>Fecha de nacimiento (día, mes, año)</label>
+          <label>Fecha de nacimiento (dia, mes, ano)</label>
           <div class="inhumation-subfields inhumation-subfields-3">
-            <input type="number" name="birth_day" min="1" max="31" placeholder="Día">
+            <input type="number" name="birth_day" min="1" max="31" placeholder="Dia">
             <input type="number" name="birth_month" min="1" max="12" placeholder="Mes">
-            <input type="number" name="birth_year" min="1800" max="2200" placeholder="Año">
+            <input type="number" name="birth_year" min="1800" max="2200" placeholder="Ano">
           </div>
         </div>
         <div class="inhumation-field">
@@ -76,32 +105,32 @@
               <option value="NIE">NIE</option>
               <option value="PASAPORTE">Pasaporte</option>
             </select>
-            <input type="text" name="document_number" placeholder="Número">
+            <input type="text" name="document_number" placeholder="Numero">
           </div>
         </div>
       </div>
     </section>
 
     <section class="box inhumation-cert-card">
-      <h3 class="inhumation-cert-title">Datos de defunción</h3>
+      <h3 class="inhumation-cert-title">Datos de defuncion</h3>
       <div class="inhumation-cert-grid inhumation-cols-3">
         <div class="inhumation-field">
-          <label>Hora de la defunción (hora:minutos)</label>
+          <label>Hora de la defuncion (hora:minutos)</label>
           <div class="inhumation-subfields inhumation-subfields-2">
             <input type="number" name="death_hour" min="0" max="23" placeholder="Hora">
             <input type="number" name="death_minute" min="0" max="59" placeholder="Min">
           </div>
         </div>
         <div class="inhumation-field">
-          <label>Fecha de la defunción (día, mes, año)</label>
+          <label>Fecha de la defuncion (dia, mes, ano)</label>
           <div class="inhumation-subfields inhumation-subfields-3">
-            <input type="number" name="death_day" min="1" max="31" placeholder="Día">
+            <input type="number" name="death_day" min="1" max="31" placeholder="Dia">
             <input type="number" name="death_month" min="1" max="12" placeholder="Mes">
-            <input type="number" name="death_year" min="1800" max="2200" placeholder="Año">
+            <input type="number" name="death_year" min="1800" max="2200" placeholder="Ano">
           </div>
         </div>
         <div class="inhumation-field">
-          <label>Lugar en el que ocurrió la defunción</label>
+          <label>Lugar en el que ocurrio la defuncion</label>
           <select name="death_place">
             <option value=""></option>
             <option value="DOMICILIO_PARTICULAR">Domicilio particular</option>
@@ -115,7 +144,7 @@
     </section>
 
     <section class="box inhumation-cert-card">
-      <h3 class="inhumation-cert-title">Causas de la defunción</h3>
+      <h3 class="inhumation-cert-title">Causas de la defuncion</h3>
       <div class="inhumation-cause-table">
         <div class="inhumation-cause-row">
           <p class="inhumation-cause-name">Causa inmediata</p>
@@ -169,19 +198,19 @@
     </section>
 
     <section class="box inhumation-cert-card">
-      <h3 class="inhumation-cert-title">Información complementaria</h3>
+      <h3 class="inhumation-cert-title">Informacion complementaria</h3>
       <div class="inhumation-cert-grid inhumation-cols-2">
         <div class="inhumation-field">
-          <label>¿Ha habido indicios de muerte violenta?</label>
+          <label>Ha habido indicios de muerte violenta?</label>
           <div class="inhumation-choice-group">
-            <label><input type="radio" name="violent_death_signs" value="SI"> Sí</label>
+            <label><input type="radio" name="violent_death_signs" value="SI"> Si</label>
             <label><input type="radio" name="violent_death_signs" value="NO"> No</label>
           </div>
         </div>
         <div class="inhumation-field">
-          <label>¿Se practicó autopsia?</label>
+          <label>Se practico autopsia?</label>
           <div class="inhumation-choice-group">
-            <label><input type="radio" name="autopsy_done" value="SI"> Sí</label>
+            <label><input type="radio" name="autopsy_done" value="SI"> Si</label>
             <label><input type="radio" name="autopsy_done" value="NO"> No</label>
           </div>
         </div>
@@ -191,24 +220,24 @@
           <label>Consecuencia directa o indirecta de</label>
           <select name="death_consequence">
             <option value=""></option>
-            <option value="ACCIDENTE_TRAFICO">Accidente de tráfico</option>
+            <option value="ACCIDENTE_TRAFICO">Accidente de trafico</option>
             <option value="ACCIDENTE_LABORAL">Accidente laboral</option>
           </select>
         </div>
         <div class="inhumation-field">
-          <label>Fecha del accidente (día, mes, año)</label>
+          <label>Fecha del accidente (dia, mes, ano)</label>
           <div class="inhumation-subfields inhumation-subfields-3">
-            <input type="number" name="accident_day" min="1" max="31" placeholder="Día">
+            <input type="number" name="accident_day" min="1" max="31" placeholder="Dia">
             <input type="number" name="accident_month" min="1" max="12" placeholder="Mes">
-            <input type="number" name="accident_year" min="1800" max="2200" placeholder="Año">
+            <input type="number" name="accident_year" min="1800" max="2200" placeholder="Ano">
           </div>
         </div>
       </div>
       <div class="inhumation-cert-grid inhumation-cols-2">
         <div class="inhumation-field">
-          <label>¿Existen riesgos infecciosos?</label>
+          <label>Existen riesgos infecciosos?</label>
           <div class="inhumation-choice-group">
-            <label><input type="radio" name="infectious_risk" value="SI"> Sí</label>
+            <label><input type="radio" name="infectious_risk" value="SI"> Si</label>
             <label><input type="radio" name="infectious_risk" value="NO"> No</label>
           </div>
         </div>
@@ -227,26 +256,275 @@
       </div>
       <div class="inhumation-cert-grid inhumation-cols-2">
         <div class="inhumation-field">
-          <label>¿Posibilidad de incineración?</label>
+          <label>Posibilidad de incineracion?</label>
           <div class="inhumation-choice-group">
-            <label><input type="radio" name="incineration_possible" value="SI"> Sí</label>
+            <label><input type="radio" name="incineration_possible" value="SI"> Si</label>
             <label><input type="radio" name="incineration_possible" value="NO"> No</label>
           </div>
         </div>
         <div class="inhumation-field">
-          <label>Incineración condicionada por</label>
+          <label>Incineracion condicionada por</label>
           <div class="inhumation-check-grid">
             <label><input type="checkbox" name="incineration_conditions" value="MARCAPASOS"> Retirada de marcapasos</label>
-            <label><input type="checkbox" name="incineration_conditions" value="ISOTOPOS"> Tratamiento con isótopos radiactivos</label>
-            <label><input type="checkbox" name="incineration_conditions" value="PROTESIS"> Existencia de prótesis</label>
+            <label><input type="checkbox" name="incineration_conditions" value="ISOTOPOS"> Tratamiento con isotopos radiactivos</label>
+            <label><input type="checkbox" name="incineration_conditions" value="PROTESIS"> Existencia de protesis</label>
           </div>
         </div>
       </div>
     </section>
 
     <div class="actions-row inhumation-actions">
-      <button class="btn primary" type="button" disabled>Continuar (próximamente)</button>
+      <button class="btn primary" id="inhumation-continue-btn" type="button">Continuar (proximamente)</button>
     </div>
   </form>
 </div>
+<script>
+  (function () {
+    const form = document.getElementById("inhumation-certificate-form");
+    if (!form) return;
+    const fileInput = document.getElementById("inhumation-document-upload");
+    const actionBtn = document.getElementById("inhumation-ai-extract-btn");
+    const actionBtnLabel = actionBtn ? actionBtn.querySelector(".inhumation-ai-btn-label") : null;
+    const reviewBanner = document.getElementById("inhumation-ai-review-banner");
+    const errorBanner = document.getElementById("inhumation-ai-error-banner");
+    const warningBanner = document.getElementById("inhumation-ai-warning-banner");
+    const continueBtn = document.getElementById("inhumation-continue-btn");
+    const endpointUrl = "{{ url_for('cemetery.inhumation_assistant_extract_document') }}";
+    const allowedExtensions = new Set(["pdf", "jpg", "jpeg", "png"]);
+    const confidenceThreshold = 0.65;
+    const loadingLabel = "Procesando...";
+    const idleLabel = "Extraer con IA";
+    let isLoading = false;
+
+    function hasValue(value) {
+      if (value === null || value === undefined) return false;
+      return String(value).trim() !== "";
+    }
+
+    function selectedFile() {
+      if (!fileInput || !fileInput.files || !fileInput.files.length) return null;
+      return fileInput.files[0];
+    }
+
+    function fileExtension(filename) {
+      const dot = filename.lastIndexOf(".");
+      if (dot === -1) return "";
+      return filename.slice(dot + 1).toLowerCase();
+    }
+
+    function fileLooksValid(file) {
+      if (!file) return false;
+      const ext = fileExtension(file.name || "");
+      return allowedExtensions.has(ext);
+    }
+
+    function setLoading(nextLoading) {
+      isLoading = !!nextLoading;
+      if (!actionBtn) return;
+      actionBtn.disabled = isLoading || !fileLooksValid(selectedFile());
+      actionBtn.classList.toggle("is-loading", isLoading);
+      actionBtn.setAttribute("aria-busy", isLoading ? "true" : "false");
+      if (actionBtnLabel) {
+        actionBtnLabel.textContent = isLoading ? loadingLabel : idleLabel;
+      }
+    }
+
+    function resetMessages() {
+      if (errorBanner) {
+        errorBanner.hidden = true;
+        errorBanner.textContent = "";
+      }
+      if (warningBanner) {
+        warningBanner.hidden = true;
+        warningBanner.textContent = "";
+      }
+    }
+
+    function showError(message) {
+      if (!errorBanner) return;
+      errorBanner.textContent = message;
+      errorBanner.hidden = false;
+    }
+
+    function showWarnings(messages) {
+      if (!warningBanner || !messages || !messages.length) return;
+      warningBanner.textContent = messages.join(" ");
+      warningBanner.hidden = false;
+    }
+
+    function markAutofilled(element, confidence) {
+      element.classList.add("inhumation-ai-autofilled");
+      element.setAttribute("data-ai-autofilled", "1");
+      if (hasValue(confidence)) {
+        element.setAttribute("data-ai-confidence", String(confidence));
+      }
+      const field = element.closest(".inhumation-field");
+      if (field) {
+        field.classList.add("inhumation-ai-field-autofilled");
+      }
+    }
+
+    function currentTextValue(el) {
+      if (!el) return "";
+      return String(el.value || "").trim();
+    }
+
+    function applySingleValue(elements, value, confidenceValue) {
+      if (!elements || !elements.length || !hasValue(value)) return 0;
+      const first = elements[0];
+      if (first.type === "radio") {
+        const alreadyChecked = elements.some(function (item) {
+          return item.checked;
+        });
+        if (alreadyChecked) return 0;
+        const target = elements.find(function (item) {
+          return String(item.value || "").toUpperCase() === String(value).toUpperCase();
+        });
+        if (!target) return 0;
+        target.checked = true;
+        target.dispatchEvent(new Event("change", { bubbles: true }));
+        markAutofilled(target, confidenceValue);
+        return 1;
+      }
+      if (first.type === "checkbox") {
+        const wanted = Array.isArray(value) ? value : [value];
+        const wantedSet = new Set(
+          wanted
+            .map(function (item) {
+              return String(item || "").trim().toUpperCase();
+            })
+            .filter(function (item) {
+              return item !== "";
+            })
+        );
+        if (!wantedSet.size) return 0;
+        let touched = 0;
+        elements.forEach(function (item) {
+          const itemValue = String(item.value || "").trim().toUpperCase();
+          if (wantedSet.has(itemValue) && !item.checked) {
+            item.checked = true;
+            item.dispatchEvent(new Event("change", { bubbles: true }));
+            markAutofilled(item, confidenceValue);
+            touched += 1;
+          }
+        });
+        return touched;
+      }
+      const target = first;
+      if (hasValue(currentTextValue(target))) return 0;
+      target.value = String(value);
+      target.dispatchEvent(new Event("input", { bubbles: true }));
+      target.dispatchEvent(new Event("change", { bubbles: true }));
+      markAutofilled(target, confidenceValue);
+      return 1;
+    }
+
+    function escapeName(name) {
+      if (window.CSS && typeof window.CSS.escape === "function") {
+        return window.CSS.escape(name);
+      }
+      return String(name).replace(/"/g, '\\"');
+    }
+
+    function applyNormalizedData(normalizedData, confidenceMap) {
+      if (!normalizedData || typeof normalizedData !== "object") return 0;
+      let applied = 0;
+      Object.entries(normalizedData).forEach(function (entry) {
+        const name = entry[0];
+        const value = entry[1];
+        const rawScore = confidenceMap && hasValue(confidenceMap[name]) ? Number(confidenceMap[name]) : null;
+        if (rawScore !== null && !Number.isNaN(rawScore) && rawScore < confidenceThreshold) return;
+        const fields = Array.from(form.querySelectorAll('[name="' + escapeName(name) + '"]'));
+        if (!fields.length) return;
+        applied += applySingleValue(fields, value, rawScore);
+      });
+      return applied;
+    }
+
+    async function runExtraction() {
+      const file = selectedFile();
+      if (!fileLooksValid(file)) {
+        showError("Selecciona un fichero PDF, JPG, JPEG o PNG valido.");
+        return;
+      }
+      resetMessages();
+      setLoading(true);
+
+      const body = new FormData();
+      body.append("document", file);
+      let response;
+      let payload;
+      try {
+        response = await fetch(endpointUrl, {
+          method: "POST",
+          body: body,
+          headers: {
+            "X-Requested-With": "fetch"
+          }
+        });
+      } catch (_error) {
+        setLoading(false);
+        showError("No se pudo conectar con el servicio de extraccion. Intentalo de nuevo.");
+        return;
+      }
+
+      try {
+        payload = await response.json();
+      } catch (_error) {
+        setLoading(false);
+        showError("Respuesta invalida del servicio de extraccion.");
+        return;
+      }
+
+      setLoading(false);
+      const warnings = Array.isArray(payload && payload.warnings) ? payload.warnings : [];
+      if (!response.ok || !payload || payload.success !== true) {
+        showError(
+          warnings.length
+            ? warnings.join(" ")
+            : "No se pudo extraer informacion fiable del documento."
+        );
+        if (reviewBanner) {
+          reviewBanner.hidden = true;
+        }
+        return;
+      }
+
+      const applied = applyNormalizedData(payload.normalized_data || {}, payload.confidence || {});
+      if (applied > 0 && reviewBanner) {
+        reviewBanner.hidden = false;
+      }
+      if (applied === 0) {
+        showError("No se han encontrado campos autocompletables con confianza suficiente.");
+      }
+      if (warnings.length) {
+        showWarnings(warnings);
+      }
+    }
+
+    if (fileInput) {
+      fileInput.addEventListener("change", function () {
+        if (reviewBanner) {
+          reviewBanner.hidden = true;
+        }
+        resetMessages();
+        setLoading(false);
+      });
+    }
+
+    if (actionBtn) {
+      actionBtn.addEventListener("click", function () {
+        if (!isLoading) {
+          runExtraction();
+        }
+      });
+    }
+
+    setLoading(false);
+    if (continueBtn) {
+      continueBtn.disabled = true;
+      continueBtn.setAttribute("aria-disabled", "true");
+    }
+  })();
+</script>
 {% endblock %}

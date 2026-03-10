@@ -7,6 +7,7 @@ from flask import (
     current_app,
     flash,
     g,
+    jsonify,
     make_response,
     redirect,
     render_template,
@@ -17,6 +18,11 @@ from flask_login import current_user, login_required
 from sqlalchemy import or_
 
 from app.cemetery import cemetery_bp
+from app.cemetery.inhumation_ai_service import (
+    InhumationAIInputError,
+    InhumationAIUnprocessableError,
+    extract_inhumation_document,
+)
 from app.cemetery.work_order_service import (
     OT_EVENT_TYPES,
     add_work_order_checklist_item,
@@ -235,6 +241,66 @@ def panel():
 @require_membership
 def inhumation_assistant():
     return render_template("cemetery/inhumation_assistant.html")
+
+
+@cemetery_bp.post("/inhumaciones/asistente/extraer-documento")
+@login_required
+@require_membership
+def inhumation_assistant_extract_document():
+    file_obj = request.files.get("document")
+    try:
+        payload = extract_inhumation_document(file_obj)
+        return jsonify(payload), 200
+    except InhumationAIInputError as exc:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "raw_text": "",
+                    "fields_extracted": {},
+                    "normalized_data": {},
+                    "confidence": {},
+                    "needs_review": True,
+                    "warnings": [str(exc)],
+                }
+            ),
+            400,
+        )
+    except InhumationAIUnprocessableError as exc:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "raw_text": exc.raw_text,
+                    "fields_extracted": exc.fields_extracted,
+                    "normalized_data": exc.normalized_data,
+                    "confidence": exc.confidence,
+                    "needs_review": True,
+                    "warnings": exc.warnings or [str(exc)],
+                }
+            ),
+            422,
+        )
+    except Exception:
+        current_app.logger.exception(
+            "Error procesando OCR/IA para asistente de inhumacion"
+        )
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "raw_text": "",
+                    "fields_extracted": {},
+                    "normalized_data": {},
+                    "confidence": {},
+                    "needs_review": True,
+                    "warnings": [
+                        "No se ha podido procesar el documento ahora mismo. Intentalo de nuevo."
+                    ],
+                }
+            ),
+            500,
+        )
 
 
 @cemetery_bp.get("/personas")
