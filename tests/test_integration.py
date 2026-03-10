@@ -411,6 +411,17 @@ def test_inhumation_assistant_page_renders_certificate_layout(app, client, login
     assert 'name="holder_birth_day"' in html
     assert 'name="holder_birth_month"' in html
     assert 'name="holder_birth_year"' in html
+    assert 'name="holder_phone_1"' in html
+    assert 'name="holder_phone_2"' in html
+    assert 'name="holder_email_1"' in html
+    assert 'name="holder_email_2"' in html
+    assert 'name="holder_address"' in html
+    assert 'name="holder_postal_code"' in html
+    assert 'name="holder_city"' in html
+    assert 'name="holder_country"' in html
+    assert 'name="holder_observations"' in html
+    assert 'value="Terrassa"' in html
+    assert ("value=\"España\"" in html) or ("value=\"Espana\"" in html)
     assert "Extraer con IA" in html
     assert "Datos extraidos automaticamente. Revise la informacion antes de guardar." in html
     assert 'id="inhumation-ai-extract-btn"' in html and "type=\"button\"" in html
