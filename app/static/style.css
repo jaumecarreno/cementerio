@@ -2172,12 +2172,21 @@ tr:last-child td {
 }
 
 .inhumation-ai-autofilled {
-  border-color: #7fa8f4 !important;
-  background: #edf4ff !important;
+  border-color: var(--btn-primary-bg) !important;
+  background: var(--input-bg) !important;
+  color: var(--text) !important;
+  -webkit-text-fill-color: var(--text) !important;
+  caret-color: var(--text) !important;
+  box-shadow: inset 0 0 0 1px rgba(58, 113, 219, 0.35);
+}
+
+.inhumation-ai-autofilled::placeholder {
+  color: var(--text-soft);
+  opacity: 0.9;
 }
 
 .inhumation-ai-field-autofilled label {
-  color: #2d63c8;
+  color: var(--btn-primary-bg);
 }
 
 @media (max-width: 1200px) {

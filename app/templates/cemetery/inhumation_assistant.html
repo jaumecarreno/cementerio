@@ -291,7 +291,7 @@
     const continueBtn = document.getElementById("inhumation-continue-btn");
     const endpointUrl = "{{ url_for('cemetery.inhumation_assistant_extract_document') }}";
     const allowedExtensions = new Set(["pdf", "jpg", "jpeg", "png"]);
-    const confidenceThreshold = 0.65;
+    const confidenceThreshold = Number("{{ config.get('INHUMATION_AI_MIN_CONFIDENCE', '0.80') }}") || 0.8;
     const loadingLabel = "Procesando...";
     const idleLabel = "Extraer con IA";
     let isLoading = false;
@@ -453,7 +453,6 @@
       const body = new FormData();
       body.append("document", file);
       let response;
-      let payload;
       try {
         response = await fetch(endpointUrl, {
           method: "POST",
@@ -468,11 +467,41 @@
         return;
       }
 
+      const responseContentType = (response.headers.get("content-type") || "").toLowerCase();
+      if (!responseContentType.includes("application/json")) {
+        let rawText = "";
+        try {
+          rawText = await response.text();
+        } catch (_error) {
+          rawText = "";
+        }
+        setLoading(false);
+        const shortText = String(rawText || "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 140);
+        const fallbackMessage = response.status >= 500
+          ? "El servicio tardo demasiado o fallo en el servidor."
+          : "El servicio devolvio una respuesta inesperada.";
+        showError(
+          "Error de extraccion (" +
+            response.status +
+            "). " +
+            (shortText || fallbackMessage)
+        );
+        return;
+      }
+
+      let payload;
       try {
         payload = await response.json();
       } catch (_error) {
         setLoading(false);
-        showError("Respuesta invalida del servicio de extraccion.");
+        showError(
+          "Error de extraccion (" +
+            response.status +
+            "). Respuesta JSON invalida del servidor."
+        );
         return;
       }
 

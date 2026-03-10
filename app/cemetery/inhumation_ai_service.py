@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import base64
+import difflib
 import re
 import unicodedata
 import uuid
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 from flask import current_app
@@ -13,7 +15,27 @@ from werkzeug.utils import secure_filename
 
 ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png"}
 _MIN_LOCAL_TEXT_CHARS = 120
-_AUTOFILL_CONFIDENCE_MIN = 0.65
+_DEFAULT_MIN_CONFIDENCE = 0.80
+
+_TEMPLATE_CACHE: dict[str, dict[str, Any]] = {}
+_TEMPLATE_CACHE_LOCK = Lock()
+
+_LABEL_KEYWORDS = {
+    "nombre del fallecido",
+    "primer apellido",
+    "segundo apellido",
+    "fecha de nacimiento",
+    "hora y fecha de la defuncion",
+    "lugar en el que ocurrio la defuncion",
+    "documento de identidad",
+    "causa inmediata",
+    "causas antecedentes",
+    "causa inicial o fundamental",
+    "colegiado en",
+    "ejercicio profesional",
+    "certifico la defuncion",
+    "intervalo",
+}
 
 
 class InhumationAIInputError(ValueError):
@@ -85,10 +107,57 @@ def extract_inhumation_document(file_obj: FileStorage) -> dict[str, Any]:
                 warnings=warnings,
             )
 
-        fields_extracted, field_confidence = _parse_fields(raw_text)
-        normalized_data, normalized_confidence = _normalize_for_form(
-            fields_extracted, field_confidence
+        static_lines, template_warnings = _load_blank_template_static_lines()
+        warnings.extend(template_warnings)
+        dynamic_text = _subtract_static_template(raw_text, static_lines)
+
+        fields_extracted, field_confidence, parse_warnings = _parse_fields_with_meta(
+            dynamic_text or raw_text,
+            static_lines=static_lines,
+            strict=True,
         )
+        warnings.extend(parse_warnings)
+
+        (
+            normalized_data,
+            normalized_confidence,
+            normalize_warnings,
+        ) = _normalize_for_form_with_meta(
+            fields_extracted,
+            field_confidence,
+            static_lines=static_lines,
+            min_confidence=_min_confidence(),
+            strict=True,
+        )
+        warnings.extend(normalize_warnings)
+
+        if not normalized_data and dynamic_text.strip() and dynamic_text != raw_text:
+            warnings.append(
+                "No se han encontrado datos fiables tras comparar con la plantilla base; se revisa el OCR completo."
+            )
+            (
+                fields_extracted,
+                field_confidence,
+                parse_warnings,
+            ) = _parse_fields_with_meta(
+                raw_text,
+                static_lines=static_lines,
+                strict=True,
+            )
+            warnings.extend(parse_warnings)
+            (
+                normalized_data,
+                normalized_confidence,
+                normalize_warnings,
+            ) = _normalize_for_form_with_meta(
+                fields_extracted,
+                field_confidence,
+                static_lines=static_lines,
+                min_confidence=_min_confidence(),
+                strict=True,
+            )
+            warnings.extend(normalize_warnings)
+
         if not normalized_data:
             warnings.append(
                 "No se han detectado datos fiables para autocompletar el formulario."
@@ -99,7 +168,7 @@ def extract_inhumation_document(file_obj: FileStorage) -> dict[str, Any]:
                 fields_extracted=fields_extracted,
                 normalized_data={},
                 confidence={},
-                warnings=warnings,
+                warnings=_dedupe_warnings(warnings),
             )
 
         if len(normalized_data) < 3:
@@ -107,9 +176,10 @@ def extract_inhumation_document(file_obj: FileStorage) -> dict[str, Any]:
                 "Se han identificado pocos campos. Revise manualmente el documento."
             )
 
+        warnings = _dedupe_warnings(warnings)
         needs_review = bool(
             warnings
-            or any(score < 0.85 for score in normalized_confidence.values())
+            or any(score < 0.9 for score in normalized_confidence.values())
             or len(normalized_data) < 6
         )
 
@@ -133,6 +203,17 @@ def _max_upload_mb() -> int:
     except Exception:
         value = 15
     return max(value, 1)
+
+
+def _min_confidence() -> float:
+    configured = current_app.config.get(
+        "INHUMATION_AI_MIN_CONFIDENCE", _DEFAULT_MIN_CONFIDENCE
+    )
+    try:
+        value = float(str(configured).strip())
+    except Exception:
+        value = _DEFAULT_MIN_CONFIDENCE
+    return min(max(value, 0.5), 0.99)
 
 
 def _validated_upload_name(file_obj: FileStorage | None) -> tuple[str, str]:
@@ -201,6 +282,8 @@ def _extract_text_with_openai(path: Path, extension: str) -> tuple[str, list[str
     model = (
         current_app.config.get("INHUMATION_AI_MODEL") or "gpt-4.1-mini"
     ).strip() or "gpt-4.1-mini"
+    timeout_seconds = _openai_timeout_seconds()
+    max_output_tokens = _openai_max_output_tokens()
     mime_map = {
         ".pdf": "application/pdf",
         ".jpg": "image/jpeg",
@@ -245,11 +328,12 @@ def _extract_text_with_openai(path: Path, extension: str) -> tuple[str, list[str
             model=model,
             input=[{"role": "user", "content": user_content}],
             temperature=0,
-            max_output_tokens=6000,
+            max_output_tokens=max_output_tokens,
+            timeout=timeout_seconds,
         )
     except Exception:
         warnings.append(
-            "OCR por IA no disponible temporalmente. Se usa solo extraccion local."
+            "OCR por IA no disponible temporalmente (timeout/red/proveedor). Se usa solo extraccion local."
         )
         return "", warnings
 
@@ -291,6 +375,127 @@ def _cleanup_temp(root: Path) -> None:
         current_app.logger.warning(
             "No se pudo limpiar temporal de OCR en %s", root.as_posix()
         )
+
+
+def _load_blank_template_static_lines() -> tuple[set[str], list[str]]:
+    warnings: list[str] = []
+    raw_path = (current_app.config.get("INHUMATION_AI_BLANK_TEMPLATE_PATH") or "").strip()
+    if not raw_path:
+        return set(), warnings
+
+    path = Path(raw_path)
+    if not path.is_absolute():
+        warnings.append(
+            "La plantilla base debe ser una ruta absoluta (INHUMATION_AI_BLANK_TEMPLATE_PATH)."
+        )
+        return set(), warnings
+    if not path.exists() or not path.is_file():
+        warnings.append(
+            "No se ha encontrado la plantilla base configurada para comparar campos fijos."
+        )
+        return set(), warnings
+
+    try:
+        mtime = path.stat().st_mtime
+    except Exception:
+        warnings.append("No se ha podido leer metadata de la plantilla base.")
+        return set(), warnings
+
+    cache_key = path.as_posix()
+    with _TEMPLATE_CACHE_LOCK:
+        cached = _TEMPLATE_CACHE.get(cache_key)
+        if cached and float(cached.get("mtime", 0.0)) == float(mtime):
+            return set(cached.get("static_lines", set())), warnings
+
+    template_text = _extract_pdf_text_local(path)
+    if not template_text.strip():
+        warnings.append(
+            "La plantilla base esta configurada, pero no se ha podido extraer su texto."
+        )
+        return set(), warnings
+
+    static_lines = _text_to_static_lines(template_text)
+    with _TEMPLATE_CACHE_LOCK:
+        _TEMPLATE_CACHE[cache_key] = {
+            "mtime": float(mtime),
+            "static_lines": set(static_lines),
+        }
+    return static_lines, warnings
+
+
+def _text_to_static_lines(text: str) -> set[str]:
+    lines: set[str] = set()
+    for raw_line in (text or "").splitlines():
+        normalized = _normalize_for_search(raw_line).strip("-/:;,. ")
+        if len(normalized) < 4:
+            continue
+        lines.add(normalized)
+    return lines
+
+
+def _subtract_static_template(text: str, static_lines: set[str]) -> str:
+    if not text.strip() or not static_lines:
+        return text
+
+    kept: list[str] = []
+    for raw_line in text.splitlines():
+        normalized = _normalize_for_search(raw_line).strip("-/:;,. ")
+        if not normalized:
+            continue
+        if _line_has_explicit_value(raw_line):
+            kept.append(raw_line)
+            continue
+        if _is_static_line(normalized, static_lines):
+            continue
+        kept.append(raw_line)
+    return "\n".join(kept).strip()
+
+
+def _line_has_explicit_value(raw_line: str) -> bool:
+    if ":" not in raw_line:
+        return False
+    left, right = raw_line.split(":", 1)
+    left_norm = _normalize_token(left)
+    right_norm = _normalize_token(right)
+    if not left_norm or not right_norm:
+        return False
+    if _looks_like_only_label(right_norm):
+        return False
+    return len(right_norm) >= 2
+
+
+def _is_static_line(normalized_line: str, static_lines: set[str]) -> bool:
+    if normalized_line in static_lines:
+        return True
+
+    if len(normalized_line) < 6:
+        return False
+
+    for static_line in static_lines:
+        if abs(len(static_line) - len(normalized_line)) > 20:
+            continue
+        ratio = difflib.SequenceMatcher(None, normalized_line, static_line).ratio()
+        if ratio >= 0.94:
+            return True
+    return False
+
+
+def _openai_timeout_seconds() -> float:
+    configured = current_app.config.get("INHUMATION_AI_OPENAI_TIMEOUT_SEC", 45)
+    try:
+        value = float(str(configured).strip())
+    except Exception:
+        value = 45.0
+    return max(value, 5.0)
+
+
+def _openai_max_output_tokens() -> int:
+    configured = current_app.config.get("INHUMATION_AI_OPENAI_MAX_OUTPUT_TOKENS", 2500)
+    try:
+        value = int(str(configured).strip())
+    except Exception:
+        value = 2500
+    return max(value, 200)
 
 
 def _parse_fields(text: str) -> tuple[dict[str, Any], dict[str, float]]:
@@ -625,7 +830,15 @@ def _extract_full_name(text: str) -> str:
         if not match:
             continue
         candidate = _clean_value(match.group(1))
+        candidate_norm = _normalize_token(candidate)
         if _looks_like_only_label(candidate):
+            continue
+        if _looks_like_form_sentence(candidate_norm):
+            continue
+        if any(
+            token in candidate_norm
+            for token in ("fallecido", "fallecida", "apellido", "nombre del")
+        ):
             continue
         if candidate:
             return candidate
@@ -806,3 +1019,557 @@ def _clean_value(value: str) -> str:
     cleaned = re.sub(r"\s+", " ", (value or "").strip())
     cleaned = cleaned.strip(",:;.-")
     return cleaned
+
+
+def _extract_doctor_registered_in(text: str) -> str:
+    patterns = [
+        r"colegiad[oa](?:/a)?\s+en\s*[:,]?\s*(.*?)\s*(?:,?\s+y\s+con\s+ejercicio|,?\s+i\s+amb\s+exercici|,?\s*con\s+el\s+n[uú]mero|,?\s*amb\s+el\s+n[uú]mero|$)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+        if match:
+            return _clean_value(match.group(1))
+    return ""
+
+
+def _extract_doctor_professional_practice(text: str) -> str:
+    patterns = [
+        r"(?:y\s+con\s+ejercicio\s+profesional\s+en|i\s+amb\s+exercici\s+professional\s+a)\s*[:,]?\s*(.*?)\s*(?:,?\s*con\s+el\s+n[uú]mero|,?\s*amb\s+el\s+n[uú]mero|$)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+        if match:
+            return _clean_value(match.group(1))
+    return ""
+
+
+def _extract_doctor_name(text: str) -> str:
+    patterns = [
+        r"certifico\s+la\s+defuncion\s+de\s*(.*?)\s+en\s+medicina",
+        r"certificat\s+medic.*?de\s+defuncio.*?de\s*(.*?)\s+en\s+medicina",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+        if match:
+            candidate = _clean_value(match.group(1))
+            candidate = re.sub(
+                r"^(?:d\.?\s*/?\s*d(?:na|n)\.?|d\.?\s*/?\s*d[ñn]a\.?|don|do[ñn]a|sr\.?\s*/?\s*sra\.?)\s*",
+                "",
+                candidate,
+                flags=re.IGNORECASE,
+            )
+            candidate = re.sub(r"^[\W_]+", "", candidate)
+            candidate = _clean_value(candidate)
+            if candidate:
+                return candidate
+    return ""
+
+
+def _extract_doctor_number(text: str) -> str:
+    patterns = [
+        r"(?:con\s+el\s+numero|amb\s+el\s+numero)\s*[:\-]?\s*([A-Z0-9\-\/]{3,20})",
+        r"numero\s+de\s+colegiad[oa]\s*[:\-]?\s*([A-Z0-9\-\/]{3,20})",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return _clean_value(match.group(1))
+    return ""
+
+
+def _extract_cause_value(text: str, label_patterns: list[str]) -> str:
+    value = _extract_near_label(text, label_patterns, max_chars=130)
+    if not value:
+        return ""
+    cleaned = re.sub(
+        r"^[/\-\s]*(?:causa(?:s)?\s+inmediata|causas?\s+antecedentes|causa\s+inicial\s+o\s+fundamental)\s*",
+        "",
+        value,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
+        r"\b(intervalo|horas?|dias?|meses?|anos?)\b.*$",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    return _clean_value(cleaned)
+
+
+def _looks_like_only_label(value: str) -> bool:
+    token = _normalize_token(value)
+    if not token:
+        return True
+    generic = {
+        "debido a",
+        "causa",
+        "causa inmediata",
+        "causas antecedentes",
+        "causa inicial o fundamental",
+        "intervalo h d m a",
+        "hora minutos",
+        "dia mes ano",
+        "nombre del fallecido/a",
+        "primer apellido",
+        "segundo apellido",
+    }
+    if token in generic:
+        return True
+    if token.startswith("causa ") and len(token.split()) <= 4:
+        return True
+    if token.startswith("fecha de"):
+        return True
+    return False
+
+
+def _parse_fields(text: str) -> tuple[dict[str, Any], dict[str, float]]:
+    fields, confidence, _warnings = _parse_fields_with_meta(
+        text,
+        static_lines=set(),
+        strict=False,
+    )
+    return fields, confidence
+
+
+def _parse_fields_with_meta(
+    text: str,
+    *,
+    static_lines: set[str],
+    strict: bool,
+) -> tuple[dict[str, Any], dict[str, float], list[str]]:
+    clean_text = _clean_text(text)
+    normalized_text = _normalize_for_search(clean_text)
+    extracted: dict[str, Any] = {}
+    confidence: dict[str, float] = {}
+    warnings: list[str] = []
+
+    _set_candidate(
+        extracted,
+        confidence,
+        warnings,
+        "medico_nombre",
+        _extract_doctor_name(clean_text),
+        0.9,
+        static_lines=static_lines,
+        strict=strict,
+    )
+    _set_candidate(
+        extracted,
+        confidence,
+        warnings,
+        "medico_colegiado_en",
+        _extract_doctor_registered_in(clean_text),
+        0.88,
+        static_lines=static_lines,
+        strict=strict,
+    )
+    _set_candidate(
+        extracted,
+        confidence,
+        warnings,
+        "medico_numero",
+        _extract_doctor_number(clean_text),
+        0.92,
+        static_lines=static_lines,
+        strict=strict,
+    )
+    _set_candidate(
+        extracted,
+        confidence,
+        warnings,
+        "medico_ejercicio",
+        _extract_doctor_professional_practice(clean_text),
+        0.86,
+        static_lines=static_lines,
+        strict=strict,
+    )
+
+    full_name = _extract_full_name(clean_text)
+    if full_name:
+        first, last, second = _split_spanish_name(full_name)
+        _set_candidate(
+            extracted,
+            confidence,
+            warnings,
+            "nombre_difunto",
+            first,
+            0.8,
+            static_lines=static_lines,
+            strict=strict,
+        )
+        _set_candidate(
+            extracted,
+            confidence,
+            warnings,
+            "apellido1",
+            last,
+            0.78,
+            static_lines=static_lines,
+            strict=strict,
+        )
+        _set_candidate(
+            extracted,
+            confidence,
+            warnings,
+            "apellido2",
+            second,
+            0.78,
+            static_lines=static_lines,
+            strict=strict,
+        )
+
+    _set_candidate(
+        extracted,
+        confidence,
+        warnings,
+        "nombre_difunto",
+        _extract_near_label(
+            clean_text,
+            [r"nombre\s+del\s+fallecid[oa]/a", r"nom\s+del\s+difunt/a"],
+            max_chars=90,
+        ),
+        0.82,
+        static_lines=static_lines,
+        strict=strict,
+    )
+    _set_candidate(
+        extracted,
+        confidence,
+        warnings,
+        "apellido1",
+        _extract_near_label(
+            clean_text,
+            [
+                r"1(?:\s*[.ºo0]\s*)?apellido\s+del\s+fallecid[oa]/a",
+                r"1r\s+cognom",
+            ],
+            max_chars=70,
+        ),
+        0.82,
+        static_lines=static_lines,
+        strict=strict,
+    )
+    _set_candidate(
+        extracted,
+        confidence,
+        warnings,
+        "apellido2",
+        _extract_near_label(
+            clean_text,
+            [
+                r"2(?:\s*[.ºo0]\s*)?apellido\s+del\s+fallecid[oa]/a",
+                r"2n\s+cognom",
+            ],
+            max_chars=70,
+        ),
+        0.82,
+        static_lines=static_lines,
+        strict=strict,
+    )
+
+    document_type, document_number, doc_conf = _extract_document(normalized_text)
+    _set_candidate(
+        extracted,
+        confidence,
+        warnings,
+        "documento_tipo",
+        document_type,
+        doc_conf,
+        static_lines=static_lines,
+        strict=strict,
+    )
+    _set_candidate(
+        extracted,
+        confidence,
+        warnings,
+        "documento_numero",
+        document_number,
+        doc_conf,
+        static_lines=static_lines,
+        strict=strict,
+    )
+
+    birth_date = _extract_date_after_labels(
+        normalized_text,
+        ["fecha de nacimiento", "data de naixement"],
+    )
+    if birth_date:
+        extracted["fecha_nacimiento"] = birth_date
+        confidence["fecha_nacimiento"] = 0.9
+
+    death_date = _extract_date_after_labels(
+        normalized_text,
+        [
+            "fecha de la defuncion",
+            "hora y fecha de la defuncion",
+            "hora i data de la defuncio",
+        ],
+    )
+    if death_date:
+        extracted["fecha_defuncion"] = death_date
+        confidence["fecha_defuncion"] = 0.9
+
+    death_hour = _extract_time_after_labels(
+        normalized_text,
+        [
+            "hora de la defuncion",
+            "hora y fecha de la defuncion",
+            "hora i data de la defuncio",
+        ],
+    )
+    if death_hour:
+        extracted["hora_defuncion"] = death_hour
+        confidence["hora_defuncion"] = 0.88
+
+    _set_candidate(
+        extracted,
+        confidence,
+        warnings,
+        "sexo",
+        _extract_sex(normalized_text),
+        0.8,
+        static_lines=static_lines,
+        strict=strict,
+    )
+    _set_candidate(
+        extracted,
+        confidence,
+        warnings,
+        "lugar_defuncion",
+        _extract_death_place(normalized_text),
+        0.78,
+        static_lines=static_lines,
+        strict=strict,
+    )
+    _set_candidate(
+        extracted,
+        confidence,
+        warnings,
+        "consecuencia_defuncion",
+        _extract_death_consequence(normalized_text),
+        0.78,
+        static_lines=static_lines,
+        strict=strict,
+    )
+    _set_candidate(
+        extracted,
+        confidence,
+        warnings,
+        "causa_inmediata",
+        _extract_cause_value(clean_text, [r"causa\s+inmediata"]),
+        0.8,
+        static_lines=static_lines,
+        strict=strict,
+    )
+    _set_candidate(
+        extracted,
+        confidence,
+        warnings,
+        "causa_antecedente",
+        _extract_cause_value(clean_text, [r"causas?\s+antecedentes"]),
+        0.8,
+        static_lines=static_lines,
+        strict=strict,
+    )
+    _set_candidate(
+        extracted,
+        confidence,
+        warnings,
+        "causa_fundamental",
+        _extract_cause_value(clean_text, [r"causa\s+inicial\s+o\s+fundamental"]),
+        0.8,
+        static_lines=static_lines,
+        strict=strict,
+    )
+
+    return extracted, confidence, _dedupe_warnings(warnings)
+
+
+def _normalize_for_form(
+    fields_extracted: dict[str, Any], field_confidence: dict[str, float]
+) -> tuple[dict[str, Any], dict[str, float]]:
+    normalized, confidence, _warnings = _normalize_for_form_with_meta(
+        fields_extracted,
+        field_confidence,
+        static_lines=set(),
+        min_confidence=_DEFAULT_MIN_CONFIDENCE,
+        strict=False,
+    )
+    return normalized, confidence
+
+
+def _normalize_for_form_with_meta(
+    fields_extracted: dict[str, Any],
+    field_confidence: dict[str, float],
+    *,
+    static_lines: set[str],
+    min_confidence: float,
+    strict: bool,
+) -> tuple[dict[str, Any], dict[str, float], list[str]]:
+    normalized: dict[str, Any] = {}
+    confidence: dict[str, float] = {}
+    warnings: list[str] = []
+
+    def set_value(form_name: str, semantic_key: str) -> None:
+        value = fields_extracted.get(semantic_key)
+        score = float(field_confidence.get(semantic_key, 0.0) or 0.0)
+        if value in (None, "", [], {}):
+            return
+        if score < min_confidence:
+            return
+        if isinstance(value, str):
+            allowed, reason = _candidate_allowed(
+                semantic_key,
+                value,
+                static_lines=static_lines,
+                strict=strict,
+            )
+            if not allowed:
+                warnings.append(
+                    f"Valor descartado para {semantic_key}: {reason}."
+                )
+                return
+        normalized[form_name] = value
+        confidence[form_name] = round(score, 2)
+
+    mapping = [
+        ("first_name", "nombre_difunto"),
+        ("last_name", "apellido1"),
+        ("second_last_name", "apellido2"),
+        ("document_type", "documento_tipo"),
+        ("document_number", "documento_numero"),
+        ("sex", "sexo"),
+        ("death_place", "lugar_defuncion"),
+        ("death_consequence", "consecuencia_defuncion"),
+        ("doctor_name", "medico_nombre"),
+        ("doctor_registered_in", "medico_colegiado_en"),
+        ("doctor_registration_number", "medico_numero"),
+        ("doctor_professional_practice", "medico_ejercicio"),
+        ("immediate_cause_reason", "causa_inmediata"),
+        ("antecedent_cause_reason", "causa_antecedente"),
+        ("root_cause_reason", "causa_fundamental"),
+    ]
+    for form_name, semantic_key in mapping:
+        set_value(form_name, semantic_key)
+
+    birth = fields_extracted.get("fecha_nacimiento")
+    if isinstance(birth, dict):
+        score = float(field_confidence.get("fecha_nacimiento", 0.0) or 0.0)
+        if score >= min_confidence:
+            for key in ("day", "month", "year"):
+                val = birth.get(key)
+                if val not in (None, ""):
+                    normalized[f"birth_{key}"] = val
+                    confidence[f"birth_{key}"] = round(score, 2)
+
+    death = fields_extracted.get("fecha_defuncion")
+    if isinstance(death, dict):
+        score = float(field_confidence.get("fecha_defuncion", 0.0) or 0.0)
+        if score >= min_confidence:
+            for key in ("day", "month", "year"):
+                val = death.get(key)
+                if val not in (None, ""):
+                    normalized[f"death_{key}"] = val
+                    confidence[f"death_{key}"] = round(score, 2)
+
+    death_time = fields_extracted.get("hora_defuncion")
+    if isinstance(death_time, dict):
+        score = float(field_confidence.get("hora_defuncion", 0.0) or 0.0)
+        if score >= min_confidence:
+            hour = death_time.get("hour")
+            minute = death_time.get("minute")
+            if hour not in (None, ""):
+                normalized["death_hour"] = hour
+                confidence["death_hour"] = round(score, 2)
+            if minute not in (None, ""):
+                normalized["death_minute"] = minute
+                confidence["death_minute"] = round(score, 2)
+
+    return normalized, confidence, _dedupe_warnings(warnings)
+
+
+def _set_candidate(
+    extracted: dict[str, Any],
+    confidence: dict[str, float],
+    warnings: list[str],
+    key: str,
+    value: str,
+    score: float,
+    *,
+    static_lines: set[str],
+    strict: bool,
+) -> None:
+    candidate = _clean_value(value)
+    if not candidate:
+        return
+    allowed, reason = _candidate_allowed(
+        key,
+        candidate,
+        static_lines=static_lines,
+        strict=strict,
+    )
+    if not allowed:
+        warnings.append(f"Valor descartado para {key}: {reason}.")
+        return
+    extracted[key] = candidate
+    confidence[key] = float(score)
+
+
+def _candidate_allowed(
+    key: str,
+    value: str,
+    *,
+    static_lines: set[str],
+    strict: bool,
+) -> tuple[bool, str]:
+    normalized = _normalize_token(value)
+    if not normalized:
+        return False, "valor vacio"
+    if _looks_like_only_label(normalized):
+        return False, "parece etiqueta de formulario"
+    if _looks_like_form_sentence(normalized):
+        return False, "parece titulo/cabecera del formulario"
+    if static_lines and _is_static_phrase(normalized, static_lines):
+        return False, "coincide con texto fijo de la plantilla"
+    if strict and key.startswith("causa_") and len(normalized) <= 2:
+        return False, "valor de causa demasiado corto"
+    return True, ""
+
+
+def _is_static_phrase(normalized_value: str, static_lines: set[str]) -> bool:
+    if normalized_value in static_lines:
+        return True
+    if len(normalized_value) < 6:
+        return False
+    for static_line in static_lines:
+        if abs(len(static_line) - len(normalized_value)) > 20:
+            continue
+        ratio = difflib.SequenceMatcher(None, normalized_value, static_line).ratio()
+        if ratio >= 0.93:
+            return True
+    return False
+
+
+def _looks_like_form_sentence(value: str) -> bool:
+    for keyword in _LABEL_KEYWORDS:
+        if keyword in value:
+            return True
+    words = value.split()
+    if len(words) >= 5:
+        generic_words = {"dia", "mes", "ano", "hora", "minutos", "intervalo"}
+        generic_hits = sum(1 for word in words if word in generic_words)
+        if generic_hits >= 2:
+            return True
+    return False
+
+
+def _dedupe_warnings(warnings: list[str]) -> list[str]:
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for warning in warnings:
+        item = str(warning or "").strip()
+        if not item or item in seen:
+            continue
+        seen.add(item)
+        deduped.append(item)
+    return deduped

@@ -7,8 +7,12 @@ from werkzeug.datastructures import FileStorage
 
 from app.cemetery.inhumation_ai_service import (
     InhumationAIUnprocessableError,
+    _load_blank_template_static_lines,
     _normalize_for_form,
+    _parse_fields_with_meta,
     _parse_fields,
+    _subtract_static_template,
+    _text_to_static_lines,
     extract_inhumation_document,
 )
 
@@ -54,17 +58,106 @@ La defuncion ha ocurrido como consecuencia directa o indirecta de accidente de t
     assert normalized["doctor_name"] == "MARIA LOPEZ RUIZ"
     assert normalized["doctor_registration_number"] == "12345"
 
-    assert normalized_confidence["first_name"] >= 0.65
-    assert normalized_confidence["death_year"] >= 0.65
+    assert normalized_confidence["first_name"] >= 0.8
+    assert normalized_confidence["death_year"] >= 0.8
 
 
 def test_normalize_does_not_include_low_confidence_values():
     normalized, confidence = _normalize_for_form(
         {"nombre_difunto": "JUAN", "documento_numero": "12345678Z"},
-        {"nombre_difunto": 0.5, "documento_numero": 0.64},
+        {"nombre_difunto": 0.79, "documento_numero": 0.79},
     )
     assert normalized == {}
     assert confidence == {}
+
+
+def test_parse_fields_discards_label_like_candidates_in_strict_mode():
+    sample_text = """
+Nombre del fallecido/a: Nombre del fallecido/a
+1o Apellido del fallecido/a: Primer apellido
+2o Apellido del fallecido/a: Segundo apellido
+Causa inmediata: Causa inmediata
+"""
+    extracted, _confidence, warnings = _parse_fields_with_meta(
+        sample_text,
+        static_lines=set(),
+        strict=True,
+    )
+
+    assert "nombre_difunto" not in extracted
+    assert "apellido1" not in extracted
+    assert "apellido2" not in extracted
+    assert any("parece etiqueta" in warning for warning in warnings)
+
+
+def test_parse_fields_extracts_clean_doctor_blocks():
+    sample_text = """
+CERTIFICO la defuncion de D./Dna. LAURA SANTOS GIL en Medicina y Cirugia,
+colegiado en Barcelona, con el numero 778899,
+y con ejercicio profesional en Hospital General de Barcelona
+"""
+    extracted, _confidence, _warnings = _parse_fields_with_meta(
+        sample_text,
+        static_lines=set(),
+        strict=True,
+    )
+
+    assert extracted["medico_nombre"] == "LAURA SANTOS GIL"
+    assert extracted["medico_colegiado_en"] == "Barcelona"
+    assert extracted["medico_numero"] == "778899"
+    assert extracted["medico_ejercicio"] == "Hospital General de Barcelona"
+
+
+def test_parse_fields_cleans_cause_titles():
+    sample_text = """
+Causa inmediata: /Causa inmediata Shock septico
+Causas antecedentes: Causas antecedentes Neumonia bilateral
+Causa inicial o fundamental: Causa inicial o fundamental Insuficiencia respiratoria
+"""
+    extracted, _confidence, _warnings = _parse_fields_with_meta(
+        sample_text,
+        static_lines=set(),
+        strict=True,
+    )
+
+    assert extracted["causa_inmediata"] == "Shock septico"
+    assert extracted["causa_antecedente"] == "Neumonia bilateral"
+    assert extracted["causa_fundamental"] == "Insuficiencia respiratoria"
+
+
+def test_subtract_static_template_removes_fixed_lines_and_keeps_values():
+    blank_template_text = """
+NOMBRE DEL FALLECIDO/A
+PRIMER APELLIDO DEL FALLECIDO/A
+CAUSA INMEDIATA
+"""
+    static_lines = _text_to_static_lines(blank_template_text)
+    filled_text = """
+NOMBRE DEL FALLECIDO/A
+Nombre del fallecido/a: JUAN
+PRIMER APELLIDO DEL FALLECIDO/A
+1o Apellido del fallecido/a: PEREZ
+CAUSA INMEDIATA
+Causa inmediata: Infarto agudo de miocardio
+"""
+
+    dynamic_text = _subtract_static_template(filled_text, static_lines)
+
+    assert "NOMBRE DEL FALLECIDO/A" not in dynamic_text
+    assert "PRIMER APELLIDO DEL FALLECIDO/A" not in dynamic_text
+    assert "CAUSA INMEDIATA" not in dynamic_text
+    assert "Nombre del fallecido/a: JUAN" in dynamic_text
+    assert "1o Apellido del fallecido/a: PEREZ" in dynamic_text
+    assert "Causa inmediata: Infarto agudo de miocardio" in dynamic_text
+
+
+def test_blank_template_invalid_path_returns_warning_without_crash(app):
+    with app.app_context():
+        app.config["INHUMATION_AI_BLANK_TEMPLATE_PATH"] = "C:/no/existe/plantilla.pdf"
+        static_lines, warnings = _load_blank_template_static_lines()
+
+    assert static_lines == set()
+    assert any("plantilla base" in warning.lower() for warning in warnings)
 
 
 def test_extract_document_raises_unprocessable_when_no_text_can_be_read(app):
