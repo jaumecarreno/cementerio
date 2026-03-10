@@ -230,6 +230,13 @@ def panel():
     )
 
 
+@cemetery_bp.get("/inhumaciones/asistente")
+@login_required
+@require_membership
+def inhumation_assistant():
+    return render_template("cemetery/inhumation_assistant.html")
+
+
 @cemetery_bp.get("/personas")
 @login_required
 @require_membership

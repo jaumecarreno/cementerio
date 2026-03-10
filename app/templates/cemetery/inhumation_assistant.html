@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+{% set active_global = 'dashboard' %}
+{% set hide_context_toolbar = true %}
+{% block title %}Asistente de Inhumación{% endblock %}
+{% block content %}
+<h1 class="page-title">Asistente para crear una inhumación</h1>
+
+<div class="box inhumation-assistant-card">
+  <div class="inhumation-card-head">
+    <h3>Difunto</h3>
+    <p class="muted">Primer card del asistente. En esta fase solo se muestra la captura visual de datos.</p>
+  </div>
+
+  <form class="inhumation-form" onsubmit="return false;">
+    <fieldset class="inhumation-fieldset">
+      <legend>Identificación y datos personales</legend>
+      <div class="form-grid">
+        <div>
+          <label>Número de certificado</label>
+          <input type="text" name="certificate_number">
+        </div>
+        <div>
+          <label>Nombre</label>
+          <input type="text" name="first_name">
+        </div>
+        <div>
+          <label>Primer apellido</label>
+          <input type="text" name="last_name">
+        </div>
+        <div>
+          <label>Segundo apellido</label>
+          <input type="text" name="second_last_name">
+        </div>
+      </div>
+
+      <div class="inhumation-inline-grid">
+        <div>
+          <label>Fecha de nacimiento (día, mes, año)</label>
+          <div class="inhumation-inline-fields">
+            <input type="number" name="birth_day" min="1" max="31" placeholder="Día">
+            <input type="number" name="birth_month" min="1" max="12" placeholder="Mes">
+            <input type="number" name="birth_year" min="1800" max="2200" placeholder="Año">
+          </div>
+        </div>
+        <div>
+          <label>Sexo</label>
+          <select name="sex">
+            <option value=""></option>
+            <option value="M">Masculino</option>
+            <option value="F">Femenino</option>
+            <option value="X">No especificado</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="inhumation-inline-grid">
+        <div>
+          <label>Documento de identidad</label>
+          <div class="inhumation-inline-fields">
+            <select name="document_type">
+              <option value=""></option>
+              <option value="DNI">DNI</option>
+              <option value="NIE">NIE</option>
+              <option value="PASAPORTE">Pasaporte</option>
+            </select>
+            <input type="text" name="document_number" placeholder="Número de documento">
+          </div>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset class="inhumation-fieldset">
+      <legend>Defunción</legend>
+      <div class="inhumation-inline-grid">
+        <div>
+          <label>Hora de la defunción (hora:minutos)</label>
+          <div class="inhumation-inline-fields">
+            <input type="number" name="death_hour" min="0" max="23" placeholder="Hora">
+            <input type="number" name="death_minute" min="0" max="59" placeholder="Minutos">
+          </div>
+        </div>
+        <div>
+          <label>Fecha de la defunción (día, mes, año)</label>
+          <div class="inhumation-inline-fields">
+            <input type="number" name="death_day" min="1" max="31" placeholder="Día">
+            <input type="number" name="death_month" min="1" max="12" placeholder="Mes">
+            <input type="number" name="death_year" min="1800" max="2200" placeholder="Año">
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label>Lugar en el que ocurrió la defunción</label>
+        <select name="death_place">
+          <option value=""></option>
+          <option value="DOMICILIO_PARTICULAR">Domicilio particular</option>
+          <option value="CENTRO_HOSPITALARIO">Centro hospitalario</option>
+          <option value="RESIDENCIA_SOCIOSANITARIA">Residencia sociosanitaria</option>
+          <option value="LUGAR_TRABAJO">Lugar de trabajo</option>
+          <option value="OTRO">Otro lugar</option>
+        </select>
+      </div>
+    </fieldset>
+
+    <fieldset class="inhumation-fieldset">
+      <legend>Causas de la defunción</legend>
+
+      <div class="inhumation-cause-block">
+        <h4>Causa inmediata</h4>
+        <div class="form-grid">
+          <div>
+            <label>Motivo</label>
+            <input type="text" name="immediate_cause_reason">
+          </div>
+          <div>
+            <label>Tiempo transcurrido</label>
+            <div class="inhumation-inline-fields">
+              <input type="number" name="immediate_hours" min="0" placeholder="Horas">
+              <input type="number" name="immediate_days" min="0" placeholder="Días">
+              <input type="number" name="immediate_months" min="0" placeholder="Meses">
+              <input type="number" name="immediate_years" min="0" placeholder="Años">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="inhumation-cause-block">
+        <h4>Causas antecedentes</h4>
+        <div class="form-grid">
+          <div>
+            <label>Debido a</label>
+            <input type="text" name="antecedent_cause_reason">
+          </div>
+          <div>
+            <label>Tiempo transcurrido</label>
+            <div class="inhumation-inline-fields">
+              <input type="number" name="antecedent_hours" min="0" placeholder="Horas">
+              <input type="number" name="antecedent_days" min="0" placeholder="Días">
+              <input type="number" name="antecedent_months" min="0" placeholder="Meses">
+              <input type="number" name="antecedent_years" min="0" placeholder="Años">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="inhumation-cause-block">
+        <h4>Causa inicial o fundamental</h4>
+        <div class="form-grid">
+          <div>
+            <label>Causa</label>
+            <input type="text" name="root_cause_reason">
+          </div>
+          <div>
+            <label>Tiempo transcurrido</label>
+            <div class="inhumation-inline-fields">
+              <input type="number" name="root_hours" min="0" placeholder="Horas">
+              <input type="number" name="root_days" min="0" placeholder="Días">
+              <input type="number" name="root_months" min="0" placeholder="Meses">
+              <input type="number" name="root_years" min="0" placeholder="Años">
+            </div>
+          </div>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset class="inhumation-fieldset">
+      <legend>Información complementaria</legend>
+
+      <div class="inhumation-radio-grid">
+        <div>
+          <label>¿Ha habido indicios de muerte violenta?</label>
+          <div class="inhumation-radio-group">
+            <label><input type="radio" name="violent_death_signs" value="SI"> Sí</label>
+            <label><input type="radio" name="violent_death_signs" value="NO"> No</label>
+          </div>
+        </div>
+        <div>
+          <label>¿Se practicó autopsia?</label>
+          <div class="inhumation-radio-group">
+            <label><input type="radio" name="autopsy_done" value="SI"> Sí</label>
+            <label><input type="radio" name="autopsy_done" value="NO"> No</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="inhumation-inline-grid">
+        <div>
+          <label>La defunción ha ocurrido como consecuencia directa o indirecta de</label>
+          <select name="death_consequence">
+            <option value=""></option>
+            <option value="ACCIDENTE_TRAFICO">Accidente de tráfico</option>
+            <option value="ACCIDENTE_LABORAL">Accidente laboral</option>
+          </select>
+        </div>
+        <div>
+          <label>Fecha del accidente (día, mes, año)</label>
+          <div class="inhumation-inline-fields">
+            <input type="number" name="accident_day" min="1" max="31" placeholder="Día">
+            <input type="number" name="accident_month" min="1" max="12" placeholder="Mes">
+            <input type="number" name="accident_year" min="1800" max="2200" placeholder="Año">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div>
+          <label>Nombre del médico</label>
+          <input type="text" name="doctor_name">
+        </div>
+        <div>
+          <label>Colegiado en</label>
+          <input type="text" name="doctor_registered_in">
+        </div>
+        <div>
+          <label>Número de colegiado</label>
+          <input type="text" name="doctor_registration_number">
+        </div>
+        <div>
+          <label>Ejercicio profesional en</label>
+          <input type="text" name="doctor_professional_practice">
+        </div>
+      </div>
+
+      <div class="inhumation-inline-grid">
+        <div>
+          <label>¿Existen riesgos infecciosos?</label>
+          <div class="inhumation-radio-group">
+            <label><input type="radio" name="infectious_risk" value="SI"> Sí</label>
+            <label><input type="radio" name="infectious_risk" value="NO"> No</label>
+          </div>
+        </div>
+        <div>
+          <label>¿Posibilidad de incineración?</label>
+          <div class="inhumation-radio-group">
+            <label><input type="radio" name="incineration_possible" value="SI"> Sí</label>
+            <label><input type="radio" name="incineration_possible" value="NO"> No</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div>
+          <label>Enfermedad infecciosa</label>
+          <input type="text" name="infectious_disease">
+        </div>
+        <div>
+          <label>Grupo</label>
+          <select name="infectious_group">
+            <option value=""></option>
+            <option value="I">I</option>
+            <option value="II">II</option>
+            <option value="III">III</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label>Incineración condicionada por</label>
+        <div class="inhumation-checkbox-grid">
+          <label><input type="checkbox" name="incineration_conditions" value="MARCAPASOS"> Retirada de marcapasos</label>
+          <label><input type="checkbox" name="incineration_conditions" value="ISOTOPOS"> Tratamiento con isótopos radiactivos</label>
+          <label><input type="checkbox" name="incineration_conditions" value="PROTESIS"> Existencia de prótesis</label>
+        </div>
+      </div>
+    </fieldset>
+
+    <div class="actions-row">
+      <button class="btn primary" type="button" disabled>Continuar (próximamente)</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

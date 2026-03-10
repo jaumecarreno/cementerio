@@ -340,3 +340,39 @@ def test_sidebar_menu_contains_facturacion_and_not_tasas(app, client, login_admi
 
     assert b'href="/cementerio/facturacion"' in sidebar
     assert b'href="/cementerio/tasas"' not in sidebar
+
+
+def test_dashboard_shows_inhumacion_button_before_resumen(app, client, login_admin):
+    login_admin()
+    response = client.get("/dashboard")
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+
+    assert "/cementerio/inhumaciones/asistente" in html
+    assert "Inhumación" in html
+
+    inhumacion_pos = html.find("Inhumación")
+    resumen_pos = html.find("Resumen")
+    assert inhumacion_pos != -1
+    assert resumen_pos != -1
+    assert inhumacion_pos < resumen_pos
+
+
+def test_inhumation_assistant_requires_login(client):
+    response = client.get("/cementerio/inhumaciones/asistente", follow_redirects=False)
+    assert response.status_code == 302
+    assert "/auth/login" in response.headers.get("Location", "")
+
+
+def test_inhumation_assistant_page_renders_difunto_card(app, client, login_admin):
+    login_admin()
+    response = client.get("/cementerio/inhumaciones/asistente")
+    assert response.status_code == 200
+
+    html = response.get_data(as_text=True)
+    assert "Asistente para crear una inhumación" in html
+    assert "Difunto" in html
+    assert "Número de certificado" in html
+    assert "Hora de la defunción (hora:minutos)" in html
+    assert "Incineración condicionada por" in html
+    assert "Continuar (próximamente)" in html
