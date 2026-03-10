@@ -857,6 +857,32 @@ def _extract_near_label(text: str, patterns: list[str], max_chars: int = 80) -> 
     return ""
 
 
+def _extract_identity_value(
+    text: str, label_patterns: list[str], max_chars: int = 100
+) -> str:
+    for label_pattern in label_patterns:
+        same_line = re.search(
+            rf"(?:^|\n)\s*{label_pattern}\s*[:\-]\s*([^\n]{{1,{max_chars}}})",
+            text,
+            re.IGNORECASE,
+        )
+        if same_line:
+            candidate = _clean_value(same_line.group(1))
+            if candidate:
+                return candidate
+
+        next_line = re.search(
+            rf"(?:^|\n)\s*{label_pattern}\s*(?:\n|\r\n)\s*([^\n]{{1,{max_chars}}})",
+            text,
+            re.IGNORECASE,
+        )
+        if next_line:
+            candidate = _clean_value(next_line.group(1))
+            if candidate:
+                return candidate
+    return ""
+
+
 def _split_spanish_name(full_name: str) -> tuple[str, str, str]:
     tokens = [part for part in full_name.split() if part]
     if len(tokens) < 3:
@@ -873,6 +899,29 @@ def _split_last_names(value: str) -> tuple[str, str]:
     if len(tokens) == 1:
         return tokens[0], ""
     return " ".join(tokens[:-1]), tokens[-1]
+
+
+def _extract_mrz_name_triplet(text: str) -> tuple[str, str, str]:
+    normalized = unicodedata.normalize("NFD", text or "")
+    normalized = "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn")
+    normalized = normalized.upper()
+    lines = [line.strip() for line in normalized.splitlines() if line.strip()]
+    for line in lines:
+        if "<<" not in line:
+            continue
+        match = re.search(
+            r"([A-Z]{2,}(?:<[A-Z]{2,})*)<<([A-Z]{2,}(?:<[A-Z]{2,})*)",
+            line,
+        )
+        if not match:
+            continue
+        last_block = match.group(1).replace("<", " ").strip()
+        first_block = match.group(2).replace("<", " ").strip()
+        if not first_block:
+            continue
+        last_name, second_last_name = _split_last_names(last_block)
+        return _clean_value(first_block), _clean_value(last_name), _clean_value(second_last_name)
+    return "", "", ""
 
 
 def _extract_document(normalized_text: str) -> tuple[str, str, float]:
@@ -1279,14 +1328,11 @@ def _parse_fields_with_meta(
         strict=strict,
     )
 
-    generic_name = ""
-    generic_name_match = re.search(
-        r"(?:^|\n)\s*(?:nombre|name)\s*[:\-]\s*([^\n]{1,100})",
+    generic_name = _extract_identity_value(
         clean_text,
-        re.IGNORECASE,
+        [r"nombre(?:\s*/\s*name)?", r"name"],
+        max_chars=100,
     )
-    if generic_name_match:
-        generic_name = _clean_value(generic_name_match.group(1))
     if generic_name:
         if len(generic_name.split()) >= 3:
             first, last, second = _split_spanish_name(generic_name)
@@ -1332,14 +1378,11 @@ def _parse_fields_with_meta(
                 strict=strict,
             )
 
-    generic_last_names = ""
-    generic_last_match = re.search(
-        r"(?:^|\n)\s*(?:apellidos?|surnames?)\s*[:\-]\s*([^\n]{1,120})",
+    generic_last_names = _extract_identity_value(
         clean_text,
-        re.IGNORECASE,
+        [r"apellidos?(?:\s*/\s*surnames?)?", r"surnames?"],
+        max_chars=120,
     )
-    if generic_last_match:
-        generic_last_names = _clean_value(generic_last_match.group(1))
     if generic_last_names:
         last_name, second_last_name = _split_last_names(generic_last_names)
         _set_candidate(
@@ -1363,6 +1406,38 @@ def _parse_fields_with_meta(
             strict=strict,
         )
 
+    mrz_first_name, mrz_last_name, mrz_second_last_name = _extract_mrz_name_triplet(clean_text)
+    _set_candidate(
+        extracted,
+        confidence,
+        warnings,
+        "nombre_difunto",
+        mrz_first_name,
+        0.84,
+        static_lines=static_lines,
+        strict=strict,
+    )
+    _set_candidate(
+        extracted,
+        confidence,
+        warnings,
+        "apellido1",
+        mrz_last_name,
+        0.84,
+        static_lines=static_lines,
+        strict=strict,
+    )
+    _set_candidate(
+        extracted,
+        confidence,
+        warnings,
+        "apellido2",
+        mrz_second_last_name,
+        0.84,
+        static_lines=static_lines,
+        strict=strict,
+    )
+
     document_type, document_number, doc_conf = _extract_document(normalized_text)
     _set_candidate(
         extracted,
@@ -1384,6 +1459,12 @@ def _parse_fields_with_meta(
         static_lines=static_lines,
         strict=strict,
     )
+    if document_type in {"DNI", "NIE"} and (
+        "nombre_difunto" not in extracted or "apellido1" not in extracted
+    ):
+        warnings.append(
+            "Documento de identidad detectado, pero no se han podido aislar nombre/apellidos con suficiente calidad."
+        )
 
     birth_date = _extract_date_after_labels(
         normalized_text,

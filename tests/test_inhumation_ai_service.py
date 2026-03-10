@@ -125,6 +125,55 @@ Causa inicial o fundamental: Causa inicial o fundamental Insuficiencia respirato
     assert extracted["causa_fundamental"] == "Insuficiencia respiratoria"
 
 
+def test_parse_fields_extracts_dni_labels_multiline():
+    sample_text = """
+APELLIDOS / SURNAMES
+GARCIA LOPEZ
+NOMBRE / NAME
+JUAN CARLOS
+DNI: 12345678Z
+"""
+    extracted, _confidence, warnings = _parse_fields_with_meta(
+        sample_text,
+        static_lines=set(),
+        strict=True,
+    )
+
+    assert extracted["nombre_difunto"] == "JUAN CARLOS"
+    assert extracted["apellido1"] == "GARCIA"
+    assert extracted["apellido2"] == "LOPEZ"
+    assert extracted["documento_numero"] == "12345678Z"
+    assert not any("no se han podido aislar nombre/apellidos" in w.lower() for w in warnings)
+
+
+def test_parse_fields_extracts_name_from_mrz():
+    sample_text = """
+IDESPAAAAAAAAAAAAAAAAAAAAAAAAA
+GARCIA<LOPEZ<<JUAN<CARLOS<<<<<<<<<<<
+"""
+    extracted, _confidence, _warnings = _parse_fields_with_meta(
+        sample_text,
+        static_lines=set(),
+        strict=True,
+    )
+
+    assert extracted["nombre_difunto"] == "JUAN CARLOS"
+    assert extracted["apellido1"] == "GARCIA"
+    assert extracted["apellido2"] == "LOPEZ"
+
+
+def test_parse_fields_warns_when_dni_has_no_holder_name():
+    sample_text = "DNI: 12345678Z"
+    extracted, _confidence, warnings = _parse_fields_with_meta(
+        sample_text,
+        static_lines=set(),
+        strict=True,
+    )
+
+    assert extracted["documento_numero"] == "12345678Z"
+    assert any("documento de identidad detectado" in warning.lower() for warning in warnings)
+
+
 def test_subtract_static_template_removes_fixed_lines_and_keeps_values():
     blank_template_text = """
 NOMBRE DEL FALLECIDO/A
