@@ -509,6 +509,61 @@
         </div>
       </details>
     </section>
+
+    <section class="box inhumation-cert-card inhumation-billing-card">
+      <div class="inhumation-ai-upload-row">
+        <div class="inhumation-field">
+          <label for="billing-document-upload">Certificado de titularidad bancaria (PDF/JPG/JPEG/PNG)</label>
+          <input
+            id="billing-document-upload"
+            name="billing_document_upload"
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+          >
+        </div>
+        <div class="inhumation-ai-btn-wrap">
+          <button
+            class="btn secondary inhumation-ai-btn"
+            id="billing-ai-extract-btn"
+            type="button"
+            aria-live="polite"
+          >
+            <span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span>
+            <span class="inhumation-ai-btn-label">Extraer con IA</span>
+          </button>
+        </div>
+      </div>
+      <div id="billing-ai-review-banner" class="warning inhumation-ai-feedback" hidden>
+        Datos de facturacion extraidos automaticamente. Revise la informacion antes de guardar.
+      </div>
+      <div id="billing-ai-error-banner" class="flash error inhumation-ai-feedback" hidden role="alert"></div>
+      <div id="billing-ai-warning-banner" class="warning inhumation-ai-feedback" hidden></div>
+      <details class="inhumation-cert-toggle" id="billing-toggle">
+        <summary class="inhumation-cert-toggle-summary">Facturacion</summary>
+        <div class="inhumation-cert-toggle-body">
+          <div class="inhumation-cert-grid inhumation-cols-2">
+            <div class="inhumation-field">
+              <label>Datos titular de la cuenta</label>
+              <input type="text" name="billing_account_holder_name">
+            </div>
+            <div class="inhumation-field">
+              <label>DNI titular de la cuenta</label>
+              <input type="text" name="billing_account_holder_document_number" placeholder="DNI/NIE">
+            </div>
+          </div>
+          <div class="inhumation-cert-grid inhumation-cols-2">
+            <div class="inhumation-field">
+              <label>IBAN de la cuenta</label>
+              <input type="text" name="billing_iban" placeholder="ES0000000000000000000000">
+            </div>
+            <div class="inhumation-field">
+              <label>Nombre del banco</label>
+              <input type="text" name="billing_bank_name">
+            </div>
+          </div>
+        </div>
+      </details>
+    </section>
     <div class="actions-row inhumation-actions">
       <button class="btn primary" id="inhumation-continue-btn" type="button">Continuar (proximamente)</button>
     </div>
@@ -522,6 +577,7 @@
     const certificateToggle = document.getElementById("certificate-toggle");
     const holderToggle = document.getElementById("holder-toggle");
     const beneficiaryToggle = document.getElementById("beneficiary-toggle");
+    const billingToggle = document.getElementById("billing-toggle");
     const endpointUrl = "{{ url_for('cemetery.inhumation_assistant_extract_document') }}";
     const allowedExtensions = new Set(["pdf", "jpg", "jpeg", "png"]);
     const confidenceThreshold = Number("{{ config.get('INHUMATION_AI_MIN_CONFIDENCE', '0.80') }}") || 0.8;
@@ -740,6 +796,51 @@
       return mapPersonPayload(payload, "beneficiary");
     }
 
+    function mapBillingPayload(payload) {
+      const normalized = payload && payload.normalized_data ? payload.normalized_data : {};
+      const fieldsExtracted = payload && payload.fields_extracted ? payload.fields_extracted : {};
+      const sourceConfidence = payload && payload.confidence ? payload.confidence : {};
+      const normalizedData = {};
+      const confidenceMap = {};
+
+      function setValue(targetName, value, score) {
+        if (!hasValue(value)) return;
+        if (hasValue(normalizedData[targetName])) return;
+        normalizedData[targetName] = String(value).trim();
+        if (hasValue(score) && !Number.isNaN(Number(score))) {
+          confidenceMap[targetName] = Number(score);
+        }
+      }
+
+      setValue(
+        "billing_account_holder_name",
+        normalized.billing_account_holder_name,
+        sourceConfidence.billing_account_holder_name
+      );
+      setValue(
+        "billing_account_holder_document_number",
+        normalized.billing_account_holder_document_number,
+        sourceConfidence.billing_account_holder_document_number
+      );
+      setValue("billing_iban", normalized.billing_iban, sourceConfidence.billing_iban);
+      setValue("billing_bank_name", normalized.billing_bank_name, sourceConfidence.billing_bank_name);
+
+      setValue(
+        "billing_account_holder_name",
+        fieldsExtracted.titular_cuenta_nombre,
+        sourceConfidence.titular_cuenta_nombre
+      );
+      setValue(
+        "billing_account_holder_document_number",
+        fieldsExtracted.titular_cuenta_documento || fieldsExtracted.documento_numero,
+        sourceConfidence.titular_cuenta_documento || sourceConfidence.documento_numero
+      );
+      setValue("billing_iban", fieldsExtracted.iban_cuenta, sourceConfidence.iban_cuenta);
+      setValue("billing_bank_name", fieldsExtracted.banco_nombre, sourceConfidence.banco_nombre);
+
+      return { normalizedData: normalizedData, confidenceMap: confidenceMap };
+    }
+
     function createExtractionController(options) {
       const fileInput = document.getElementById(options.fileInputId);
       const actionBtn = document.getElementById(options.buttonId);
@@ -939,6 +1040,22 @@
       onApplied: function (applied) {
         if (applied > 0 && beneficiaryToggle) {
           beneficiaryToggle.open = true;
+        }
+      }
+    });
+
+    createExtractionController({
+      fileInputId: "billing-document-upload",
+      buttonId: "billing-ai-extract-btn",
+      reviewBannerId: "billing-ai-review-banner",
+      errorBannerId: "billing-ai-error-banner",
+      warningBannerId: "billing-ai-warning-banner",
+      mapPayload: mapBillingPayload,
+      minConfidence: confidenceThreshold,
+      emptyMessage: "No se han detectado datos de facturacion con confianza suficiente.",
+      onApplied: function (applied) {
+        if (applied > 0 && billingToggle) {
+          billingToggle.open = true;
         }
       }
     });

@@ -902,6 +902,142 @@ def _extract_identity_value(
     return ""
 
 
+def _extract_account_holder_name(text: str) -> str:
+    candidate = _extract_identity_value(
+        text,
+        [
+            r"titular(?:\s+de\s+la\s+cuenta)?",
+            r"nombre\s+del?\s+titular(?:\s+de\s+la\s+cuenta)?",
+            r"beneficiario(?:\s+de\s+la\s+cuenta)?",
+        ],
+        max_chars=120,
+    )
+    if candidate:
+        candidate = _clean_account_holder_name(candidate)
+        if candidate:
+            return candidate
+
+    for line in text.splitlines():
+        if ":" not in line:
+            continue
+        left, right = line.split(":", 1)
+        left_token = _normalize_token(left)
+        if "titular" not in left_token:
+            continue
+        candidate = _clean_account_holder_name(right)
+        if candidate:
+            return candidate
+    return ""
+
+
+def _clean_account_holder_name(value: str) -> str:
+    text = _clean_value(value)
+    if not text:
+        return ""
+    text = re.split(
+        r"\b(?:dni|nif|nie|iban|cuenta|ccc|doc(?:umento)?)\b",
+        text,
+        maxsplit=1,
+        flags=re.IGNORECASE,
+    )[0]
+    text = re.split(r"[;|]", text, maxsplit=1)[0]
+    text = _clean_value(text)
+    if not text:
+        return ""
+    if any(ch.isdigit() for ch in text):
+        return ""
+    if len(text.split()) < 2:
+        return ""
+    return text
+
+
+def _extract_account_holder_document(
+    text: str, normalized_text: str, fallback_document_number: str
+) -> str:
+    direct = _extract_identity_value(
+        text,
+        [
+            r"dni(?:\s*/\s*nif)?\s+del?\s+titular",
+            r"nif(?:\s+del?\s+titular)?",
+            r"nie(?:\s+del?\s+titular)?",
+            r"documento(?:\s+de\s+identidad)?\s+del?\s+titular",
+            r"dni",
+            r"nif",
+            r"nie",
+        ],
+        max_chars=32,
+    )
+    if direct:
+        doc_type, doc_number, _score = _extract_document(_normalize_for_search(direct))
+        if doc_number:
+            return doc_number
+    if fallback_document_number:
+        return str(fallback_document_number).strip().upper()
+    _doc_type, doc_number, _score = _extract_document(normalized_text)
+    if doc_number:
+        return doc_number
+    return ""
+
+
+def _extract_iban(text: str) -> str:
+    pattern = re.compile(
+        r"\b([A-Z]{2}[ \t]*\d{2}(?:[ \t-]*[A-Z0-9]){11,30})\b",
+        re.IGNORECASE,
+    )
+    for match in pattern.finditer(text):
+        iban = re.sub(r"[\s\-]+", "", match.group(1) or "").upper()
+        if len(iban) < 15 or len(iban) > 34:
+            continue
+        if not re.fullmatch(r"[A-Z]{2}\d{2}[A-Z0-9]{11,30}", iban):
+            continue
+        return iban
+    return ""
+
+
+def _extract_bank_name(text: str) -> str:
+    direct = _extract_identity_value(
+        text,
+        [
+            r"entidad(?:\s+bancaria)?",
+            r"banco",
+            r"bank",
+        ],
+        max_chars=110,
+    )
+    if direct:
+        cleaned = _clean_value(re.split(r"\b(?:iban|dni|nif|nie)\b", direct, maxsplit=1, flags=re.IGNORECASE)[0])
+        if cleaned and len(cleaned.split()) >= 1:
+            return cleaned
+
+    bank_hints = (
+        "banco",
+        "caixabank",
+        "bbva",
+        "santander",
+        "sabadell",
+        "bankinter",
+        "abanca",
+        "cajamar",
+        "kutxabank",
+        "ing",
+        "unicaja",
+        "deutsche bank",
+    )
+    for line in text.splitlines():
+        candidate = _clean_value(line)
+        if not candidate:
+            continue
+        token = _normalize_token(candidate)
+        if "nombre del banco" in token or "entidad bancaria" in token:
+            continue
+        if not any(hint in token for hint in bank_hints):
+            continue
+        if sum(ch.isdigit() for ch in candidate) > 4:
+            continue
+        return candidate
+    return ""
+
+
 def _is_dni_stop_label(line: str) -> bool:
     normalized = _normalize_token(line)
     if not normalized:
@@ -1723,6 +1859,48 @@ def _parse_fields_with_meta(
         static_lines=static_lines,
         strict=strict,
     )
+
+    _set_candidate(
+        extracted,
+        confidence,
+        warnings,
+        "titular_cuenta_nombre",
+        _extract_account_holder_name(clean_text),
+        0.88,
+        static_lines=static_lines,
+        strict=strict,
+    )
+    _set_candidate(
+        extracted,
+        confidence,
+        warnings,
+        "titular_cuenta_documento",
+        _extract_account_holder_document(clean_text, normalized_text, document_number),
+        max(doc_conf, 0.88),
+        static_lines=static_lines,
+        strict=strict,
+    )
+    _set_candidate(
+        extracted,
+        confidence,
+        warnings,
+        "iban_cuenta",
+        _extract_iban(clean_text),
+        0.95,
+        static_lines=static_lines,
+        strict=strict,
+    )
+    _set_candidate(
+        extracted,
+        confidence,
+        warnings,
+        "banco_nombre",
+        _extract_bank_name(clean_text),
+        0.86,
+        static_lines=static_lines,
+        strict=strict,
+    )
+
     if document_type in {"DNI", "NIE"} and (
         "nombre_difunto" not in extracted or "apellido1" not in extracted
     ):
@@ -1896,6 +2074,10 @@ def _normalize_for_form_with_meta(
         ("immediate_cause_reason", "causa_inmediata"),
         ("antecedent_cause_reason", "causa_antecedente"),
         ("root_cause_reason", "causa_fundamental"),
+        ("billing_account_holder_name", "titular_cuenta_nombre"),
+        ("billing_account_holder_document_number", "titular_cuenta_documento"),
+        ("billing_iban", "iban_cuenta"),
+        ("billing_bank_name", "banco_nombre"),
     ]
     for form_name, semantic_key in mapping:
         set_value(form_name, semantic_key)

@@ -218,6 +218,29 @@ VALIDEZ / VALIDEZA
     assert not any("no se han podido aislar nombre/apellidos" in w.lower() for w in warnings)
 
 
+def test_parse_and_normalize_extracts_billing_certificate_fields():
+    sample_text = """
+CERTIFICADO DE TITULARIDAD DE CUENTA
+Titular de la cuenta: JAUME CARRENO ZORRILLA
+DNI/NIF del titular: 45646530V
+IBAN: ES12 2100 0418 4502 0005 1332
+Entidad bancaria: Banco Santander, S.A.
+"""
+    extracted, raw_confidence = _parse_fields(sample_text)
+    normalized, normalized_confidence = _normalize_for_form(extracted, raw_confidence)
+
+    assert extracted["titular_cuenta_nombre"] == "JAUME CARRENO ZORRILLA"
+    assert extracted["titular_cuenta_documento"] == "45646530V"
+    assert extracted["iban_cuenta"] == "ES1221000418450200051332"
+    assert extracted["banco_nombre"] == "Banco Santander, S.A"
+
+    assert normalized["billing_account_holder_name"] == "JAUME CARRENO ZORRILLA"
+    assert normalized["billing_account_holder_document_number"] == "45646530V"
+    assert normalized["billing_iban"] == "ES1221000418450200051332"
+    assert normalized["billing_bank_name"] == "Banco Santander, S.A"
+    assert normalized_confidence["billing_iban"] >= 0.9
+
+
 def test_subtract_static_template_removes_fixed_lines_and_keeps_values():
     blank_template_text = """
 NOMBRE DEL FALLECIDO/A

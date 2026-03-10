@@ -375,6 +375,7 @@ def test_inhumation_assistant_page_renders_certificate_layout(app, client, login
     assert "Datos del difunto y documento" in html
     assert "Datos del titular" in html
     assert "Datos del Beneficiario" in html
+    assert "Facturacion" in html
     assert "certificado" in html.lower()
     assert "hora:minutos" in html.lower()
     assert "incineraci" in html.lower()
@@ -409,6 +410,9 @@ def test_inhumation_assistant_page_renders_certificate_layout(app, client, login
     assert 'id="beneficiary-document-upload"' in html
     assert 'id="beneficiary-ai-extract-btn"' in html
     assert 'id="beneficiary-toggle"' in html
+    assert 'id="billing-document-upload"' in html
+    assert 'id="billing-ai-extract-btn"' in html
+    assert 'id="billing-toggle"' in html
     assert 'name="holder_first_name"' in html
     assert 'name="holder_last_name"' in html
     assert 'name="holder_second_last_name"' in html
@@ -443,6 +447,10 @@ def test_inhumation_assistant_page_renders_certificate_layout(app, client, login
     assert 'name="beneficiary_city"' in html
     assert 'name="beneficiary_country"' in html
     assert 'name="beneficiary_observations"' in html
+    assert 'name="billing_account_holder_name"' in html
+    assert 'name="billing_account_holder_document_number"' in html
+    assert 'name="billing_iban"' in html
+    assert 'name="billing_bank_name"' in html
     assert 'value="Terrassa"' in html
     assert ("value=\"España\"" in html) or ("value=\"Espana\"" in html)
     assert "Extraer con IA" in html
@@ -450,6 +458,7 @@ def test_inhumation_assistant_page_renders_certificate_layout(app, client, login
     assert 'id="inhumation-ai-extract-btn"' in html and "type=\"button\"" in html
     assert 'id="holder-ai-extract-btn"' in html and "type=\"button\"" in html
     assert 'id="beneficiary-ai-extract-btn"' in html and "type=\"button\"" in html
+    assert 'id="billing-ai-extract-btn"' in html and "type=\"button\"" in html
 
 
 def test_inhumation_assistant_extract_document_requires_login(client):
