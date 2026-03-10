@@ -374,6 +374,7 @@ def test_inhumation_assistant_page_renders_certificate_layout(app, client, login
     assert "Certificado medico de defuncion" in html
     assert "Datos del difunto y documento" in html
     assert "Datos del titular" in html
+    assert "Datos del Beneficiario" in html
     assert "certificado" in html.lower()
     assert "hora:minutos" in html.lower()
     assert "incineraci" in html.lower()
@@ -401,8 +402,13 @@ def test_inhumation_assistant_page_renders_certificate_layout(app, client, login
 
     assert 'id="inhumation-document-upload"' in html
     assert 'id="inhumation-ai-extract-btn"' in html
+    assert 'id="certificate-toggle"' in html
     assert 'id="holder-document-upload"' in html
     assert 'id="holder-ai-extract-btn"' in html
+    assert 'id="holder-toggle"' in html
+    assert 'id="beneficiary-document-upload"' in html
+    assert 'id="beneficiary-ai-extract-btn"' in html
+    assert 'id="beneficiary-toggle"' in html
     assert 'name="holder_first_name"' in html
     assert 'name="holder_last_name"' in html
     assert 'name="holder_second_last_name"' in html
@@ -420,11 +426,30 @@ def test_inhumation_assistant_page_renders_certificate_layout(app, client, login
     assert 'name="holder_city"' in html
     assert 'name="holder_country"' in html
     assert 'name="holder_observations"' in html
+    assert 'name="beneficiary_first_name"' in html
+    assert 'name="beneficiary_last_name"' in html
+    assert 'name="beneficiary_second_last_name"' in html
+    assert 'name="beneficiary_document_number"' in html
+    assert 'name="beneficiary_sex"' in html
+    assert 'name="beneficiary_birth_day"' in html
+    assert 'name="beneficiary_birth_month"' in html
+    assert 'name="beneficiary_birth_year"' in html
+    assert 'name="beneficiary_phone_1"' in html
+    assert 'name="beneficiary_phone_2"' in html
+    assert 'name="beneficiary_email_1"' in html
+    assert 'name="beneficiary_email_2"' in html
+    assert 'name="beneficiary_address"' in html
+    assert 'name="beneficiary_postal_code"' in html
+    assert 'name="beneficiary_city"' in html
+    assert 'name="beneficiary_country"' in html
+    assert 'name="beneficiary_observations"' in html
     assert 'value="Terrassa"' in html
     assert ("value=\"España\"" in html) or ("value=\"Espana\"" in html)
     assert "Extraer con IA" in html
     assert "Datos extraidos automaticamente. Revise la informacion antes de guardar." in html
     assert 'id="inhumation-ai-extract-btn"' in html and "type=\"button\"" in html
+    assert 'id="holder-ai-extract-btn"' in html and "type=\"button\"" in html
+    assert 'id="beneficiary-ai-extract-btn"' in html and "type=\"button\"" in html
 
 
 def test_inhumation_assistant_extract_document_requires_login(client):

@@ -8,39 +8,39 @@
 
 <div class="inhumation-cert-page">
   <form class="inhumation-certificate" id="inhumation-certificate-form" onsubmit="return false;">
-    <details class="box inhumation-cert-toggle">
+    <div class="inhumation-ai-upload-row">
+      <div class="inhumation-field">
+        <label for="inhumation-document-upload">Certificado o documento (PDF/JPG/JPEG/PNG)</label>
+        <input
+          id="inhumation-document-upload"
+          name="inhumation_document_upload"
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+        >
+      </div>
+      <div class="inhumation-ai-btn-wrap">
+        <button
+          class="btn secondary inhumation-ai-btn"
+          id="inhumation-ai-extract-btn"
+          type="button"
+          aria-live="polite"
+        >
+          <span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span>
+          <span class="inhumation-ai-btn-label">Extraer con IA</span>
+        </button>
+      </div>
+    </div>
+    <div id="inhumation-ai-review-banner" class="warning inhumation-ai-feedback" hidden>
+      Datos extraidos automaticamente. Revise la informacion antes de guardar.
+    </div>
+    <div id="inhumation-ai-error-banner" class="flash error inhumation-ai-feedback" hidden role="alert"></div>
+    <div id="inhumation-ai-warning-banner" class="warning inhumation-ai-feedback" hidden></div>
+
+    <details class="box inhumation-cert-toggle" id="certificate-toggle">
       <summary class="inhumation-cert-toggle-summary">Certificado medico de defuncion</summary>
       <div class="inhumation-cert-toggle-body">
         <section class="box inhumation-cert-card">
           <h3 class="inhumation-cert-title">Certificado medico de defuncion</h3>
-          <div class="inhumation-ai-upload-row">
-            <div class="inhumation-field">
-              <label for="inhumation-document-upload">Certificado o documento (PDF/JPG/JPEG/PNG)</label>
-              <input
-                id="inhumation-document-upload"
-                name="inhumation_document_upload"
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-              >
-            </div>
-            <div class="inhumation-ai-btn-wrap">
-              <button
-                class="btn secondary inhumation-ai-btn"
-                id="inhumation-ai-extract-btn"
-                type="button"
-                aria-live="polite"
-              >
-                <span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span>
-                <span class="inhumation-ai-btn-label">Extraer con IA</span>
-              </button>
-            </div>
-          </div>
-          <div id="inhumation-ai-review-banner" class="warning inhumation-ai-feedback" hidden>
-            Datos extraidos automaticamente. Revise la informacion antes de guardar.
-          </div>
-          <div id="inhumation-ai-error-banner" class="flash error inhumation-ai-feedback" hidden role="alert"></div>
-          <div id="inhumation-ai-warning-banner" class="warning inhumation-ai-feedback" hidden></div>
-
           <div class="inhumation-cert-grid inhumation-cols-5">
             <div class="inhumation-field">
               <label>Numero de certificado</label>
@@ -278,8 +278,7 @@
       </div>
     </details>
 
-    <section class="box inhumation-cert-card inhumation-holder-card">
-      <h3 class="inhumation-cert-title">Datos del titular</h3>
+        <section class="box inhumation-cert-card inhumation-holder-card">
       <div class="inhumation-ai-upload-row">
         <div class="inhumation-field">
           <label for="holder-document-upload">DNI del titular (PDF/JPG/JPEG/PNG)</label>
@@ -307,90 +306,209 @@
       </div>
       <div id="holder-ai-error-banner" class="flash error inhumation-ai-feedback" hidden role="alert"></div>
       <div id="holder-ai-warning-banner" class="warning inhumation-ai-feedback" hidden></div>
-
-      <div class="inhumation-cert-grid inhumation-cols-3">
-        <div class="inhumation-field">
-          <label>Nombre</label>
-          <input type="text" name="holder_first_name">
-        </div>
-        <div class="inhumation-field">
-          <label>Primer apellido</label>
-          <input type="text" name="holder_last_name">
-        </div>
-        <div class="inhumation-field">
-          <label>Segundo apellido</label>
-          <input type="text" name="holder_second_last_name">
-        </div>
-      </div>
-      <div class="inhumation-cert-grid inhumation-cols-3">
-        <div class="inhumation-field">
-          <label>DNI</label>
-          <input type="text" name="holder_document_number" placeholder="DNI/NIE">
-        </div>
-        <div class="inhumation-field">
-          <label>Sexo</label>
-          <select name="holder_sex">
-            <option value=""></option>
-            <option value="M">Masculino</option>
-            <option value="F">Femenino</option>
-            <option value="X">No especificado</option>
-          </select>
-        </div>
-        <div class="inhumation-field">
-          <label>Fecha de nacimiento (dia, mes, ano)</label>
-          <div class="inhumation-subfields inhumation-subfields-3">
-            <input type="number" name="holder_birth_day" min="1" max="31" placeholder="Dia">
-            <input type="number" name="holder_birth_month" min="1" max="12" placeholder="Mes">
-            <input type="number" name="holder_birth_year" min="1800" max="2200" placeholder="Ano">
+      <details class="inhumation-cert-toggle" id="holder-toggle">
+        <summary class="inhumation-cert-toggle-summary">Datos del titular</summary>
+        <div class="inhumation-cert-toggle-body">
+          <div class="inhumation-cert-grid inhumation-cols-3">
+            <div class="inhumation-field">
+              <label>Nombre</label>
+              <input type="text" name="holder_first_name">
+            </div>
+            <div class="inhumation-field">
+              <label>Primer apellido</label>
+              <input type="text" name="holder_last_name">
+            </div>
+            <div class="inhumation-field">
+              <label>Segundo apellido</label>
+              <input type="text" name="holder_second_last_name">
+            </div>
+          </div>
+          <div class="inhumation-cert-grid inhumation-cols-3">
+            <div class="inhumation-field">
+              <label>DNI</label>
+              <input type="text" name="holder_document_number" placeholder="DNI/NIE">
+            </div>
+            <div class="inhumation-field">
+              <label>Sexo</label>
+              <select name="holder_sex">
+                <option value=""></option>
+                <option value="M">Masculino</option>
+                <option value="F">Femenino</option>
+                <option value="X">No especificado</option>
+              </select>
+            </div>
+            <div class="inhumation-field">
+              <label>Fecha de nacimiento (dia, mes, ano)</label>
+              <div class="inhumation-subfields inhumation-subfields-3">
+                <input type="number" name="holder_birth_day" min="1" max="31" placeholder="Dia">
+                <input type="number" name="holder_birth_month" min="1" max="12" placeholder="Mes">
+                <input type="number" name="holder_birth_year" min="1800" max="2200" placeholder="Ano">
+              </div>
+            </div>
+          </div>
+          <div class="inhumation-cert-grid inhumation-cols-2">
+            <div class="inhumation-field">
+              <label>Telefono 1</label>
+              <input type="text" name="holder_phone_1" placeholder="Telefono principal">
+            </div>
+            <div class="inhumation-field">
+              <label>Telefono 2</label>
+              <input type="text" name="holder_phone_2" placeholder="Telefono secundario">
+            </div>
+          </div>
+          <div class="inhumation-cert-grid inhumation-cols-2">
+            <div class="inhumation-field">
+              <label>Email 1</label>
+              <input type="email" name="holder_email_1" placeholder="email@dominio.com">
+            </div>
+            <div class="inhumation-field">
+              <label>Email 2</label>
+              <input type="email" name="holder_email_2" placeholder="email@dominio.com">
+            </div>
+          </div>
+          <div class="inhumation-cert-grid inhumation-cols-3">
+            <div class="inhumation-field">
+              <label>Direccion</label>
+              <input type="text" name="holder_address" placeholder="Direccion completa">
+            </div>
+            <div class="inhumation-field">
+              <label>Codigo postal</label>
+              <input type="text" name="holder_postal_code" placeholder="08221">
+            </div>
+            <div class="inhumation-field">
+              <label>Poblacion</label>
+              <input type="text" name="holder_city" value="Terrassa">
+            </div>
+          </div>
+          <div class="inhumation-cert-grid inhumation-cols-2">
+            <div class="inhumation-field">
+              <label>Pais</label>
+              <input type="text" name="holder_country" value="España">
+            </div>
+            <div class="inhumation-field">
+              <label>Observacions</label>
+              <textarea name="holder_observations" rows="2" placeholder="Observacions del titular"></textarea>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="inhumation-cert-grid inhumation-cols-2">
-        <div class="inhumation-field">
-          <label>Telefono 1</label>
-          <input type="text" name="holder_phone_1" placeholder="Telefono principal">
-        </div>
-        <div class="inhumation-field">
-          <label>Telefono 2</label>
-          <input type="text" name="holder_phone_2" placeholder="Telefono secundario">
-        </div>
-      </div>
-      <div class="inhumation-cert-grid inhumation-cols-2">
-        <div class="inhumation-field">
-          <label>Email 1</label>
-          <input type="email" name="holder_email_1" placeholder="email@dominio.com">
-        </div>
-        <div class="inhumation-field">
-          <label>Email 2</label>
-          <input type="email" name="holder_email_2" placeholder="email@dominio.com">
-        </div>
-      </div>
-      <div class="inhumation-cert-grid inhumation-cols-3">
-        <div class="inhumation-field">
-          <label>Direccion</label>
-          <input type="text" name="holder_address" placeholder="Direccion completa">
-        </div>
-        <div class="inhumation-field">
-          <label>Codigo postal</label>
-          <input type="text" name="holder_postal_code" placeholder="08221">
-        </div>
-        <div class="inhumation-field">
-          <label>Poblacion</label>
-          <input type="text" name="holder_city" value="Terrassa">
-        </div>
-      </div>
-      <div class="inhumation-cert-grid inhumation-cols-2">
-        <div class="inhumation-field">
-          <label>Pais</label>
-          <input type="text" name="holder_country" value="España">
-        </div>
-        <div class="inhumation-field">
-          <label>Observacions</label>
-          <textarea name="holder_observations" rows="2" placeholder="Observacions del titular"></textarea>
-        </div>
-      </div>
+      </details>
     </section>
 
+    <section class="box inhumation-cert-card inhumation-beneficiary-card">
+      <div class="inhumation-ai-upload-row">
+        <div class="inhumation-field">
+          <label for="beneficiary-document-upload">DNI del beneficiario (PDF/JPG/JPEG/PNG)</label>
+          <input
+            id="beneficiary-document-upload"
+            name="beneficiary_document_upload"
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+          >
+        </div>
+        <div class="inhumation-ai-btn-wrap">
+          <button
+            class="btn secondary inhumation-ai-btn"
+            id="beneficiary-ai-extract-btn"
+            type="button"
+            aria-live="polite"
+          >
+            <span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span>
+            <span class="inhumation-ai-btn-label">Extraer con IA</span>
+          </button>
+        </div>
+      </div>
+      <div id="beneficiary-ai-review-banner" class="warning inhumation-ai-feedback" hidden>
+        Datos del beneficiario extraidos automaticamente. Revise la informacion antes de guardar.
+      </div>
+      <div id="beneficiary-ai-error-banner" class="flash error inhumation-ai-feedback" hidden role="alert"></div>
+      <div id="beneficiary-ai-warning-banner" class="warning inhumation-ai-feedback" hidden></div>
+      <details class="inhumation-cert-toggle" id="beneficiary-toggle">
+        <summary class="inhumation-cert-toggle-summary">Datos del Beneficiario</summary>
+        <div class="inhumation-cert-toggle-body">
+          <div class="inhumation-cert-grid inhumation-cols-3">
+            <div class="inhumation-field">
+              <label>Nombre</label>
+              <input type="text" name="beneficiary_first_name">
+            </div>
+            <div class="inhumation-field">
+              <label>Primer apellido</label>
+              <input type="text" name="beneficiary_last_name">
+            </div>
+            <div class="inhumation-field">
+              <label>Segundo apellido</label>
+              <input type="text" name="beneficiary_second_last_name">
+            </div>
+          </div>
+          <div class="inhumation-cert-grid inhumation-cols-3">
+            <div class="inhumation-field">
+              <label>DNI</label>
+              <input type="text" name="beneficiary_document_number" placeholder="DNI/NIE">
+            </div>
+            <div class="inhumation-field">
+              <label>Sexo</label>
+              <select name="beneficiary_sex">
+                <option value=""></option>
+                <option value="M">Masculino</option>
+                <option value="F">Femenino</option>
+                <option value="X">No especificado</option>
+              </select>
+            </div>
+            <div class="inhumation-field">
+              <label>Fecha de nacimiento (dia, mes, ano)</label>
+              <div class="inhumation-subfields inhumation-subfields-3">
+                <input type="number" name="beneficiary_birth_day" min="1" max="31" placeholder="Dia">
+                <input type="number" name="beneficiary_birth_month" min="1" max="12" placeholder="Mes">
+                <input type="number" name="beneficiary_birth_year" min="1800" max="2200" placeholder="Ano">
+              </div>
+            </div>
+          </div>
+          <div class="inhumation-cert-grid inhumation-cols-2">
+            <div class="inhumation-field">
+              <label>Telefono 1</label>
+              <input type="text" name="beneficiary_phone_1" placeholder="Telefono principal">
+            </div>
+            <div class="inhumation-field">
+              <label>Telefono 2</label>
+              <input type="text" name="beneficiary_phone_2" placeholder="Telefono secundario">
+            </div>
+          </div>
+          <div class="inhumation-cert-grid inhumation-cols-2">
+            <div class="inhumation-field">
+              <label>Email 1</label>
+              <input type="email" name="beneficiary_email_1" placeholder="email@dominio.com">
+            </div>
+            <div class="inhumation-field">
+              <label>Email 2</label>
+              <input type="email" name="beneficiary_email_2" placeholder="email@dominio.com">
+            </div>
+          </div>
+          <div class="inhumation-cert-grid inhumation-cols-3">
+            <div class="inhumation-field">
+              <label>Direccion</label>
+              <input type="text" name="beneficiary_address" placeholder="Direccion completa">
+            </div>
+            <div class="inhumation-field">
+              <label>Codigo postal</label>
+              <input type="text" name="beneficiary_postal_code" placeholder="08221">
+            </div>
+            <div class="inhumation-field">
+              <label>Poblacion</label>
+              <input type="text" name="beneficiary_city" value="Terrassa">
+            </div>
+          </div>
+          <div class="inhumation-cert-grid inhumation-cols-2">
+            <div class="inhumation-field">
+              <label>Pais</label>
+              <input type="text" name="beneficiary_country" value="España">
+            </div>
+            <div class="inhumation-field">
+              <label>Observacions</label>
+              <textarea name="beneficiary_observations" rows="2" placeholder="Observacions del beneficiario"></textarea>
+            </div>
+          </div>
+        </div>
+      </details>
+    </section>
     <div class="actions-row inhumation-actions">
       <button class="btn primary" id="inhumation-continue-btn" type="button">Continuar (proximamente)</button>
     </div>
@@ -401,7 +519,9 @@
     const form = document.getElementById("inhumation-certificate-form");
     if (!form) return;
     const continueBtn = document.getElementById("inhumation-continue-btn");
-    const certificateToggle = form.querySelector(".inhumation-cert-toggle");
+    const certificateToggle = document.getElementById("certificate-toggle");
+    const holderToggle = document.getElementById("holder-toggle");
+    const beneficiaryToggle = document.getElementById("beneficiary-toggle");
     const endpointUrl = "{{ url_for('cemetery.inhumation_assistant_extract_document') }}";
     const allowedExtensions = new Set(["pdf", "jpg", "jpeg", "png"]);
     const confidenceThreshold = Number("{{ config.get('INHUMATION_AI_MIN_CONFIDENCE', '0.80') }}") || 0.8;
@@ -545,12 +665,17 @@
       };
     }
 
-    function mapHolderPayload(payload) {
+    function mapPersonPayload(payload, prefix) {
       const normalized = payload && payload.normalized_data ? payload.normalized_data : {};
       const fieldsExtracted = payload && payload.fields_extracted ? payload.fields_extracted : {};
       const sourceConfidence = payload && payload.confidence ? payload.confidence : {};
       const normalizedData = {};
       const confidenceMap = {};
+      const fieldPrefix = String(prefix || "").trim();
+
+      function withPrefix(baseName) {
+        return fieldPrefix + "_" + baseName;
+      }
 
       function setValue(targetName, value, score) {
         if (!hasValue(value)) return;
@@ -561,39 +686,58 @@
         }
       }
 
-      setValue("holder_first_name", normalized.first_name, sourceConfidence.first_name);
-      setValue("holder_last_name", normalized.last_name, sourceConfidence.last_name);
-      setValue("holder_second_last_name", normalized.second_last_name, sourceConfidence.second_last_name);
-      setValue("holder_document_number", normalized.document_number, sourceConfidence.document_number);
-      setValue("holder_sex", normalized.sex, sourceConfidence.sex);
-      setValue("holder_birth_day", normalized.birth_day, sourceConfidence.birth_day);
-      setValue("holder_birth_month", normalized.birth_month, sourceConfidence.birth_month);
-      setValue("holder_birth_year", normalized.birth_year, sourceConfidence.birth_year);
+      setValue(withPrefix("first_name"), normalized.first_name, sourceConfidence.first_name);
+      setValue(withPrefix("last_name"), normalized.last_name, sourceConfidence.last_name);
+      setValue(
+        withPrefix("second_last_name"),
+        normalized.second_last_name,
+        sourceConfidence.second_last_name
+      );
+      setValue(withPrefix("document_number"), normalized.document_number, sourceConfidence.document_number);
+      setValue(withPrefix("sex"), normalized.sex, sourceConfidence.sex);
+      setValue(withPrefix("birth_day"), normalized.birth_day, sourceConfidence.birth_day);
+      setValue(withPrefix("birth_month"), normalized.birth_month, sourceConfidence.birth_month);
+      setValue(withPrefix("birth_year"), normalized.birth_year, sourceConfidence.birth_year);
 
-      setValue("holder_first_name", fieldsExtracted.nombre_difunto, sourceConfidence.nombre_difunto);
-      setValue("holder_last_name", fieldsExtracted.apellido1, sourceConfidence.apellido1);
-      setValue("holder_second_last_name", fieldsExtracted.apellido2, sourceConfidence.apellido2);
-      setValue("holder_document_number", fieldsExtracted.documento_numero, sourceConfidence.documento_numero);
-      setValue("holder_sex", fieldsExtracted.sexo, sourceConfidence.sexo);
+      setValue(withPrefix("first_name"), fieldsExtracted.nombre_difunto, sourceConfidence.nombre_difunto);
+      setValue(withPrefix("last_name"), fieldsExtracted.apellido1, sourceConfidence.apellido1);
+      setValue(withPrefix("second_last_name"), fieldsExtracted.apellido2, sourceConfidence.apellido2);
+      setValue(withPrefix("document_number"), fieldsExtracted.documento_numero, sourceConfidence.documento_numero);
+      setValue(withPrefix("sex"), fieldsExtracted.sexo, sourceConfidence.sexo);
 
       if (fieldsExtracted.fecha_nacimiento && typeof fieldsExtracted.fecha_nacimiento === "object") {
         const birth = fieldsExtracted.fecha_nacimiento;
-        setValue("holder_birth_day", birth.day, sourceConfidence.fecha_nacimiento || 0.88);
-        setValue("holder_birth_month", birth.month, sourceConfidence.fecha_nacimiento || 0.88);
-        setValue("holder_birth_year", birth.year, sourceConfidence.fecha_nacimiento || 0.88);
+        setValue(withPrefix("birth_day"), birth.day, sourceConfidence.fecha_nacimiento || 0.88);
+        setValue(withPrefix("birth_month"), birth.month, sourceConfidence.fecha_nacimiento || 0.88);
+        setValue(withPrefix("birth_year"), birth.year, sourceConfidence.fecha_nacimiento || 0.88);
       }
 
       if (
-        (!hasValue(normalizedData.holder_first_name) || !hasValue(normalizedData.holder_last_name)) &&
+        (
+          !hasValue(normalizedData[withPrefix("first_name")]) ||
+          !hasValue(normalizedData[withPrefix("last_name")])
+        ) &&
         hasValue(fieldsExtracted.nombre_completo_difunto)
       ) {
         const split = splitSpanishName(fieldsExtracted.nombre_completo_difunto);
-        setValue("holder_first_name", split.first, sourceConfidence.nombre_completo_difunto || 0.82);
-        setValue("holder_last_name", split.last, sourceConfidence.nombre_completo_difunto || 0.82);
-        setValue("holder_second_last_name", split.second, sourceConfidence.nombre_completo_difunto || 0.82);
+        setValue(withPrefix("first_name"), split.first, sourceConfidence.nombre_completo_difunto || 0.82);
+        setValue(withPrefix("last_name"), split.last, sourceConfidence.nombre_completo_difunto || 0.82);
+        setValue(
+          withPrefix("second_last_name"),
+          split.second,
+          sourceConfidence.nombre_completo_difunto || 0.82
+        );
       }
 
       return { normalizedData: normalizedData, confidenceMap: confidenceMap };
+    }
+
+    function mapHolderPayload(payload) {
+      return mapPersonPayload(payload, "holder");
+    }
+
+    function mapBeneficiaryPayload(payload) {
+      return mapPersonPayload(payload, "beneficiary");
     }
 
     function createExtractionController(options) {
@@ -775,7 +919,28 @@
       warningBannerId: "holder-ai-warning-banner",
       mapPayload: mapHolderPayload,
       minConfidence: confidenceThreshold,
-      emptyMessage: "No se han detectado datos del titular con confianza suficiente."
+      emptyMessage: "No se han detectado datos del titular con confianza suficiente.",
+      onApplied: function (applied) {
+        if (applied > 0 && holderToggle) {
+          holderToggle.open = true;
+        }
+      }
+    });
+
+    createExtractionController({
+      fileInputId: "beneficiary-document-upload",
+      buttonId: "beneficiary-ai-extract-btn",
+      reviewBannerId: "beneficiary-ai-review-banner",
+      errorBannerId: "beneficiary-ai-error-banner",
+      warningBannerId: "beneficiary-ai-warning-banner",
+      mapPayload: mapBeneficiaryPayload,
+      minConfidence: confidenceThreshold,
+      emptyMessage: "No se han detectado datos del beneficiario con confianza suficiente.",
+      onApplied: function (applied) {
+        if (applied > 0 && beneficiaryToggle) {
+          beneficiaryToggle.open = true;
+        }
+      }
     });
 
     if (continueBtn) {
@@ -785,3 +950,4 @@
   })();
 </script>
 {% endblock %}
+
