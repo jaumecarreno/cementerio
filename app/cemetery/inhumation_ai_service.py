@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import base64
 import difflib
@@ -577,7 +577,7 @@ def _parse_fields(text: str) -> tuple[dict[str, Any], dict[str, float]]:
 
     direct_last = _extract_near_label(
         clean_text,
-        [r"1[.oºr]*\s+apellido\s+del\s+fallecid[oa]/a", r"1r\s+cognom"],
+        [r"1[.oÂºr]*\s+apellido\s+del\s+fallecid[oa]/a", r"1r\s+cognom"],
         max_chars=70,
     )
     if direct_last:
@@ -586,7 +586,7 @@ def _parse_fields(text: str) -> tuple[dict[str, Any], dict[str, float]]:
 
     direct_second_last = _extract_near_label(
         clean_text,
-        [r"2[.oºn]*\s+apellido\s+del\s+fallecid[oa]/a", r"2n\s+cognom"],
+        [r"2[.oÂºn]*\s+apellido\s+del\s+fallecid[oa]/a", r"2n\s+cognom"],
         max_chars=70,
     )
     if direct_second_last:
@@ -813,8 +813,8 @@ def _normalize_token(text: str) -> str:
 
 def _extract_doctor_name(text: str) -> str:
     patterns = [
-        r"certifico\s+la\s+defuncion\s+de\s*(?:d\.?\s*/?\s*d[ñn]a\.?|don|do[ñn]a|sr\.?\s*/?\s*sra\.?)?\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ'\-\.\s]{2,90}?)\s+en\s+medicina",
-        r"certificat\s+medic.*?de\s+defuncio.*?de\s*(?:d\.?\s*/?\s*d[ñn]a\.?|sr\.?\s*/?\s*sra\.?)?\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ'\-\.\s]{2,90}?)\s+en\s+medicina",
+        r"certifico\s+la\s+defuncion\s+de\s*(?:d\.?\s*/?\s*d[Ã±n]a\.?|don|do[Ã±n]a|sr\.?\s*/?\s*sra\.?)?\s*([A-ZÃÃ‰ÃÃ“ÃšÃ‘][A-ZÃÃ‰ÃÃ“ÃšÃ‘'\-\.\s]{2,90}?)\s+en\s+medicina",
+        r"certificat\s+medic.*?de\s+defuncio.*?de\s*(?:d\.?\s*/?\s*d[Ã±n]a\.?|sr\.?\s*/?\s*sra\.?)?\s*([A-ZÃÃ‰ÃÃ“ÃšÃ‘][A-ZÃÃ‰ÃÃ“ÃšÃ‘'\-\.\s]{2,90}?)\s+en\s+medicina",
     ]
     for pattern in patterns:
         match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
@@ -828,8 +828,8 @@ def _extract_doctor_name(text: str) -> str:
 
 def _extract_doctor_number(text: str) -> str:
     patterns = [
-        r"(?:con\s+el\s+n[uú]mero|amb\s+el\s+n[uú]mero)\s*[:\-]?\s*([A-Z0-9\-\/]{3,20})",
-        r"n[uú]mero\s+de\s+colegiad[oa]\s*[:\-]?\s*([A-Z0-9\-\/]{3,20})",
+        r"(?:con\s+el\s+n[uÃº]mero|amb\s+el\s+n[uÃº]mero)\s*[:\-]?\s*([A-Z0-9\-\/]{3,20})",
+        r"n[uÃº]mero\s+de\s+colegiad[oa]\s*[:\-]?\s*([A-Z0-9\-\/]{3,20})",
     ]
     for pattern in patterns:
         match = re.search(pattern, text, re.IGNORECASE)
@@ -970,7 +970,7 @@ def _looks_like_identity_name_value(line: str) -> bool:
     }
     if any(fragment in normalized for fragment in blocked_fragments):
         return False
-    cleaned = re.sub(r"[^A-Za-zÁÉÍÓÚÜÑáéíóúüñÇç'\\-\\s]", "", line).strip()
+    cleaned = re.sub(r"[^A-Za-zÃÃ‰ÃÃ“ÃšÃœÃ‘Ã¡Ã©Ã­Ã³ÃºÃ¼Ã±Ã‡Ã§'\\-\\s]", "", line).strip()
     if len(cleaned) < 2:
         return False
     if len(normalized.split()) > 6:
@@ -1071,6 +1071,81 @@ def _extract_date_after_labels(
     return None
 
 
+def _extract_birth_date(clean_text: str, normalized_text: str) -> dict[str, str] | None:
+    lines = [line.strip() for line in clean_text.splitlines()]
+    birth_label_patterns = [
+        r"\bfecha\s+de\s+nacimiento\b",
+        r"\bdata\s+de\s+naixement\b",
+        r"\bnacimiento\b",
+        r"\bnaixement\b",
+    ]
+
+    for idx, line in enumerate(lines):
+        normalized_line = _normalize_token(line)
+        if not normalized_line:
+            continue
+        if not any(re.search(pattern, normalized_line, re.IGNORECASE) for pattern in birth_label_patterns):
+            continue
+        same_line_date = _extract_date_from_fragment(normalized_line)
+        if same_line_date:
+            return same_line_date
+
+        for cursor in range(idx + 1, min(idx + 4, len(lines))):
+            current = lines[cursor].strip()
+            if not current:
+                continue
+            if _is_dni_stop_label(current):
+                break
+            current_normalized = _normalize_token(current)
+            parsed = _extract_date_from_fragment(current_normalized)
+            if parsed:
+                return parsed
+            if _is_dni_stop_label(current_normalized):
+                break
+
+    return _extract_date_after_labels(
+        normalized_text,
+        [
+            "fecha de nacimiento",
+            "data de naixement",
+            "nacimiento / naixement",
+            "nacimiento",
+            "naixement",
+        ],
+    )
+
+
+def _extract_date_from_fragment(fragment: str) -> dict[str, str] | None:
+    if not fragment:
+        return None
+    date_matches = list(
+        re.finditer(r"(?=(\d{1,2})\D+(\d{1,2})\D+(\d{2,4}))", fragment)
+    )
+    best: tuple[str, str, str] | None = None
+    best_score = -1
+    for item in date_matches:
+        day, month, year_raw = item.groups()
+        year_value = year_raw if len(year_raw) == 4 else _expand_year(year_raw)
+        if not _valid_date_parts(day, month, year_value):
+            continue
+        score = 0
+        if len(year_raw) == 4:
+            score += 2
+        if int(year_value) >= 1900:
+            score += 1
+        if score > best_score:
+            best = (day, month, year_value)
+            best_score = score
+    if not best:
+        return None
+    day, month, year_value = best
+    return {
+        "day": str(int(day)),
+        "month": str(int(month)),
+        "year": str(int(year_value)),
+    }
+
+
 def _extract_time_after_labels(
     normalized_text: str, labels: list[str]
 ) -> dict[str, str] | None:
@@ -1093,24 +1168,61 @@ def _extract_time_after_labels(
 
 
 def _extract_sex(normalized_text: str) -> str:
+    same_line = re.search(r"\b(?:sexo|sexe)\b[\s:/-]{0,12}([mfx])\b", normalized_text)
+    if same_line:
+        return same_line.group(1).upper()
+
+    near_line = re.search(r"\b(?:sexo|sexe)\b[\s:/-]{0,40}\n\s*([mfx])\b", normalized_text)
+    if near_line:
+        return near_line.group(1).upper()
+
     if re.search(r"sexo[^a-z0-9]{0,8}(varon|hombre|masculino)", normalized_text):
         return "M"
     if re.search(r"sexo[^a-z0-9]{0,8}(mujer|femenino)", normalized_text):
         return "F"
-    if re.search(r"(x|✓|✔)\s*(varon|hombre|masculino)", normalized_text):
+    if re.search(r"(x|âœ“|âœ”|✓|✔)\s*(varon|hombre|masculino)", normalized_text):
         return "M"
-    if re.search(r"(x|✓|✔)\s*(mujer|femenino)", normalized_text):
+    if re.search(r"(x|âœ“|âœ”|✓|✔)\s*(mujer|femenino)", normalized_text):
         return "F"
+    return ""
+
+
+def _extract_identity_sex(clean_text: str) -> str:
+    lines = [line.strip() for line in clean_text.splitlines()]
+    for idx, line in enumerate(lines):
+        normalized = _normalize_token(line)
+        if not normalized:
+            continue
+        if "sexo" not in normalized and "sexe" not in normalized:
+            continue
+
+        same_match = re.search(r"\b([mfx])\b", normalized)
+        if same_match:
+            return same_match.group(1).upper()
+
+        for cursor in range(idx + 1, min(idx + 3, len(lines))):
+            candidate = _normalize_token(lines[cursor])
+            if not candidate:
+                continue
+            if candidate in {"m", "f", "x"}:
+                return candidate.upper()
+            if candidate in {"masculino", "varon", "hombre"}:
+                return "M"
+            if candidate in {"femenino", "mujer"}:
+                return "F"
+            if _is_dni_stop_label(candidate):
+                break
+            break
     return ""
 
 
 def _extract_death_place(normalized_text: str) -> str:
     marked_map = {
-        "DOMICILIO_PARTICULAR": r"(x|✓|✔)\s*domicilio\s+particular",
-        "CENTRO_HOSPITALARIO": r"(x|✓|✔)\s*centro\s+hospitalario",
-        "RESIDENCIA_SOCIOSANITARIA": r"(x|✓|✔)\s*residencia\s+socio(?:\s|-)?sanitaria",
-        "LUGAR_TRABAJO": r"(x|✓|✔)\s*lugar\s+de\s+trabajo",
-        "OTRO": r"(x|✓|✔)\s*otro\s+lugar",
+        "DOMICILIO_PARTICULAR": r"(x|âœ“|âœ”)\s*domicilio\s+particular",
+        "CENTRO_HOSPITALARIO": r"(x|âœ“|âœ”)\s*centro\s+hospitalario",
+        "RESIDENCIA_SOCIOSANITARIA": r"(x|âœ“|âœ”)\s*residencia\s+socio(?:\s|-)?sanitaria",
+        "LUGAR_TRABAJO": r"(x|âœ“|âœ”)\s*lugar\s+de\s+trabajo",
+        "OTRO": r"(x|âœ“|âœ”)\s*otro\s+lugar",
     }
     for code, pattern in marked_map.items():
         if re.search(pattern, normalized_text):
@@ -1119,9 +1231,9 @@ def _extract_death_place(normalized_text: str) -> str:
 
 
 def _extract_death_consequence(normalized_text: str) -> str:
-    if re.search(r"(x|✓|✔)\s*accidente\s+de\s+trafico", normalized_text):
+    if re.search(r"(x|âœ“|âœ”)\s*accidente\s+de\s+trafico", normalized_text):
         return "ACCIDENTE_TRAFICO"
-    if re.search(r"(x|✓|✔)\s*accidente\s+laboral", normalized_text):
+    if re.search(r"(x|âœ“|âœ”)\s*accidente\s+laboral", normalized_text):
         return "ACCIDENTE_LABORAL"
     if re.search(r"consecuencia[^.\n]{0,80}accidente\s+de\s+trafico", normalized_text):
         return "ACCIDENTE_TRAFICO"
@@ -1176,7 +1288,7 @@ def _clean_value(value: str) -> str:
 
 def _extract_doctor_registered_in(text: str) -> str:
     patterns = [
-        r"colegiad[oa](?:/a)?\s+en\s*[:,]?\s*(.*?)\s*(?:,?\s+y\s+con\s+ejercicio|,?\s+i\s+amb\s+exercici|,?\s*con\s+el\s+n[uú]mero|,?\s*amb\s+el\s+n[uú]mero|$)",
+        r"colegiad[oa](?:/a)?\s+en\s*[:,]?\s*(.*?)\s*(?:,?\s+y\s+con\s+ejercicio|,?\s+i\s+amb\s+exercici|,?\s*con\s+el\s+n[uÃº]mero|,?\s*amb\s+el\s+n[uÃº]mero|$)",
     ]
     for pattern in patterns:
         match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
@@ -1187,7 +1299,7 @@ def _extract_doctor_registered_in(text: str) -> str:
 
 def _extract_doctor_professional_practice(text: str) -> str:
     patterns = [
-        r"(?:y\s+con\s+ejercicio\s+profesional\s+en|i\s+amb\s+exercici\s+professional\s+a)\s*[:,]?\s*(.*?)\s*(?:,?\s*con\s+el\s+n[uú]mero|,?\s*amb\s+el\s+n[uú]mero|$)",
+        r"(?:y\s+con\s+ejercicio\s+profesional\s+en|i\s+amb\s+exercici\s+professional\s+a)\s*[:,]?\s*(.*?)\s*(?:,?\s*con\s+el\s+n[uÃº]mero|,?\s*amb\s+el\s+n[uÃº]mero|$)",
     ]
     for pattern in patterns:
         match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
@@ -1206,7 +1318,7 @@ def _extract_doctor_name(text: str) -> str:
         if match:
             candidate = _clean_value(match.group(1))
             candidate = re.sub(
-                r"^(?:d\.?\s*/?\s*d(?:na|n)\.?|d\.?\s*/?\s*d[ñn]a\.?|don|do[ñn]a|sr\.?\s*/?\s*sra\.?)\s*",
+                r"^(?:d\.?\s*/?\s*d(?:na|n)\.?|d\.?\s*/?\s*d[Ã±n]a\.?|don|do[Ã±n]a|sr\.?\s*/?\s*sra\.?)\s*",
                 "",
                 candidate,
                 flags=re.IGNORECASE,
@@ -1396,7 +1508,7 @@ def _parse_fields_with_meta(
         _extract_near_label(
             clean_text,
             [
-                r"1(?:\s*[.ºo0]\s*)?apellido\s+del\s+fallecid[oa]/a",
+                r"1(?:\s*[.Âºo0]\s*)?apellido\s+del\s+fallecid[oa]/a",
                 r"1r\s+cognom",
             ],
             max_chars=70,
@@ -1413,7 +1525,7 @@ def _parse_fields_with_meta(
         _extract_near_label(
             clean_text,
             [
-                r"2(?:\s*[.ºo0]\s*)?apellido\s+del\s+fallecid[oa]/a",
+                r"2(?:\s*[.Âºo0]\s*)?apellido\s+del\s+fallecid[oa]/a",
                 r"2n\s+cognom",
             ],
             max_chars=70,
@@ -1618,10 +1730,7 @@ def _parse_fields_with_meta(
             "Documento de identidad detectado, pero no se han podido aislar nombre/apellidos con suficiente calidad."
         )
 
-    birth_date = _extract_date_after_labels(
-        normalized_text,
-        ["fecha de nacimiento", "data de naixement"],
-    )
+    birth_date = _extract_birth_date(clean_text, normalized_text)
     if birth_date:
         extracted["fecha_nacimiento"] = birth_date
         confidence["fecha_nacimiento"] = 0.9
@@ -1650,6 +1759,16 @@ def _parse_fields_with_meta(
         extracted["hora_defuncion"] = death_hour
         confidence["hora_defuncion"] = 0.88
 
+    _set_candidate(
+        extracted,
+        confidence,
+        warnings,
+        "sexo",
+        _extract_identity_sex(clean_text),
+        0.88,
+        static_lines=static_lines,
+        strict=strict,
+    )
     _set_candidate(
         extracted,
         confidence,
@@ -1912,3 +2031,4 @@ def _dedupe_warnings(warnings: list[str]) -> list[str]:
         seen.add(item)
         deduped.append(item)
     return deduped
+

@@ -406,6 +406,11 @@ def test_inhumation_assistant_page_renders_certificate_layout(app, client, login
     assert 'name="holder_first_name"' in html
     assert 'name="holder_last_name"' in html
     assert 'name="holder_second_last_name"' in html
+    assert 'name="holder_document_number"' in html
+    assert 'name="holder_sex"' in html
+    assert 'name="holder_birth_day"' in html
+    assert 'name="holder_birth_month"' in html
+    assert 'name="holder_birth_year"' in html
     assert "Extraer con IA" in html
     assert "Datos extraidos automaticamente. Revise la informacion antes de guardar." in html
     assert 'id="inhumation-ai-extract-btn"' in html and "type=\"button\"" in html

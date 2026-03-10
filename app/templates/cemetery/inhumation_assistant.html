@@ -322,6 +322,29 @@
           <input type="text" name="holder_second_last_name">
         </div>
       </div>
+      <div class="inhumation-cert-grid inhumation-cols-3">
+        <div class="inhumation-field">
+          <label>DNI</label>
+          <input type="text" name="holder_document_number" placeholder="DNI/NIE">
+        </div>
+        <div class="inhumation-field">
+          <label>Sexo</label>
+          <select name="holder_sex">
+            <option value=""></option>
+            <option value="M">Masculino</option>
+            <option value="F">Femenino</option>
+            <option value="X">No especificado</option>
+          </select>
+        </div>
+        <div class="inhumation-field">
+          <label>Fecha de nacimiento (dia, mes, ano)</label>
+          <div class="inhumation-subfields inhumation-subfields-3">
+            <input type="number" name="holder_birth_day" min="1" max="31" placeholder="Dia">
+            <input type="number" name="holder_birth_month" min="1" max="12" placeholder="Mes">
+            <input type="number" name="holder_birth_year" min="1800" max="2200" placeholder="Ano">
+          </div>
+        </div>
+      </div>
     </section>
 
     <div class="actions-row inhumation-actions">
@@ -497,10 +520,24 @@
       setValue("holder_first_name", normalized.first_name, sourceConfidence.first_name);
       setValue("holder_last_name", normalized.last_name, sourceConfidence.last_name);
       setValue("holder_second_last_name", normalized.second_last_name, sourceConfidence.second_last_name);
+      setValue("holder_document_number", normalized.document_number, sourceConfidence.document_number);
+      setValue("holder_sex", normalized.sex, sourceConfidence.sex);
+      setValue("holder_birth_day", normalized.birth_day, sourceConfidence.birth_day);
+      setValue("holder_birth_month", normalized.birth_month, sourceConfidence.birth_month);
+      setValue("holder_birth_year", normalized.birth_year, sourceConfidence.birth_year);
 
       setValue("holder_first_name", fieldsExtracted.nombre_difunto, sourceConfidence.nombre_difunto);
       setValue("holder_last_name", fieldsExtracted.apellido1, sourceConfidence.apellido1);
       setValue("holder_second_last_name", fieldsExtracted.apellido2, sourceConfidence.apellido2);
+      setValue("holder_document_number", fieldsExtracted.documento_numero, sourceConfidence.documento_numero);
+      setValue("holder_sex", fieldsExtracted.sexo, sourceConfidence.sexo);
+
+      if (fieldsExtracted.fecha_nacimiento && typeof fieldsExtracted.fecha_nacimiento === "object") {
+        const birth = fieldsExtracted.fecha_nacimiento;
+        setValue("holder_birth_day", birth.day, sourceConfidence.fecha_nacimiento || 0.88);
+        setValue("holder_birth_month", birth.month, sourceConfidence.fecha_nacimiento || 0.88);
+        setValue("holder_birth_year", birth.year, sourceConfidence.fecha_nacimiento || 0.88);
+      }
 
       if (
         (!hasValue(normalizedData.holder_first_name) || !hasValue(normalizedData.holder_last_name)) &&

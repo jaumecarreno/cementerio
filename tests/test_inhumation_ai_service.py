@@ -190,6 +190,15 @@ JAUME
 
 SEXO / SEXE
 M
+
+NACIMIENTO / NAIXEMENT
+13 02 1984
+
+EMISION / EMISSIO
+25 11 2024
+
+VALIDEZ / VALIDEZA
+25 11 2034
 """
     extracted, _confidence, warnings = _parse_fields_with_meta(
         sample_text,
@@ -202,6 +211,10 @@ M
     assert extracted["apellido1"] == "CARREÑO"
     assert extracted["apellido2"] == "ZORRILLA"
     assert extracted["nombre_difunto"] == "JAUME"
+    assert extracted["sexo"] == "M"
+    assert extracted["fecha_nacimiento"]["day"] == "13"
+    assert extracted["fecha_nacimiento"]["month"] == "2"
+    assert extracted["fecha_nacimiento"]["year"] == "1984"
     assert not any("no se han podido aislar nombre/apellidos" in w.lower() for w in warnings)
 
 
