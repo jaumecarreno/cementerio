@@ -341,12 +341,30 @@
       else actionStatus.removeAttribute("data-state");
     }
 
-    function markAutofilled(element, confidence) {
+    function markAutofilled(element, confidence, source) {
       element.classList.add("inhumation-ai-autofilled");
       element.setAttribute("data-ai-autofilled", "1");
       if (hasValue(confidence)) element.setAttribute("data-ai-confidence", String(confidence));
+      if (hasValue(source)) element.setAttribute("data-ai-autofilled-source", String(source));
       const field = element.closest(".inhumation-field");
       if (field) field.classList.add("inhumation-ai-field-autofilled");
+    }
+
+    function clearAutofilledMarks(source) {
+      const highlighted = Array.from(form.querySelectorAll(".inhumation-ai-autofilled"));
+      highlighted.forEach(function (element) {
+        const markSource = String(element.getAttribute("data-ai-autofilled-source") || "");
+        if (hasValue(source) && markSource !== String(source)) return;
+        element.classList.remove("inhumation-ai-autofilled");
+        element.removeAttribute("data-ai-autofilled");
+        element.removeAttribute("data-ai-confidence");
+        element.removeAttribute("data-ai-autofilled-source");
+        const field = element.closest(".inhumation-field");
+        if (!field) return;
+        if (!field.querySelector(".inhumation-ai-autofilled")) {
+          field.classList.remove("inhumation-ai-field-autofilled");
+        }
+      });
     }
 
     function applySingleValue(elements, value, confidenceValue) {
@@ -355,7 +373,7 @@
       target.value = String(value);
       target.dispatchEvent(new Event("input", { bubbles: true }));
       target.dispatchEvent(new Event("change", { bubbles: true }));
-      markAutofilled(target, confidenceValue);
+      markAutofilled(target, confidenceValue, "ai-extract");
       return 1;
     }
 
@@ -467,6 +485,13 @@
       input.addEventListener("input", function () {
         updateBillingAccountHolderFromHolder(false);
       });
+    });
+
+    form.addEventListener("focusin", function (event) {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (!target.matches("input, select, textarea")) return;
+      clearAutofilledMarks("dni-lookup");
     });
 
     function createExtractionController(options) {
@@ -868,7 +893,7 @@
         field.value = String(value).trim();
         field.dispatchEvent(new Event("input", { bubbles: true }));
         field.dispatchEvent(new Event("change", { bubbles: true }));
-        markAutofilled(field, 1);
+        markAutofilled(field, 1, "dni-lookup");
       }
 
       async function runLookup() {
