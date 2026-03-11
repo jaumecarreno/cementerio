@@ -106,6 +106,7 @@ from app.cemetery.services import (
     ownership_case_detail,
     ownership_case_resolution_pdf,
     org_record,
+    person_by_dni_nif,
     person_by_id,
     paginate_rows,
     panel_data,
@@ -301,6 +302,51 @@ def inhumation_assistant_extract_document():
             ),
             500,
         )
+
+
+@cemetery_bp.get("/inhumaciones/asistente/persona-por-dni")
+@login_required
+@require_membership
+def inhumation_assistant_person_lookup():
+    raw_dni = (request.args.get("dni") or "").strip()
+    if not raw_dni:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "found": False,
+                    "person": None,
+                    "message": "Debes informar un DNI/NIE.",
+                }
+            ),
+            400,
+        )
+
+    person = person_by_dni_nif(raw_dni)
+    if not person:
+        return jsonify({"success": True, "found": False, "person": None}), 200
+
+    last_parts = [part for part in (person.last_name or "").split(" ") if part]
+    first_last_name = last_parts[0] if last_parts else ""
+    second_last_name = " ".join(last_parts[1:]) if len(last_parts) > 1 else ""
+
+    payload = {
+        "id": person.id,
+        "first_name": person.first_name or "",
+        "last_name": first_last_name,
+        "second_last_name": second_last_name,
+        "dni_nif": person.dni_nif or "",
+        "phone_1": person.telefono or "",
+        "phone_2": person.telefono2 or "",
+        "email_1": person.email or "",
+        "email_2": person.email2 or "",
+        "address": person.direccion_linea or person.direccion or "",
+        "postal_code": person.codigo_postal or "",
+        "city": person.poblacion or "",
+        "country": person.pais or "",
+        "notes": person.notas or "",
+    }
+    return jsonify({"success": True, "found": True, "person": payload}), 200
 
 
 @cemetery_bp.get("/personas")

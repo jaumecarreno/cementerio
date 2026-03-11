@@ -662,6 +662,13 @@ def person_by_id(person_id: int) -> Person:
     return person
 
 
+def person_by_dni_nif(dni_nif: str | None) -> Person | None:
+    cleaned = _clean_dni_nif(dni_nif)
+    if not cleaned:
+        return None
+    return Person.query.filter_by(org_id=org_id(), dni_nif=cleaned).first()
+
+
 def _validate_email(value: str) -> str:
     email = (value or "").strip()
     if not email:

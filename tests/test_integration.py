@@ -364,63 +364,48 @@ def test_inhumation_assistant_requires_login(client):
     assert "/auth/login" in response.headers.get("Location", "")
 
 
-def test_inhumation_assistant_page_renders_certificate_layout(app, client, login_admin):
+def test_inhumation_assistant_page_renders_contract_assistant_layout(
+    app, client, login_admin
+):
     login_admin()
     response = client.get("/cementerio/inhumaciones/asistente")
     assert response.status_code == 200
 
     html = response.get_data(as_text=True)
-    assert "Asistente para crear una inhum" in html
-    assert "Certificado medico de defuncion" in html
-    assert "Datos del difunto y documento" in html
+    assert "Asistente de alta de contrato" in html
+    assert "Documentacion" in html
     assert "Datos del titular" in html
-    assert "Datos del Beneficiario" in html
-    assert "Facturacion" in html
-    assert "certificado" in html.lower()
-    assert "hora:minutos" in html.lower()
-    assert "incineraci" in html.lower()
+    assert "Datos del beneficiario" in html
+    assert "Datos bancarios" in html
+    assert "Certificado medico de defuncion" not in html
     assert "Continuar" in html
-    assert 'id="inhumation-continue-btn"' in html
-    assert 'class="box inhumation-cert-toggle"' in html
-    assert 'class="box inhumation-cert-toggle" open' not in html
+    assert 'id="contract-continue-btn"' in html
 
-    cert_pos = html.find("Certificado medico de defuncion")
-    doctor_pos = html.find('name="doctor_name"')
-    cert_number_pos = html.find('name="certificate_number"')
-    difunto_pos = html.find("Datos del difunto y documento")
-    defuncion_pos = html.find("Datos de defunci")
-    assert cert_pos != -1
-    assert doctor_pos != -1
-    assert cert_number_pos != -1
-    assert difunto_pos != -1
-    assert defuncion_pos != -1
-    assert cert_pos < cert_number_pos < doctor_pos < difunto_pos < defuncion_pos
-
-    assert html.count('name="doctor_name"') == 1
-    assert html.count('name="doctor_registered_in"') == 1
-    assert html.count('name="doctor_registration_number"') == 1
-    assert html.count('name="doctor_professional_practice"') == 1
-
-    assert 'id="inhumation-document-upload"' in html
-    assert 'id="inhumation-ai-extract-btn"' in html
-    assert 'id="certificate-toggle"' in html
     assert 'id="holder-document-upload"' in html
-    assert 'id="holder-ai-extract-btn"' in html
-    assert 'id="holder-toggle"' in html
     assert 'id="beneficiary-document-upload"' in html
-    assert 'id="beneficiary-ai-extract-btn"' in html
-    assert 'id="beneficiary-toggle"' in html
     assert 'id="billing-document-upload"' in html
+    assert 'id="burial-license-upload"' in html
+    assert 'id="death-certificate-upload"' in html
+    assert 'id="burial-title-upload"' in html
+
+    assert 'id="holder-ai-extract-btn"' in html
+    assert 'id="beneficiary-ai-extract-btn"' in html
     assert 'id="billing-ai-extract-btn"' in html
-    assert 'id="billing-toggle"' in html
+    assert 'id="license-ai-extract-btn"' in html
+    assert 'id="death-ai-extract-btn"' in html
+    assert 'id="title-ai-extract-btn"' in html
+
+    assert 'id="holder-dni-lookup-btn"' in html
+    assert 'id="beneficiary-dni-lookup-btn"' in html
+    assert 'id="holder-dni-status"' in html
+    assert 'id="beneficiary-dni-status"' in html
+
     assert 'name="holder_first_name"' in html
     assert 'name="holder_last_name"' in html
     assert 'name="holder_second_last_name"' in html
     assert 'name="holder_document_number"' in html
     assert 'name="holder_sex"' in html
-    assert 'name="holder_birth_day"' in html
-    assert 'name="holder_birth_month"' in html
-    assert 'name="holder_birth_year"' in html
+    assert 'name="holder_birth_date"' in html
     assert 'name="holder_phone_1"' in html
     assert 'name="holder_phone_2"' in html
     assert 'name="holder_email_1"' in html
@@ -430,14 +415,13 @@ def test_inhumation_assistant_page_renders_certificate_layout(app, client, login
     assert 'name="holder_city"' in html
     assert 'name="holder_country"' in html
     assert 'name="holder_observations"' in html
+
     assert 'name="beneficiary_first_name"' in html
     assert 'name="beneficiary_last_name"' in html
     assert 'name="beneficiary_second_last_name"' in html
     assert 'name="beneficiary_document_number"' in html
     assert 'name="beneficiary_sex"' in html
-    assert 'name="beneficiary_birth_day"' in html
-    assert 'name="beneficiary_birth_month"' in html
-    assert 'name="beneficiary_birth_year"' in html
+    assert 'name="beneficiary_birth_date"' in html
     assert 'name="beneficiary_phone_1"' in html
     assert 'name="beneficiary_phone_2"' in html
     assert 'name="beneficiary_email_1"' in html
@@ -447,18 +431,66 @@ def test_inhumation_assistant_page_renders_certificate_layout(app, client, login
     assert 'name="beneficiary_city"' in html
     assert 'name="beneficiary_country"' in html
     assert 'name="beneficiary_observations"' in html
+
     assert 'name="billing_account_holder_name"' in html
-    assert 'name="billing_account_holder_document_number"' in html
     assert 'name="billing_iban"' in html
     assert 'name="billing_bank_name"' in html
     assert 'value="Terrassa"' in html
-    assert ("value=\"España\"" in html) or ("value=\"Espana\"" in html)
+    assert 'value="Espana"' in html
     assert "Extraer con IA" in html
-    assert "Datos extraidos automaticamente. Revise la informacion antes de guardar." in html
-    assert 'id="inhumation-ai-extract-btn"' in html and "type=\"button\"" in html
-    assert 'id="holder-ai-extract-btn"' in html and "type=\"button\"" in html
-    assert 'id="beneficiary-ai-extract-btn"' in html and "type=\"button\"" in html
-    assert 'id="billing-ai-extract-btn"' in html and "type=\"button\"" in html
+
+    docs_pos = html.find("Paso 1")
+    holder_pos = html.find("Paso 2")
+    beneficiary_pos = html.find("Paso 3")
+    billing_pos = html.find("Paso 4")
+    assert docs_pos != -1
+    assert holder_pos != -1
+    assert beneficiary_pos != -1
+    assert billing_pos != -1
+    assert docs_pos < holder_pos < beneficiary_pos < billing_pos
+
+def test_inhumation_assistant_person_lookup_requires_login(client):
+    response = client.get(
+        "/cementerio/inhumaciones/asistente/persona-por-dni?dni=12345678Z",
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    assert "/auth/login" in response.headers.get("Location", "")
+
+
+def test_inhumation_assistant_person_lookup_returns_400_without_dni(
+    client, login_admin
+):
+    login_admin()
+    response = client.get("/cementerio/inhumaciones/asistente/persona-por-dni")
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload is not None
+    assert payload["success"] is False
+    assert payload["found"] is False
+    assert payload["person"] is None
+
+
+def test_inhumation_assistant_person_lookup_returns_person_when_found(
+    app, client, login_admin
+):
+    login_admin()
+    with app.app_context():
+        person = Person.query.filter(Person.dni_nif.isnot(None)).order_by(Person.id.asc()).first()
+        assert person is not None
+        dni = str(person.dni_nif)
+        first_name = str(person.first_name)
+
+    response = client.get(
+        f"/cementerio/inhumaciones/asistente/persona-por-dni?dni={dni}"
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload is not None
+    assert payload["success"] is True
+    assert payload["found"] is True
+    assert payload["person"]["dni_nif"] == dni
+    assert payload["person"]["first_name"] == first_name
 
 
 def test_inhumation_assistant_extract_document_requires_login(client):
@@ -540,4 +572,5 @@ def test_inhumation_assistant_extract_document_returns_200_with_mocked_service(
     assert "confidence" in payload
     assert "needs_review" in payload
     assert "warnings" in payload
+
 

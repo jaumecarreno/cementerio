@@ -1965,6 +1965,97 @@ tr:last-child td {
   gap: 8px;
 }
 
+.contract-assistant-page {
+  max-width: 1360px;
+}
+
+.contract-assistant-form {
+  display: grid;
+  gap: 10px;
+}
+
+.contract-assistant-form input,
+.contract-assistant-form select,
+.contract-assistant-form textarea {
+  min-height: 31px;
+  padding: 4px 7px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.contract-step {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.contract-step-title {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.contract-step-pill {
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-soft);
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.contract-doc-list {
+  display: grid;
+  gap: 8px;
+}
+
+.contract-doc-row {
+  display: grid;
+  grid-template-columns: minmax(300px, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.contract-identity-row {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.contract-inline-status {
+  margin: 2px 0 0;
+  min-height: 16px;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+.contract-inline-status[data-state="success"] {
+  color: var(--ok);
+}
+
+.contract-inline-status[data-state="error"] {
+  color: var(--danger);
+}
+
+.contract-inline-status[data-state="pending"] {
+  color: #b57400;
+}
+
+.contract-actions {
+  align-items: center;
+}
+
+.contract-actions .small {
+  margin: 0;
+}
+
 .inhumation-cert-toggle {
   padding: 0;
   overflow: hidden;
@@ -2248,6 +2339,11 @@ tr:last-child td {
 
   .inhumation-cause-row {
     grid-template-columns: minmax(140px, 180px) 1fr;
+  }
+
+  .contract-doc-row,
+  .contract-identity-row {
+    grid-template-columns: 1fr;
   }
 }
 

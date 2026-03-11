@@ -1,673 +1,243 @@
 {% extends "base.html" %}
 {% set active_global = 'dashboard' %}
 {% set hide_context_toolbar = true %}
-{% block title %}Asistente de Inhumacion{% endblock %}
+{% block title %}Asistente de Contrato{% endblock %}
 {% block content %}
 {% from "partials/icons.html" import action_icon %}
-<h1 class="page-title">Asistente para crear una inhumacion</h1>
+<h1 class="page-title">Asistente de alta de contrato (derecho funerario)</h1>
 
-<div class="inhumation-cert-page">
-  <form class="inhumation-certificate" id="inhumation-certificate-form" onsubmit="return false;">
-    <div class="inhumation-ai-upload-row">
-      <div class="inhumation-field">
-        <label for="inhumation-document-upload">Certificado o documento (PDF/JPG/JPEG/PNG)</label>
-        <input
-          id="inhumation-document-upload"
-          name="inhumation_document_upload"
-          type="file"
-          accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-        >
-      </div>
-      <div class="inhumation-ai-btn-wrap">
-        <button
-          class="btn secondary inhumation-ai-btn"
-          id="inhumation-ai-extract-btn"
-          type="button"
-          aria-live="polite"
-        >
-          <span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span>
-          <span class="inhumation-ai-btn-label">Extraer con IA</span>
-        </button>
-      </div>
-    </div>
-    <div id="inhumation-ai-review-banner" class="warning inhumation-ai-feedback" hidden>
-      Datos extraidos automaticamente. Revise la informacion antes de guardar.
-    </div>
-    <div id="inhumation-ai-error-banner" class="flash error inhumation-ai-feedback" hidden role="alert"></div>
-    <div id="inhumation-ai-warning-banner" class="warning inhumation-ai-feedback" hidden></div>
-
-    <details class="box inhumation-cert-toggle" id="certificate-toggle">
-      <summary class="inhumation-cert-toggle-summary">Certificado medico de defuncion</summary>
-      <div class="inhumation-cert-toggle-body">
-        <section class="box inhumation-cert-card">
-          <h3 class="inhumation-cert-title">Certificado medico de defuncion</h3>
-          <div class="inhumation-cert-grid inhumation-cols-5">
-            <div class="inhumation-field">
-              <label>Numero de certificado</label>
-              <input type="text" name="certificate_number">
-            </div>
-            <div class="inhumation-field">
-              <label>Nombre del medico</label>
-              <input type="text" name="doctor_name">
-            </div>
-            <div class="inhumation-field">
-              <label>Colegiado en</label>
-              <input type="text" name="doctor_registered_in">
-            </div>
-            <div class="inhumation-field">
-              <label>Numero de colegiado</label>
-              <input type="text" name="doctor_registration_number">
-            </div>
-            <div class="inhumation-field">
-              <label>Ejercicio profesional en</label>
-              <input type="text" name="doctor_professional_practice">
-            </div>
+<div class="contract-assistant-page">
+  <form class="contract-assistant-form" id="contract-assistant-form" onsubmit="return false;">
+    <section class="box contract-step">
+      <h2 class="contract-step-title"><span class="contract-step-pill">Paso 1</span> Documentacion</h2>
+      <p class="small muted">Obligatorio para continuar: DNI titular y Licencia de entierro/incineracion.</p>
+      <div class="contract-doc-list">
+        <div class="contract-doc-row">
+          <div class="inhumation-field">
+            <label for="holder-document-upload">DNI titular (PDF/JPG/JPEG/PNG)</label>
+            <input id="holder-document-upload" name="holder_document_upload" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+            <p class="contract-inline-status" id="holder-document-status" aria-live="polite"></p>
           </div>
-        </section>
-
-        <section class="box inhumation-cert-card">
-          <h3 class="inhumation-cert-title">Datos del difunto y documento</h3>
-          <div class="inhumation-cert-grid inhumation-cols-4">
-            <div class="inhumation-field">
-              <label>Nombre</label>
-              <input type="text" name="first_name">
-            </div>
-            <div class="inhumation-field">
-              <label>Primer apellido</label>
-              <input type="text" name="last_name">
-            </div>
-            <div class="inhumation-field">
-              <label>Segundo apellido</label>
-              <input type="text" name="second_last_name">
-            </div>
-            <div class="inhumation-field">
-              <label>Documento de identidad</label>
-              <div class="inhumation-identity-inline">
-                <select name="document_type">
-                  <option value=""></option>
-                  <option value="DNI">DNI</option>
-                  <option value="NIE">NIE</option>
-                  <option value="PASAPORTE">Pasaporte</option>
-                </select>
-                <input type="text" name="document_number" placeholder="Numero">
-              </div>
-            </div>
-          </div>
-          <div class="inhumation-cert-grid inhumation-cols-2">
-            <div class="inhumation-field">
-              <label>Fecha de nacimiento (dia, mes, ano)</label>
-              <div class="inhumation-subfields inhumation-subfields-3">
-                <input type="number" name="birth_day" min="1" max="31" placeholder="Dia">
-                <input type="number" name="birth_month" min="1" max="12" placeholder="Mes">
-                <input type="number" name="birth_year" min="1800" max="2200" placeholder="Ano">
-              </div>
-            </div>
-            <div class="inhumation-field">
-              <label>Sexo</label>
-              <select name="sex">
-                <option value=""></option>
-                <option value="M">Masculino</option>
-                <option value="F">Femenino</option>
-                <option value="X">No especificado</option>
-              </select>
-            </div>
-          </div>
-        </section>
-
-        <section class="box inhumation-cert-card">
-          <h3 class="inhumation-cert-title">Datos de defuncion</h3>
-          <div class="inhumation-cert-grid inhumation-cols-3">
-            <div class="inhumation-field">
-              <label>Hora de la defuncion (hora:minutos)</label>
-              <div class="inhumation-subfields inhumation-subfields-2">
-                <input type="number" name="death_hour" min="0" max="23" placeholder="Hora">
-                <input type="number" name="death_minute" min="0" max="59" placeholder="Min">
-              </div>
-            </div>
-            <div class="inhumation-field">
-              <label>Fecha de la defuncion (dia, mes, ano)</label>
-              <div class="inhumation-subfields inhumation-subfields-3">
-                <input type="number" name="death_day" min="1" max="31" placeholder="Dia">
-                <input type="number" name="death_month" min="1" max="12" placeholder="Mes">
-                <input type="number" name="death_year" min="1800" max="2200" placeholder="Ano">
-              </div>
-            </div>
-            <div class="inhumation-field">
-              <label>Lugar en el que ocurrio la defuncion</label>
-              <select name="death_place">
-                <option value=""></option>
-                <option value="DOMICILIO_PARTICULAR">Domicilio particular</option>
-                <option value="CENTRO_HOSPITALARIO">Centro hospitalario</option>
-                <option value="RESIDENCIA_SOCIOSANITARIA">Residencia sociosanitaria</option>
-                <option value="LUGAR_TRABAJO">Lugar de trabajo</option>
-                <option value="OTRO">Otro lugar</option>
-              </select>
-            </div>
-          </div>
-        </section>
-
-        <section class="box inhumation-cert-card">
-          <h3 class="inhumation-cert-title">Causas de la defuncion</h3>
-          <div class="inhumation-cause-table">
-            <div class="inhumation-cause-row">
-              <p class="inhumation-cause-name">Causa inmediata</p>
-              <div class="inhumation-field">
-                <label>Motivo</label>
-                <input type="text" name="immediate_cause_reason">
-              </div>
-              <div class="inhumation-field">
-                <label>Intervalo (h, d, m, a)</label>
-                <div class="inhumation-subfields inhumation-subfields-4">
-                  <input type="number" name="immediate_hours" min="0" placeholder="H">
-                  <input type="number" name="immediate_days" min="0" placeholder="D">
-                  <input type="number" name="immediate_months" min="0" placeholder="M">
-                  <input type="number" name="immediate_years" min="0" placeholder="A">
-                </div>
-              </div>
-            </div>
-            <div class="inhumation-cause-row">
-              <p class="inhumation-cause-name">Causas antecedentes</p>
-              <div class="inhumation-field">
-                <label>Debido a</label>
-                <input type="text" name="antecedent_cause_reason">
-              </div>
-              <div class="inhumation-field">
-                <label>Intervalo (h, d, m, a)</label>
-                <div class="inhumation-subfields inhumation-subfields-4">
-                  <input type="number" name="antecedent_hours" min="0" placeholder="H">
-                  <input type="number" name="antecedent_days" min="0" placeholder="D">
-                  <input type="number" name="antecedent_months" min="0" placeholder="M">
-                  <input type="number" name="antecedent_years" min="0" placeholder="A">
-                </div>
-              </div>
-            </div>
-            <div class="inhumation-cause-row">
-              <p class="inhumation-cause-name">Causa inicial o fundamental</p>
-              <div class="inhumation-field">
-                <label>Causa</label>
-                <input type="text" name="root_cause_reason">
-              </div>
-              <div class="inhumation-field">
-                <label>Intervalo (h, d, m, a)</label>
-                <div class="inhumation-subfields inhumation-subfields-4">
-                  <input type="number" name="root_hours" min="0" placeholder="H">
-                  <input type="number" name="root_days" min="0" placeholder="D">
-                  <input type="number" name="root_months" min="0" placeholder="M">
-                  <input type="number" name="root_years" min="0" placeholder="A">
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section class="box inhumation-cert-card">
-          <h3 class="inhumation-cert-title">Informacion complementaria</h3>
-          <div class="inhumation-cert-grid inhumation-cols-2">
-            <div class="inhumation-field">
-              <label>Ha habido indicios de muerte violenta?</label>
-              <div class="inhumation-choice-group">
-                <label><input type="radio" name="violent_death_signs" value="SI"> Si</label>
-                <label><input type="radio" name="violent_death_signs" value="NO"> No</label>
-              </div>
-            </div>
-            <div class="inhumation-field">
-              <label>Se practico autopsia?</label>
-              <div class="inhumation-choice-group">
-                <label><input type="radio" name="autopsy_done" value="SI"> Si</label>
-                <label><input type="radio" name="autopsy_done" value="NO"> No</label>
-              </div>
-            </div>
-          </div>
-          <div class="inhumation-cert-grid inhumation-cols-2">
-            <div class="inhumation-field">
-              <label>Consecuencia directa o indirecta de</label>
-              <select name="death_consequence">
-                <option value=""></option>
-                <option value="ACCIDENTE_TRAFICO">Accidente de trafico</option>
-                <option value="ACCIDENTE_LABORAL">Accidente laboral</option>
-              </select>
-            </div>
-            <div class="inhumation-field">
-              <label>Fecha del accidente (dia, mes, ano)</label>
-              <div class="inhumation-subfields inhumation-subfields-3">
-                <input type="number" name="accident_day" min="1" max="31" placeholder="Dia">
-                <input type="number" name="accident_month" min="1" max="12" placeholder="Mes">
-                <input type="number" name="accident_year" min="1800" max="2200" placeholder="Ano">
-              </div>
-            </div>
-          </div>
-          <div class="inhumation-cert-grid inhumation-cols-2">
-            <div class="inhumation-field">
-              <label>Existen riesgos infecciosos?</label>
-              <div class="inhumation-choice-group">
-                <label><input type="radio" name="infectious_risk" value="SI"> Si</label>
-                <label><input type="radio" name="infectious_risk" value="NO"> No</label>
-              </div>
-            </div>
-            <div class="inhumation-field">
-              <label>Enfermedad infecciosa y grupo</label>
-              <div class="inhumation-identity-inline">
-                <input type="text" name="infectious_disease" placeholder="Enfermedad">
-                <select name="infectious_group">
-                  <option value=""></option>
-                  <option value="I">Grupo I</option>
-                  <option value="II">Grupo II</option>
-                  <option value="III">Grupo III</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          <div class="inhumation-cert-grid inhumation-cols-2">
-            <div class="inhumation-field">
-              <label>Posibilidad de incineracion?</label>
-              <div class="inhumation-choice-group">
-                <label><input type="radio" name="incineration_possible" value="SI"> Si</label>
-                <label><input type="radio" name="incineration_possible" value="NO"> No</label>
-              </div>
-            </div>
-            <div class="inhumation-field">
-              <label>Incineracion condicionada por</label>
-              <div class="inhumation-check-grid">
-                <label><input type="checkbox" name="incineration_conditions" value="MARCAPASOS"> Retirada de marcapasos</label>
-                <label><input type="checkbox" name="incineration_conditions" value="ISOTOPOS"> Tratamiento con isotopos radiactivos</label>
-                <label><input type="checkbox" name="incineration_conditions" value="PROTESIS"> Existencia de protesis</label>
-              </div>
-            </div>
-          </div>
-        </section>
-      </div>
-    </details>
-
-        <section class="box inhumation-cert-card inhumation-holder-card">
-      <div class="inhumation-ai-upload-row">
-        <div class="inhumation-field">
-          <label for="holder-document-upload">DNI del titular (PDF/JPG/JPEG/PNG)</label>
-          <input
-            id="holder-document-upload"
-            name="holder_document_upload"
-            type="file"
-            accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-          >
+          <button class="btn secondary inhumation-ai-btn" id="holder-ai-extract-btn" type="button" aria-live="polite"><span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span><span class="inhumation-ai-btn-label">Extraer con IA</span></button>
         </div>
-        <div class="inhumation-ai-btn-wrap">
-          <button
-            class="btn secondary inhumation-ai-btn"
-            id="holder-ai-extract-btn"
-            type="button"
-            aria-live="polite"
-          >
-            <span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span>
-            <span class="inhumation-ai-btn-label">Extraer con IA</span>
-          </button>
+
+        <div class="contract-doc-row">
+          <div class="inhumation-field">
+            <label for="beneficiary-document-upload">DNI beneficiario (PDF/JPG/JPEG/PNG)</label>
+            <input id="beneficiary-document-upload" name="beneficiary_document_upload" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+            <p class="contract-inline-status" id="beneficiary-document-status" aria-live="polite"></p>
+          </div>
+          <button class="btn secondary inhumation-ai-btn" id="beneficiary-ai-extract-btn" type="button" aria-live="polite"><span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span><span class="inhumation-ai-btn-label">Extraer con IA</span></button>
+        </div>
+
+        <div class="contract-doc-row">
+          <div class="inhumation-field">
+            <label for="billing-document-upload">Certificado cuenta bancaria (PDF/JPG/JPEG/PNG)</label>
+            <input id="billing-document-upload" name="billing_document_upload" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+            <p class="contract-inline-status" id="billing-document-status" aria-live="polite"></p>
+          </div>
+          <button class="btn secondary inhumation-ai-btn" id="billing-ai-extract-btn" type="button" aria-live="polite"><span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span><span class="inhumation-ai-btn-label">Extraer con IA</span></button>
+        </div>
+
+        <div class="contract-doc-row">
+          <div class="inhumation-field">
+            <label for="burial-license-upload">Licencia de entierro/incineracion (PDF/JPG/JPEG/PNG)</label>
+            <input id="burial-license-upload" name="burial_license_upload" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+            <p class="contract-inline-status" id="license-document-status" aria-live="polite"></p>
+          </div>
+          <button class="btn secondary inhumation-ai-btn" id="license-ai-extract-btn" type="button" aria-live="polite"><span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span><span class="inhumation-ai-btn-label">Extraer con IA</span></button>
+        </div>
+
+        <div class="contract-doc-row">
+          <div class="inhumation-field">
+            <label for="death-certificate-upload">Certificado de defuncion (PDF/JPG/JPEG/PNG)</label>
+            <input id="death-certificate-upload" name="death_certificate_upload" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+            <p class="contract-inline-status" id="death-document-status" aria-live="polite"></p>
+          </div>
+          <button class="btn secondary inhumation-ai-btn" id="death-ai-extract-btn" type="button" aria-live="polite"><span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span><span class="inhumation-ai-btn-label">Extraer con IA</span></button>
+        </div>
+
+        <div class="contract-doc-row">
+          <div class="inhumation-field">
+            <label for="burial-title-upload">Titulo de sepultura (PDF/JPG/JPEG/PNG)</label>
+            <input id="burial-title-upload" name="burial_title_upload" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+            <p class="contract-inline-status" id="title-document-status" aria-live="polite"></p>
+          </div>
+          <button class="btn secondary inhumation-ai-btn" id="title-ai-extract-btn" type="button" aria-live="polite"><span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span><span class="inhumation-ai-btn-label">Extraer con IA</span></button>
         </div>
       </div>
-      <div id="holder-ai-review-banner" class="warning inhumation-ai-feedback" hidden>
-        Datos del titular extraidos automaticamente. Revise la informacion antes de guardar.
-      </div>
-      <div id="holder-ai-error-banner" class="flash error inhumation-ai-feedback" hidden role="alert"></div>
-      <div id="holder-ai-warning-banner" class="warning inhumation-ai-feedback" hidden></div>
-      <details class="inhumation-cert-toggle" id="holder-toggle">
-        <summary class="inhumation-cert-toggle-summary">Datos del titular</summary>
-        <div class="inhumation-cert-toggle-body">
-          <div class="inhumation-cert-grid inhumation-cols-3">
-            <div class="inhumation-field">
-              <label>Nombre</label>
-              <input type="text" name="holder_first_name">
-            </div>
-            <div class="inhumation-field">
-              <label>Primer apellido</label>
-              <input type="text" name="holder_last_name">
-            </div>
-            <div class="inhumation-field">
-              <label>Segundo apellido</label>
-              <input type="text" name="holder_second_last_name">
-            </div>
-          </div>
-          <div class="inhumation-cert-grid inhumation-cols-3">
-            <div class="inhumation-field">
-              <label>DNI</label>
-              <input type="text" name="holder_document_number" placeholder="DNI/NIE">
-            </div>
-            <div class="inhumation-field">
-              <label>Sexo</label>
-              <select name="holder_sex">
-                <option value=""></option>
-                <option value="M">Masculino</option>
-                <option value="F">Femenino</option>
-                <option value="X">No especificado</option>
-              </select>
-            </div>
-            <div class="inhumation-field">
-              <label>Fecha de nacimiento (dia, mes, ano)</label>
-              <div class="inhumation-subfields inhumation-subfields-3">
-                <input type="number" name="holder_birth_day" min="1" max="31" placeholder="Dia">
-                <input type="number" name="holder_birth_month" min="1" max="12" placeholder="Mes">
-                <input type="number" name="holder_birth_year" min="1800" max="2200" placeholder="Ano">
-              </div>
-            </div>
-          </div>
-          <div class="inhumation-cert-grid inhumation-cols-2">
-            <div class="inhumation-field">
-              <label>Telefono 1</label>
-              <input type="text" name="holder_phone_1" placeholder="Telefono principal">
-            </div>
-            <div class="inhumation-field">
-              <label>Telefono 2</label>
-              <input type="text" name="holder_phone_2" placeholder="Telefono secundario">
-            </div>
-          </div>
-          <div class="inhumation-cert-grid inhumation-cols-2">
-            <div class="inhumation-field">
-              <label>Email 1</label>
-              <input type="email" name="holder_email_1" placeholder="email@dominio.com">
-            </div>
-            <div class="inhumation-field">
-              <label>Email 2</label>
-              <input type="email" name="holder_email_2" placeholder="email@dominio.com">
-            </div>
-          </div>
-          <div class="inhumation-cert-grid inhumation-cols-3">
-            <div class="inhumation-field">
-              <label>Direccion</label>
-              <input type="text" name="holder_address" placeholder="Direccion completa">
-            </div>
-            <div class="inhumation-field">
-              <label>Codigo postal</label>
-              <input type="text" name="holder_postal_code" placeholder="08221">
-            </div>
-            <div class="inhumation-field">
-              <label>Poblacion</label>
-              <input type="text" name="holder_city" value="Terrassa">
-            </div>
-          </div>
-          <div class="inhumation-cert-grid inhumation-cols-2">
-            <div class="inhumation-field">
-              <label>Pais</label>
-              <input type="text" name="holder_country" value="España">
-            </div>
-            <div class="inhumation-field">
-              <label>Observacions</label>
-              <textarea name="holder_observations" rows="2" placeholder="Observacions del titular"></textarea>
-            </div>
-          </div>
-        </div>
-      </details>
     </section>
 
-    <section class="box inhumation-cert-card inhumation-beneficiary-card">
-      <div class="inhumation-ai-upload-row">
+    <section class="box contract-step">
+      <h2 class="contract-step-title"><span class="contract-step-pill">Paso 2</span> Datos del titular</h2>
+      <div class="contract-identity-row">
         <div class="inhumation-field">
-          <label for="beneficiary-document-upload">DNI del beneficiario (PDF/JPG/JPEG/PNG)</label>
-          <input
-            id="beneficiary-document-upload"
-            name="beneficiary_document_upload"
-            type="file"
-            accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-          >
+          <label for="holder_document_number">DNI</label>
+          <input id="holder_document_number" type="text" name="holder_document_number" placeholder="DNI/NIE">
+          <p class="contract-inline-status" id="holder-dni-status" aria-live="polite"></p>
         </div>
-        <div class="inhumation-ai-btn-wrap">
-          <button
-            class="btn secondary inhumation-ai-btn"
-            id="beneficiary-ai-extract-btn"
-            type="button"
-            aria-live="polite"
-          >
-            <span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span>
-            <span class="inhumation-ai-btn-label">Extraer con IA</span>
-          </button>
-        </div>
+        <button class="btn" id="holder-dni-lookup-btn" type="button">Comprobar DNI</button>
       </div>
-      <div id="beneficiary-ai-review-banner" class="warning inhumation-ai-feedback" hidden>
-        Datos del beneficiario extraidos automaticamente. Revise la informacion antes de guardar.
+      <div class="inhumation-cert-grid inhumation-cols-3">
+        <div class="inhumation-field"><label>Nombre</label><input type="text" name="holder_first_name"></div>
+        <div class="inhumation-field"><label>Primer apellido</label><input type="text" name="holder_last_name"></div>
+        <div class="inhumation-field"><label>Segundo apellido</label><input type="text" name="holder_second_last_name"></div>
       </div>
-      <div id="beneficiary-ai-error-banner" class="flash error inhumation-ai-feedback" hidden role="alert"></div>
-      <div id="beneficiary-ai-warning-banner" class="warning inhumation-ai-feedback" hidden></div>
-      <details class="inhumation-cert-toggle" id="beneficiary-toggle">
-        <summary class="inhumation-cert-toggle-summary">Datos del Beneficiario</summary>
-        <div class="inhumation-cert-toggle-body">
-          <div class="inhumation-cert-grid inhumation-cols-3">
-            <div class="inhumation-field">
-              <label>Nombre</label>
-              <input type="text" name="beneficiary_first_name">
-            </div>
-            <div class="inhumation-field">
-              <label>Primer apellido</label>
-              <input type="text" name="beneficiary_last_name">
-            </div>
-            <div class="inhumation-field">
-              <label>Segundo apellido</label>
-              <input type="text" name="beneficiary_second_last_name">
-            </div>
-          </div>
-          <div class="inhumation-cert-grid inhumation-cols-3">
-            <div class="inhumation-field">
-              <label>DNI</label>
-              <input type="text" name="beneficiary_document_number" placeholder="DNI/NIE">
-            </div>
-            <div class="inhumation-field">
-              <label>Sexo</label>
-              <select name="beneficiary_sex">
-                <option value=""></option>
-                <option value="M">Masculino</option>
-                <option value="F">Femenino</option>
-                <option value="X">No especificado</option>
-              </select>
-            </div>
-            <div class="inhumation-field">
-              <label>Fecha de nacimiento (dia, mes, ano)</label>
-              <div class="inhumation-subfields inhumation-subfields-3">
-                <input type="number" name="beneficiary_birth_day" min="1" max="31" placeholder="Dia">
-                <input type="number" name="beneficiary_birth_month" min="1" max="12" placeholder="Mes">
-                <input type="number" name="beneficiary_birth_year" min="1800" max="2200" placeholder="Ano">
-              </div>
-            </div>
-          </div>
-          <div class="inhumation-cert-grid inhumation-cols-2">
-            <div class="inhumation-field">
-              <label>Telefono 1</label>
-              <input type="text" name="beneficiary_phone_1" placeholder="Telefono principal">
-            </div>
-            <div class="inhumation-field">
-              <label>Telefono 2</label>
-              <input type="text" name="beneficiary_phone_2" placeholder="Telefono secundario">
-            </div>
-          </div>
-          <div class="inhumation-cert-grid inhumation-cols-2">
-            <div class="inhumation-field">
-              <label>Email 1</label>
-              <input type="email" name="beneficiary_email_1" placeholder="email@dominio.com">
-            </div>
-            <div class="inhumation-field">
-              <label>Email 2</label>
-              <input type="email" name="beneficiary_email_2" placeholder="email@dominio.com">
-            </div>
-          </div>
-          <div class="inhumation-cert-grid inhumation-cols-3">
-            <div class="inhumation-field">
-              <label>Direccion</label>
-              <input type="text" name="beneficiary_address" placeholder="Direccion completa">
-            </div>
-            <div class="inhumation-field">
-              <label>Codigo postal</label>
-              <input type="text" name="beneficiary_postal_code" placeholder="08221">
-            </div>
-            <div class="inhumation-field">
-              <label>Poblacion</label>
-              <input type="text" name="beneficiary_city" value="Terrassa">
-            </div>
-          </div>
-          <div class="inhumation-cert-grid inhumation-cols-2">
-            <div class="inhumation-field">
-              <label>Pais</label>
-              <input type="text" name="beneficiary_country" value="España">
-            </div>
-            <div class="inhumation-field">
-              <label>Observacions</label>
-              <textarea name="beneficiary_observations" rows="2" placeholder="Observacions del beneficiario"></textarea>
-            </div>
-          </div>
-        </div>
-      </details>
+      <div class="inhumation-cert-grid inhumation-cols-3">
+        <div class="inhumation-field"><label>Sexo</label><select name="holder_sex"><option value=""></option><option value="M">Masculino</option><option value="F">Femenino</option><option value="X">No especificado</option></select></div>
+        <div class="inhumation-field"><label>Fecha de nacimiento</label><input type="date" name="holder_birth_date"></div>
+        <div class="inhumation-field"><label>Observaciones</label><input type="text" name="holder_observations" placeholder="Observaciones del titular"></div>
+      </div>
+      <div class="inhumation-cert-grid inhumation-cols-2">
+        <div class="inhumation-field"><label>Telefono 1</label><input type="text" name="holder_phone_1"></div>
+        <div class="inhumation-field"><label>Telefono 2</label><input type="text" name="holder_phone_2"></div>
+      </div>
+      <div class="inhumation-cert-grid inhumation-cols-2">
+        <div class="inhumation-field"><label>Email 1</label><input type="email" name="holder_email_1" placeholder="email@dominio.com"></div>
+        <div class="inhumation-field"><label>Email 2</label><input type="email" name="holder_email_2" placeholder="email@dominio.com"></div>
+      </div>
+      <div class="inhumation-cert-grid inhumation-cols-4">
+        <div class="inhumation-field"><label>Direccion</label><input type="text" name="holder_address"></div>
+        <div class="inhumation-field"><label>Codigo postal</label><input type="text" name="holder_postal_code"></div>
+        <div class="inhumation-field"><label>Poblacion</label><input type="text" name="holder_city" value="Terrassa"></div>
+        <div class="inhumation-field"><label>Pais</label><input type="text" name="holder_country" value="Espana"></div>
+      </div>
     </section>
 
-    <section class="box inhumation-cert-card inhumation-billing-card">
-      <div class="inhumation-ai-upload-row">
+    <section class="box contract-step">
+      <h2 class="contract-step-title"><span class="contract-step-pill">Paso 3</span> Datos del beneficiario</h2>
+      <div class="contract-identity-row">
         <div class="inhumation-field">
-          <label for="billing-document-upload">Certificado de titularidad bancaria (PDF/JPG/JPEG/PNG)</label>
-          <input
-            id="billing-document-upload"
-            name="billing_document_upload"
-            type="file"
-            accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-          >
+          <label for="beneficiary_document_number">DNI</label>
+          <input id="beneficiary_document_number" type="text" name="beneficiary_document_number" placeholder="DNI/NIE">
+          <p class="contract-inline-status" id="beneficiary-dni-status" aria-live="polite"></p>
         </div>
-        <div class="inhumation-ai-btn-wrap">
-          <button
-            class="btn secondary inhumation-ai-btn"
-            id="billing-ai-extract-btn"
-            type="button"
-            aria-live="polite"
-          >
-            <span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span>
-            <span class="inhumation-ai-btn-label">Extraer con IA</span>
-          </button>
-        </div>
+        <button class="btn" id="beneficiary-dni-lookup-btn" type="button">Comprobar DNI</button>
       </div>
-      <div id="billing-ai-review-banner" class="warning inhumation-ai-feedback" hidden>
-        Datos de facturacion extraidos automaticamente. Revise la informacion antes de guardar.
+      <div class="inhumation-cert-grid inhumation-cols-3">
+        <div class="inhumation-field"><label>Nombre</label><input type="text" name="beneficiary_first_name"></div>
+        <div class="inhumation-field"><label>Primer apellido</label><input type="text" name="beneficiary_last_name"></div>
+        <div class="inhumation-field"><label>Segundo apellido</label><input type="text" name="beneficiary_second_last_name"></div>
       </div>
-      <div id="billing-ai-error-banner" class="flash error inhumation-ai-feedback" hidden role="alert"></div>
-      <div id="billing-ai-warning-banner" class="warning inhumation-ai-feedback" hidden></div>
-      <details class="inhumation-cert-toggle" id="billing-toggle">
-        <summary class="inhumation-cert-toggle-summary">Facturacion</summary>
-        <div class="inhumation-cert-toggle-body">
-          <div class="inhumation-cert-grid inhumation-cols-2">
-            <div class="inhumation-field">
-              <label>Titular de la cuenta</label>
-              <input type="text" name="billing_account_holder_name">
-            </div>
-            <div class="inhumation-field">
-              <label>DNI titular de la cuenta</label>
-              <input type="text" name="billing_account_holder_document_number" placeholder="DNI/NIE">
-            </div>
-          </div>
-          <div class="inhumation-cert-grid inhumation-cols-2">
-            <div class="inhumation-field">
-              <label>IBAN de la cuenta</label>
-              <input type="text" name="billing_iban" placeholder="ES0000000000000000000000">
-            </div>
-            <div class="inhumation-field">
-              <label>Nombre del banco</label>
-              <input type="text" name="billing_bank_name">
-            </div>
-          </div>
-        </div>
-      </details>
+      <div class="inhumation-cert-grid inhumation-cols-3">
+        <div class="inhumation-field"><label>Sexo</label><select name="beneficiary_sex"><option value=""></option><option value="M">Masculino</option><option value="F">Femenino</option><option value="X">No especificado</option></select></div>
+        <div class="inhumation-field"><label>Fecha de nacimiento</label><input type="date" name="beneficiary_birth_date"></div>
+        <div class="inhumation-field"><label>Observaciones</label><input type="text" name="beneficiary_observations" placeholder="Observaciones del beneficiario"></div>
+      </div>
+      <div class="inhumation-cert-grid inhumation-cols-2">
+        <div class="inhumation-field"><label>Telefono 1</label><input type="text" name="beneficiary_phone_1"></div>
+        <div class="inhumation-field"><label>Telefono 2</label><input type="text" name="beneficiary_phone_2"></div>
+      </div>
+      <div class="inhumation-cert-grid inhumation-cols-2">
+        <div class="inhumation-field"><label>Email 1</label><input type="email" name="beneficiary_email_1" placeholder="email@dominio.com"></div>
+        <div class="inhumation-field"><label>Email 2</label><input type="email" name="beneficiary_email_2" placeholder="email@dominio.com"></div>
+      </div>
+      <div class="inhumation-cert-grid inhumation-cols-4">
+        <div class="inhumation-field"><label>Direccion</label><input type="text" name="beneficiary_address"></div>
+        <div class="inhumation-field"><label>Codigo postal</label><input type="text" name="beneficiary_postal_code"></div>
+        <div class="inhumation-field"><label>Poblacion</label><input type="text" name="beneficiary_city" value="Terrassa"></div>
+        <div class="inhumation-field"><label>Pais</label><input type="text" name="beneficiary_country" value="Espana"></div>
+      </div>
     </section>
-    <div class="actions-row inhumation-actions">
-      <button class="btn primary" id="inhumation-continue-btn" type="button">Continuar (proximamente)</button>
+
+    <section class="box contract-step">
+      <h2 class="contract-step-title"><span class="contract-step-pill">Paso 4</span> Datos bancarios</h2>
+      <div class="inhumation-cert-grid inhumation-cols-3">
+        <div class="inhumation-field"><label>Titular de la cuenta</label><input type="text" name="billing_account_holder_name"></div>
+        <div class="inhumation-field"><label>IBAN de la cuenta</label><input type="text" name="billing_iban" placeholder="ES0000000000000000000000"></div>
+        <div class="inhumation-field"><label>Nombre del banco</label><input type="text" name="billing_bank_name"></div>
+      </div>
+      <p class="contract-inline-status" id="billing-default-status" aria-live="polite"></p>
+    </section>
+
+    <div class="actions-row contract-actions">
+      <p class="small muted" id="continue-requirements-status" aria-live="polite">Falta adjuntar DNI titular y Licencia para continuar.</p>
+      <button class="btn primary" id="contract-continue-btn" type="button" disabled aria-disabled="true">Continuar</button>
     </div>
+    <div id="contract-action-status" class="warning inhumation-ai-feedback" hidden aria-live="polite"></div>
   </form>
 </div>
 <script>
   (function () {
-    const form = document.getElementById("inhumation-certificate-form");
+    const form = document.getElementById("contract-assistant-form");
     if (!form) return;
-    const continueBtn = document.getElementById("inhumation-continue-btn");
-    const certificateToggle = document.getElementById("certificate-toggle");
-    const holderToggle = document.getElementById("holder-toggle");
-    const beneficiaryToggle = document.getElementById("beneficiary-toggle");
-    const billingToggle = document.getElementById("billing-toggle");
-    const endpointUrl = "{{ url_for('cemetery.inhumation_assistant_extract_document') }}";
-    const allowedExtensions = new Set(["pdf", "jpg", "jpeg", "png"]);
+    const extractionUrl = "{{ url_for('cemetery.inhumation_assistant_extract_document') }}";
+    const personLookupUrl = "{{ url_for('cemetery.inhumation_assistant_person_lookup') }}";
     const confidenceThreshold = Number("{{ config.get('INHUMATION_AI_MIN_CONFIDENCE', '0.80') }}") || 0.8;
+    const continueBtn = document.getElementById("contract-continue-btn");
+    const continueStatus = document.getElementById("continue-requirements-status");
+    const actionStatus = document.getElementById("contract-action-status");
+    const requiredUploadIds = ["holder-document-upload", "burial-license-upload"];
+    const allowedExtensions = new Set(["pdf", "jpg", "jpeg", "png"]);
     const loadingLabel = "Procesando...";
-    const idleLabel = "Extraer con IA";
 
     function hasValue(value) {
       if (value === null || value === undefined) return false;
       return String(value).trim() !== "";
     }
 
+    function escapeName(name) {
+      if (window.CSS && typeof window.CSS.escape === "function") return window.CSS.escape(name);
+      return String(name).replace(/"/g, '\\"');
+    }
+
+    function fieldByName(name) {
+      return form.querySelector('[name="' + escapeName(name) + '"]');
+    }
+
     function fileExtension(filename) {
-      const dot = filename.lastIndexOf(".");
+      const dot = String(filename || "").lastIndexOf(".");
       if (dot === -1) return "";
       return filename.slice(dot + 1).toLowerCase();
     }
 
     function fileLooksValid(file) {
       if (!file) return false;
-      const ext = fileExtension(file.name || "");
-      return allowedExtensions.has(ext);
+      return allowedExtensions.has(fileExtension(file.name || ""));
     }
 
-    function escapeName(name) {
-      if (window.CSS && typeof window.CSS.escape === "function") {
-        return window.CSS.escape(name);
-      }
-      return String(name).replace(/"/g, '\\"');
+    function sanitizeDni(raw) {
+      return String(raw || "").trim().toUpperCase().replace(/\s+/g, "");
+    }
+
+    function toIsoDate(day, month, year) {
+      const d = Number(day);
+      const m = Number(month);
+      const y = Number(year);
+      if (!Number.isInteger(d) || !Number.isInteger(m) || !Number.isInteger(y)) return "";
+      if (d < 1 || d > 31 || m < 1 || m > 12 || y < 1800 || y > 2200) return "";
+      const dt = new Date(Date.UTC(y, m - 1, d));
+      if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return "";
+      return String(y) + "-" + String(m).padStart(2, "0") + "-" + String(d).padStart(2, "0");
+    }
+
+    function setInlineStatus(target, message, state) {
+      if (!target) return;
+      target.textContent = message || "";
+      target.hidden = !hasValue(message);
+      if (state) target.setAttribute("data-state", state);
+      else target.removeAttribute("data-state");
+    }
+
+    function setGlobalStatus(message, state) {
+      if (!actionStatus) return;
+      actionStatus.textContent = message || "";
+      actionStatus.hidden = !hasValue(message);
+      if (state) actionStatus.setAttribute("data-state", state);
+      else actionStatus.removeAttribute("data-state");
     }
 
     function markAutofilled(element, confidence) {
       element.classList.add("inhumation-ai-autofilled");
       element.setAttribute("data-ai-autofilled", "1");
-      if (hasValue(confidence)) {
-        element.setAttribute("data-ai-confidence", String(confidence));
-      }
+      if (hasValue(confidence)) element.setAttribute("data-ai-confidence", String(confidence));
       const field = element.closest(".inhumation-field");
-      if (field) {
-        field.classList.add("inhumation-ai-field-autofilled");
-      }
-    }
-
-    function currentTextValue(el) {
-      if (!el) return "";
-      return String(el.value || "").trim();
+      if (field) field.classList.add("inhumation-ai-field-autofilled");
     }
 
     function applySingleValue(elements, value, confidenceValue) {
       if (!elements || !elements.length || !hasValue(value)) return 0;
-      const first = elements[0];
-      if (first.type === "radio") {
-        const alreadyChecked = elements.some(function (item) {
-          return item.checked;
-        });
-        if (alreadyChecked) return 0;
-        const target = elements.find(function (item) {
-          return String(item.value || "").toUpperCase() === String(value).toUpperCase();
-        });
-        if (!target) return 0;
-        target.checked = true;
-        target.dispatchEvent(new Event("change", { bubbles: true }));
-        markAutofilled(target, confidenceValue);
-        return 1;
-      }
-      if (first.type === "checkbox") {
-        const wanted = Array.isArray(value) ? value : [value];
-        const wantedSet = new Set(
-          wanted
-            .map(function (item) {
-              return String(item || "").trim().toUpperCase();
-            })
-            .filter(function (item) {
-              return item !== "";
-            })
-        );
-        if (!wantedSet.size) return 0;
-        let touched = 0;
-        elements.forEach(function (item) {
-          const itemValue = String(item.value || "").trim().toUpperCase();
-          if (wantedSet.has(itemValue) && !item.checked) {
-            item.checked = true;
-            item.dispatchEvent(new Event("change", { bubbles: true }));
-            markAutofilled(item, confidenceValue);
-            touched += 1;
-          }
-        });
-        return touched;
-      }
-      const target = first;
-      if (hasValue(currentTextValue(target))) return 0;
+      const target = elements[0];
       target.value = String(value);
       target.dispatchEvent(new Event("input", { bubbles: true }));
       target.dispatchEvent(new Event("change", { bubbles: true }));
@@ -681,177 +251,117 @@
       Object.entries(normalizedData).forEach(function (entry) {
         const name = entry[0];
         const value = entry[1];
-        const rawScore = confidenceMap && hasValue(confidenceMap[name]) ? Number(confidenceMap[name]) : null;
-        if (rawScore !== null && !Number.isNaN(rawScore) && rawScore < minConfidence) return;
+        const score = confidenceMap && hasValue(confidenceMap[name]) ? Number(confidenceMap[name]) : null;
+        if (score !== null && !Number.isNaN(score) && score < minConfidence) return;
         const fields = Array.from(form.querySelectorAll('[name="' + escapeName(name) + '"]'));
         if (!fields.length) return;
-        applied += applySingleValue(fields, value, rawScore);
+        applied += applySingleValue(fields, value, score);
       });
       return applied;
     }
 
-    function splitSpanishName(fullName) {
-      const parts = String(fullName || "")
-        .trim()
-        .split(/\s+/)
-        .filter(Boolean);
-      if (!parts.length) {
-        return { first: "", last: "", second: "" };
-      }
-      if (parts.length === 1) {
-        return { first: parts[0], last: "", second: "" };
-      }
-      if (parts.length === 2) {
-        return { first: parts[0], last: parts[1], second: "" };
-      }
-      if (parts.length === 3) {
-        return { first: parts[0], last: parts[1], second: parts[2] };
-      }
-      return {
-        first: parts.slice(0, parts.length - 2).join(" "),
-        last: parts[parts.length - 2],
-        second: parts[parts.length - 1],
-      };
-    }
-
-    function mapCertificatePayload(payload) {
-      return {
-        normalizedData: payload && payload.normalized_data ? payload.normalized_data : {},
-        confidenceMap: payload && payload.confidence ? payload.confidence : {},
-      };
-    }
-
     function mapPersonPayload(payload, prefix) {
       const normalized = payload && payload.normalized_data ? payload.normalized_data : {};
-      const fieldsExtracted = payload && payload.fields_extracted ? payload.fields_extracted : {};
+      const extracted = payload && payload.fields_extracted ? payload.fields_extracted : {};
       const sourceConfidence = payload && payload.confidence ? payload.confidence : {};
       const normalizedData = {};
       const confidenceMap = {};
-      const fieldPrefix = String(prefix || "").trim();
 
-      function withPrefix(baseName) {
-        return fieldPrefix + "_" + baseName;
-      }
-
-      function setValue(targetName, value, score) {
+      function setValue(name, value, score) {
         if (!hasValue(value)) return;
-        if (hasValue(normalizedData[targetName])) return;
-        normalizedData[targetName] = String(value).trim();
-        if (hasValue(score) && !Number.isNaN(Number(score))) {
-          confidenceMap[targetName] = Number(score);
-        }
+        normalizedData[name] = String(value).trim();
+        if (hasValue(score) && !Number.isNaN(Number(score))) confidenceMap[name] = Number(score);
       }
 
-      setValue(withPrefix("first_name"), normalized.first_name, sourceConfidence.first_name);
-      setValue(withPrefix("last_name"), normalized.last_name, sourceConfidence.last_name);
-      setValue(
-        withPrefix("second_last_name"),
-        normalized.second_last_name,
-        sourceConfidence.second_last_name
-      );
-      setValue(withPrefix("document_number"), normalized.document_number, sourceConfidence.document_number);
-      setValue(withPrefix("sex"), normalized.sex, sourceConfidence.sex);
-      setValue(withPrefix("birth_day"), normalized.birth_day, sourceConfidence.birth_day);
-      setValue(withPrefix("birth_month"), normalized.birth_month, sourceConfidence.birth_month);
-      setValue(withPrefix("birth_year"), normalized.birth_year, sourceConfidence.birth_year);
-
-      setValue(withPrefix("first_name"), fieldsExtracted.nombre_difunto, sourceConfidence.nombre_difunto);
-      setValue(withPrefix("last_name"), fieldsExtracted.apellido1, sourceConfidence.apellido1);
-      setValue(withPrefix("second_last_name"), fieldsExtracted.apellido2, sourceConfidence.apellido2);
-      setValue(withPrefix("document_number"), fieldsExtracted.documento_numero, sourceConfidence.documento_numero);
-      setValue(withPrefix("sex"), fieldsExtracted.sexo, sourceConfidence.sexo);
-
-      if (fieldsExtracted.fecha_nacimiento && typeof fieldsExtracted.fecha_nacimiento === "object") {
-        const birth = fieldsExtracted.fecha_nacimiento;
-        setValue(withPrefix("birth_day"), birth.day, sourceConfidence.fecha_nacimiento || 0.88);
-        setValue(withPrefix("birth_month"), birth.month, sourceConfidence.fecha_nacimiento || 0.88);
-        setValue(withPrefix("birth_year"), birth.year, sourceConfidence.fecha_nacimiento || 0.88);
+      setValue(prefix + "_first_name", normalized.first_name || extracted.nombre_difunto, sourceConfidence.first_name || sourceConfidence.nombre_difunto || 0.82);
+      setValue(prefix + "_last_name", normalized.last_name || extracted.apellido1, sourceConfidence.last_name || sourceConfidence.apellido1 || 0.82);
+      setValue(prefix + "_second_last_name", normalized.second_last_name || extracted.apellido2, sourceConfidence.second_last_name || sourceConfidence.apellido2 || 0.82);
+      setValue(prefix + "_document_number", normalized.document_number || extracted.documento_numero, sourceConfidence.document_number || sourceConfidence.documento_numero || 0.9);
+      setValue(prefix + "_sex", normalized.sex || extracted.sexo, sourceConfidence.sex || sourceConfidence.sexo || 0.8);
+      const normalizedBirthDate = toIsoDate(normalized.birth_day, normalized.birth_month, normalized.birth_year);
+      if (normalizedBirthDate) {
+        setValue(prefix + "_birth_date", normalizedBirthDate, sourceConfidence.birth_day || sourceConfidence.birth_month || sourceConfidence.birth_year || 0.85);
+      } else if (extracted.fecha_nacimiento && typeof extracted.fecha_nacimiento === "object") {
+        const extractedBirthDate = toIsoDate(extracted.fecha_nacimiento.day, extracted.fecha_nacimiento.month, extracted.fecha_nacimiento.year);
+        if (extractedBirthDate) setValue(prefix + "_birth_date", extractedBirthDate, sourceConfidence.fecha_nacimiento || 0.85);
       }
-
-      if (
-        (
-          !hasValue(normalizedData[withPrefix("first_name")]) ||
-          !hasValue(normalizedData[withPrefix("last_name")])
-        ) &&
-        hasValue(fieldsExtracted.nombre_completo_difunto)
-      ) {
-        const split = splitSpanishName(fieldsExtracted.nombre_completo_difunto);
-        setValue(withPrefix("first_name"), split.first, sourceConfidence.nombre_completo_difunto || 0.82);
-        setValue(withPrefix("last_name"), split.last, sourceConfidence.nombre_completo_difunto || 0.82);
-        setValue(
-          withPrefix("second_last_name"),
-          split.second,
-          sourceConfidence.nombre_completo_difunto || 0.82
-        );
-      }
-
       return { normalizedData: normalizedData, confidenceMap: confidenceMap };
-    }
-
-    function mapHolderPayload(payload) {
-      return mapPersonPayload(payload, "holder");
-    }
-
-    function mapBeneficiaryPayload(payload) {
-      return mapPersonPayload(payload, "beneficiary");
     }
 
     function mapBillingPayload(payload) {
       const normalized = payload && payload.normalized_data ? payload.normalized_data : {};
-      const fieldsExtracted = payload && payload.fields_extracted ? payload.fields_extracted : {};
+      const extracted = payload && payload.fields_extracted ? payload.fields_extracted : {};
       const sourceConfidence = payload && payload.confidence ? payload.confidence : {};
       const normalizedData = {};
       const confidenceMap = {};
-
-      function setValue(targetName, value, score) {
+      function setValue(name, value, score) {
         if (!hasValue(value)) return;
-        if (hasValue(normalizedData[targetName])) return;
-        normalizedData[targetName] = String(value).trim();
-        if (hasValue(score) && !Number.isNaN(Number(score))) {
-          confidenceMap[targetName] = Number(score);
-        }
+        normalizedData[name] = String(value).trim();
+        if (hasValue(score) && !Number.isNaN(Number(score))) confidenceMap[name] = Number(score);
       }
-
-      setValue(
-        "billing_account_holder_name",
-        normalized.billing_account_holder_name,
-        sourceConfidence.billing_account_holder_name
-      );
-      setValue(
-        "billing_account_holder_document_number",
-        normalized.billing_account_holder_document_number,
-        sourceConfidence.billing_account_holder_document_number
-      );
-      setValue("billing_iban", normalized.billing_iban, sourceConfidence.billing_iban);
-      setValue("billing_bank_name", normalized.billing_bank_name, sourceConfidence.billing_bank_name);
-
-      setValue(
-        "billing_account_holder_name",
-        fieldsExtracted.titular_cuenta_nombre,
-        sourceConfidence.titular_cuenta_nombre
-      );
-      setValue(
-        "billing_account_holder_document_number",
-        fieldsExtracted.titular_cuenta_documento || fieldsExtracted.documento_numero,
-        sourceConfidence.titular_cuenta_documento || sourceConfidence.documento_numero
-      );
-      setValue("billing_iban", fieldsExtracted.iban_cuenta, sourceConfidence.iban_cuenta);
-      setValue("billing_bank_name", fieldsExtracted.banco_nombre, sourceConfidence.banco_nombre);
-
+      setValue("billing_account_holder_name", normalized.billing_account_holder_name || extracted.titular_cuenta_nombre, sourceConfidence.billing_account_holder_name || sourceConfidence.titular_cuenta_nombre || 0.86);
+      setValue("billing_iban", normalized.billing_iban || extracted.iban_cuenta, sourceConfidence.billing_iban || sourceConfidence.iban_cuenta || 0.9);
+      setValue("billing_bank_name", normalized.billing_bank_name || extracted.banco_nombre, sourceConfidence.billing_bank_name || sourceConfidence.banco_nombre || 0.85);
       return { normalizedData: normalizedData, confidenceMap: confidenceMap };
     }
+
+    function updateContinueState() {
+      const isReady = requiredUploadIds.every(function (id) {
+        const input = document.getElementById(id);
+        return input && input.files && input.files[0] && fileLooksValid(input.files[0]);
+      });
+      if (continueBtn) {
+        continueBtn.disabled = !isReady;
+        continueBtn.setAttribute("aria-disabled", isReady ? "false" : "true");
+      }
+      if (continueStatus) {
+        continueStatus.textContent = isReady ? "Documentacion minima completa. Puede continuar." : "Falta adjuntar DNI titular y Licencia para continuar.";
+      }
+    }
+
+    function buildHolderAccountName() {
+      const values = [(fieldByName("holder_first_name") || {}).value || "", (fieldByName("holder_last_name") || {}).value || "", (fieldByName("holder_second_last_name") || {}).value || ""];
+      return values.map(function (item) { return String(item).trim(); }).filter(function (item) { return item !== ""; }).join(" ");
+    }
+
+    function updateBillingAccountHolderFromHolder(force) {
+      const target = fieldByName("billing_account_holder_name");
+      const status = document.getElementById("billing-default-status");
+      if (!target) return;
+      const nextValue = buildHolderAccountName();
+      if (!hasValue(nextValue)) return;
+      const isAuto = target.getAttribute("data-auto-holder") === "1";
+      if (force || isAuto || !hasValue(target.value)) {
+        target.value = nextValue;
+        target.setAttribute("data-auto-holder", "1");
+        target.dispatchEvent(new Event("input", { bubbles: true }));
+        target.dispatchEvent(new Event("change", { bubbles: true }));
+        setInlineStatus(status, "Titular de cuenta propuesto automaticamente desde datos del titular.", "info");
+      }
+    }
+
+    const billingAccountHolderInput = fieldByName("billing_account_holder_name");
+    if (billingAccountHolderInput) {
+      billingAccountHolderInput.addEventListener("input", function () {
+        billingAccountHolderInput.setAttribute("data-auto-holder", "0");
+      });
+    }
+
+    ["holder_first_name", "holder_last_name", "holder_second_last_name"].forEach(function (name) {
+      const input = fieldByName(name);
+      if (!input) return;
+      input.addEventListener("input", function () {
+        updateBillingAccountHolderFromHolder(false);
+      });
+    });
 
     function createExtractionController(options) {
       const fileInput = document.getElementById(options.fileInputId);
       const actionBtn = document.getElementById(options.buttonId);
+      const statusNode = options.statusId ? document.getElementById(options.statusId) : null;
       if (!fileInput || !actionBtn) return;
-
       const actionBtnLabel = actionBtn.querySelector(".inhumation-ai-btn-label");
-      const reviewBanner = options.reviewBannerId ? document.getElementById(options.reviewBannerId) : null;
-      const errorBanner = options.errorBannerId ? document.getElementById(options.errorBannerId) : null;
-      const warningBanner = options.warningBannerId ? document.getElementById(options.warningBannerId) : null;
-      const mapPayload = typeof options.mapPayload === "function" ? options.mapPayload : mapCertificatePayload;
-      const minConfidence = Number(options.minConfidence) || confidenceThreshold;
+      const placeholderOnly = !!options.placeholderOnly;
       let isLoading = false;
 
       function selectedFile() {
@@ -861,80 +371,42 @@
 
       function setLoading(nextLoading) {
         isLoading = !!nextLoading;
-        actionBtn.disabled = isLoading || !fileLooksValid(selectedFile());
+        if (!placeholderOnly) actionBtn.disabled = isLoading || !fileLooksValid(selectedFile());
+        else actionBtn.disabled = false;
         actionBtn.classList.toggle("is-loading", isLoading);
         actionBtn.setAttribute("aria-busy", isLoading ? "true" : "false");
-        if (actionBtnLabel) {
-          actionBtnLabel.textContent = isLoading ? loadingLabel : idleLabel;
-        }
-      }
-
-      function resetMessages() {
-        if (errorBanner) {
-          errorBanner.hidden = true;
-          errorBanner.textContent = "";
-        }
-        if (warningBanner) {
-          warningBanner.hidden = true;
-          warningBanner.textContent = "";
-        }
-      }
-
-      function showError(message) {
-        if (!errorBanner) return;
-        errorBanner.textContent = message;
-        errorBanner.hidden = false;
-      }
-
-      function showWarnings(messages) {
-        if (!warningBanner || !messages || !messages.length) return;
-        warningBanner.textContent = messages.join(" ");
-        warningBanner.hidden = false;
+        if (actionBtnLabel) actionBtnLabel.textContent = isLoading ? loadingLabel : "Extraer con IA";
       }
 
       async function runExtraction() {
+        if (placeholderOnly) {
+          setInlineStatus(statusNode, "Extraccion IA disponible proximamente para este documento.", "pending");
+          return;
+        }
         const file = selectedFile();
         if (!fileLooksValid(file)) {
-          showError("Selecciona un fichero PDF, JPG, JPEG o PNG valido.");
+          setInlineStatus(statusNode, "Selecciona un fichero PDF, JPG, JPEG o PNG valido.", "error");
           return;
         }
-        resetMessages();
-        setLoading(true);
 
+        setLoading(true);
+        setInlineStatus(statusNode, "Extrayendo datos...", "info");
         const body = new FormData();
         body.append("document", file);
+
         let response;
         try {
-          response = await fetch(endpointUrl, {
-            method: "POST",
-            body: body,
-            headers: { "X-Requested-With": "fetch" }
-          });
+          response = await fetch(extractionUrl, { method: "POST", body: body, headers: { "X-Requested-With": "fetch" } });
         } catch (_error) {
           setLoading(false);
-          showError("No se pudo conectar con el servicio de extraccion. Intentalo de nuevo.");
+          setInlineStatus(statusNode, "No se pudo conectar con el servicio de extraccion.", "error");
           return;
         }
 
-        const responseContentType = (response.headers.get("content-type") || "").toLowerCase();
-        if (!responseContentType.includes("application/json")) {
-          let rawText = "";
-          try {
-            rawText = await response.text();
-          } catch (_error) {
-            rawText = "";
-          }
+        const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+        if (!contentType.includes("application/json")) {
           setLoading(false);
-          const shortText = String(rawText || "")
-            .replace(/\s+/g, " ")
-            .trim()
-            .slice(0, 140);
-          const fallbackMessage = response.status >= 500
-            ? "El servicio tardo demasiado o fallo en el servidor."
-            : "El servicio devolvio una respuesta inesperada.";
-          showError(
-            "Error de extraccion (" + response.status + "). " + (shortText || fallbackMessage)
-          );
+          setInlineStatus(statusNode, "Respuesta inesperada del servicio de extraccion.", "error");
           return;
         }
 
@@ -943,128 +415,188 @@
           payload = await response.json();
         } catch (_error) {
           setLoading(false);
-          showError(
-            "Error de extraccion (" + response.status + "). Respuesta JSON invalida del servidor."
-          );
+          setInlineStatus(statusNode, "Respuesta JSON invalida del servicio de extraccion.", "error");
           return;
         }
 
         setLoading(false);
-        const warnings = Array.isArray(payload && payload.warnings) ? payload.warnings : [];
         if (!response.ok || !payload || payload.success !== true) {
-          showError(
-            warnings.length ? warnings.join(" ") : "No se pudo extraer informacion fiable del documento."
-          );
-          if (reviewBanner) reviewBanner.hidden = true;
+          const warningMessage = Array.isArray(payload && payload.warnings) ? payload.warnings.join(" ") : "";
+          setInlineStatus(statusNode, warningMessage || "No se pudo extraer informacion fiable del documento.", "error");
           return;
         }
 
-        const mapped = mapPayload(payload);
-        const applied = applyDataMap(
-          mapped.normalizedData || {},
-          mapped.confidenceMap || {},
-          minConfidence
-        );
-
-        if (applied > 0 && reviewBanner) {
-          reviewBanner.hidden = false;
+        const mapper = options.mapPayload || function () { return { normalizedData: {}, confidenceMap: {} }; };
+        const mapped = mapper(payload);
+        const applied = applyDataMap(mapped.normalizedData || {}, mapped.confidenceMap || {}, confidenceThreshold);
+        if (applied > 0) {
+          setInlineStatus(statusNode, "Datos autocompletados. Revise la informacion antes de continuar.", "success");
+          if (typeof options.onApplied === "function") options.onApplied(applied, payload);
+        } else {
+          setInlineStatus(statusNode, "No se han encontrado campos con confianza suficiente.", "pending");
         }
-        if (applied === 0) {
-          showError(
-            options.emptyMessage || "No se han encontrado campos autocompletables con confianza suficiente."
-          );
-        }
-        if (warnings.length) {
-          showWarnings(warnings);
-        }
-        if (typeof options.onApplied === "function") {
-          options.onApplied(applied, payload);
-        }
+        const warnings = Array.isArray(payload.warnings) ? payload.warnings : [];
+        if (warnings.length) setInlineStatus(statusNode, warnings.join(" "), "pending");
       }
 
       fileInput.addEventListener("change", function () {
-        if (reviewBanner) reviewBanner.hidden = true;
-        resetMessages();
-        setLoading(false);
+        setInlineStatus(statusNode, "", "");
+        if (!placeholderOnly) setLoading(false);
+        updateContinueState();
       });
-
       actionBtn.addEventListener("click", function () {
-        if (!isLoading) {
-          runExtraction();
-        }
+        if (!isLoading) runExtraction();
       });
-
       setLoading(false);
     }
 
-    createExtractionController({
-      fileInputId: "inhumation-document-upload",
-      buttonId: "inhumation-ai-extract-btn",
-      reviewBannerId: "inhumation-ai-review-banner",
-      errorBannerId: "inhumation-ai-error-banner",
-      warningBannerId: "inhumation-ai-warning-banner",
-      mapPayload: mapCertificatePayload,
-      minConfidence: confidenceThreshold,
-      onApplied: function (applied) {
-        if (applied > 0 && certificateToggle) {
-          certificateToggle.open = true;
-        }
+    function createDniLookup(prefix) {
+      const input = fieldByName(prefix + "_document_number");
+      const button = document.getElementById(prefix + "-dni-lookup-btn");
+      const statusNode = document.getElementById(prefix + "-dni-status");
+      if (!input || !button) return;
+      let requestSerial = 0;
+
+      function setSearchingState(isSearching) {
+        button.disabled = isSearching;
+        button.setAttribute("aria-busy", isSearching ? "true" : "false");
       }
-    });
+
+      function setFieldValue(name, value) {
+        const field = fieldByName(name);
+        if (!field || !hasValue(value)) return;
+        field.value = String(value).trim();
+        field.dispatchEvent(new Event("input", { bubbles: true }));
+        field.dispatchEvent(new Event("change", { bubbles: true }));
+        markAutofilled(field, 1);
+      }
+
+      async function runLookup() {
+        const normalizedDni = sanitizeDni(input.value);
+        input.value = normalizedDni;
+        if (!normalizedDni) {
+          setInlineStatus(statusNode, "Indica un DNI para comprobarlo en el sistema.", "pending");
+          return;
+        }
+
+        requestSerial += 1;
+        const currentRequest = requestSerial;
+        setSearchingState(true);
+        setInlineStatus(statusNode, "Comprobando DNI en el sistema...", "info");
+
+        let response;
+        try {
+          response = await fetch(personLookupUrl + "?dni=" + encodeURIComponent(normalizedDni), { headers: { "X-Requested-With": "fetch" } });
+        } catch (_error) {
+          if (currentRequest !== requestSerial) return;
+          setSearchingState(false);
+          setInlineStatus(statusNode, "No se pudo consultar el DNI ahora mismo.", "error");
+          return;
+        }
+
+        if (currentRequest !== requestSerial) return;
+        setSearchingState(false);
+        const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+        if (!contentType.includes("application/json")) {
+          setInlineStatus(statusNode, "Respuesta inesperada al comprobar el DNI.", "error");
+          return;
+        }
+
+        let payload;
+        try {
+          payload = await response.json();
+        } catch (_error) {
+          setInlineStatus(statusNode, "No se pudo interpretar la respuesta del servidor.", "error");
+          return;
+        }
+
+        if (!response.ok) {
+          setInlineStatus(statusNode, (payload && payload.message) || "No se pudo comprobar el DNI.", "error");
+          return;
+        }
+
+        if (!payload || payload.found !== true || !payload.person) {
+          setInlineStatus(statusNode, "DNI no encontrado. Puedes continuar con carga manual.", "pending");
+          return;
+        }
+
+        const person = payload.person;
+        setFieldValue(prefix + "_first_name", person.first_name);
+        setFieldValue(prefix + "_last_name", person.last_name);
+        setFieldValue(prefix + "_second_last_name", person.second_last_name);
+        setFieldValue(prefix + "_phone_1", person.phone_1);
+        setFieldValue(prefix + "_phone_2", person.phone_2);
+        setFieldValue(prefix + "_email_1", person.email_1);
+        setFieldValue(prefix + "_email_2", person.email_2);
+        setFieldValue(prefix + "_address", person.address);
+        setFieldValue(prefix + "_postal_code", person.postal_code);
+        setFieldValue(prefix + "_city", person.city);
+        setFieldValue(prefix + "_country", person.country);
+        setFieldValue(prefix + "_observations", person.notes);
+        setInlineStatus(statusNode, "DNI encontrado. Datos autocompletados (editable).", "success");
+
+        if (prefix === "holder") updateBillingAccountHolderFromHolder(true);
+      }
+
+      input.addEventListener("input", function () {
+        const normalized = sanitizeDni(input.value);
+        if (input.value !== normalized) input.value = normalized;
+        setInlineStatus(statusNode, "", "");
+      });
+      input.addEventListener("blur", function () {
+        if (sanitizeDni(input.value)) runLookup();
+      });
+      input.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          runLookup();
+        }
+      });
+      button.addEventListener("click", function () { runLookup(); });
+    }
 
     createExtractionController({
       fileInputId: "holder-document-upload",
       buttonId: "holder-ai-extract-btn",
-      reviewBannerId: "holder-ai-review-banner",
-      errorBannerId: "holder-ai-error-banner",
-      warningBannerId: "holder-ai-warning-banner",
-      mapPayload: mapHolderPayload,
-      minConfidence: confidenceThreshold,
-      emptyMessage: "No se han detectado datos del titular con confianza suficiente.",
-      onApplied: function (applied) {
-        if (applied > 0 && holderToggle) {
-          holderToggle.open = true;
-        }
-      }
+      statusId: "holder-document-status",
+      mapPayload: function (payload) { return mapPersonPayload(payload, "holder"); },
+      onApplied: function () {
+        const holderDni = fieldByName("holder_document_number");
+        if (holderDni && hasValue(holderDni.value)) holderDni.dispatchEvent(new Event("blur"));
+      },
     });
-
     createExtractionController({
       fileInputId: "beneficiary-document-upload",
       buttonId: "beneficiary-ai-extract-btn",
-      reviewBannerId: "beneficiary-ai-review-banner",
-      errorBannerId: "beneficiary-ai-error-banner",
-      warningBannerId: "beneficiary-ai-warning-banner",
-      mapPayload: mapBeneficiaryPayload,
-      minConfidence: confidenceThreshold,
-      emptyMessage: "No se han detectado datos del beneficiario con confianza suficiente.",
-      onApplied: function (applied) {
-        if (applied > 0 && beneficiaryToggle) {
-          beneficiaryToggle.open = true;
-        }
-      }
+      statusId: "beneficiary-document-status",
+      mapPayload: function (payload) { return mapPersonPayload(payload, "beneficiary"); },
+      onApplied: function () {
+        const beneficiaryDni = fieldByName("beneficiary_document_number");
+        if (beneficiaryDni && hasValue(beneficiaryDni.value)) beneficiaryDni.dispatchEvent(new Event("blur"));
+      },
     });
+    createExtractionController({ fileInputId: "billing-document-upload", buttonId: "billing-ai-extract-btn", statusId: "billing-document-status", mapPayload: mapBillingPayload });
+    createExtractionController({ fileInputId: "burial-license-upload", buttonId: "license-ai-extract-btn", statusId: "license-document-status", placeholderOnly: true });
+    createExtractionController({ fileInputId: "death-certificate-upload", buttonId: "death-ai-extract-btn", statusId: "death-document-status", placeholderOnly: true });
+    createExtractionController({ fileInputId: "burial-title-upload", buttonId: "title-ai-extract-btn", statusId: "title-document-status", placeholderOnly: true });
 
-    createExtractionController({
-      fileInputId: "billing-document-upload",
-      buttonId: "billing-ai-extract-btn",
-      reviewBannerId: "billing-ai-review-banner",
-      errorBannerId: "billing-ai-error-banner",
-      warningBannerId: "billing-ai-warning-banner",
-      mapPayload: mapBillingPayload,
-      minConfidence: confidenceThreshold,
-      emptyMessage: "No se han detectado datos de facturacion con confianza suficiente.",
-      onApplied: function (applied) {
-        if (applied > 0 && billingToggle) {
-          billingToggle.open = true;
-        }
-      }
-    });
+    createDniLookup("holder");
+    createDniLookup("beneficiary");
 
     if (continueBtn) {
-      continueBtn.disabled = true;
-      continueBtn.setAttribute("aria-disabled", "true");
+      continueBtn.addEventListener("click", function () {
+        setGlobalStatus("Fase UX completada: guardado definitivo aun no implementado en este asistente.", "pending");
+      });
     }
+
+    requiredUploadIds.forEach(function (id) {
+      const input = document.getElementById(id);
+      if (!input) return;
+      input.addEventListener("change", updateContinueState);
+    });
+
+    updateBillingAccountHolderFromHolder(true);
+    updateContinueState();
   })();
 </script>
 {% endblock %}
-
