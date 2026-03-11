@@ -8,64 +8,62 @@
 
 <div class="contract-assistant-page">
   <form class="contract-assistant-form" id="contract-assistant-form" onsubmit="return false;">
-    <section class="box contract-step">
-      <h2 class="contract-step-title"><span class="contract-step-pill">Paso 1</span> Documentacion</h2>
-      <p class="small muted">Obligatorio para continuar: DNI titular y Licencia de entierro/incineracion.</p>
-      <div class="contract-doc-list">
-        <div class="contract-doc-row">
-          <div class="inhumation-field">
-            <label for="holder-document-upload">DNI titular (PDF/JPG/JPEG/PNG)</label>
-            <input id="holder-document-upload" name="holder_document_upload" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
-            <p class="contract-inline-status" id="holder-document-status" aria-live="polite"></p>
-          </div>
-          <button class="btn secondary inhumation-ai-btn" id="holder-ai-extract-btn" type="button" aria-live="polite"><span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span><span class="inhumation-ai-btn-label">Extraer con IA</span></button>
-        </div>
+    <section class="box contract-step contract-step-docs">
+      <details class="contract-doc-toggle" id="contract-doc-toggle" open>
+        <summary class="contract-doc-summary">
+          <span class="contract-doc-summary-main">
+            <span class="contract-step-pill">Paso 1</span>
+            <span class="contract-doc-summary-icon" aria-hidden="true">{{ action_icon('folder') }}</span>
+            <span>Documentacion</span>
+          </span>
+        </summary>
+        <div class="contract-doc-body">
+          <p class="small muted">Obligatorio para continuar: DNI titular y Licencia de entierro/incineracion.</p>
+          <div class="contract-doc-list">
+            <div class="contract-doc-row">
+              <label class="contract-doc-label" for="holder-document-upload">DNI titular (PDF/JPG/JPEG/PNG)</label>
+              <input id="holder-document-upload" name="holder_document_upload" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+              <button class="btn secondary inhumation-ai-btn" id="holder-ai-extract-btn" type="button" aria-live="polite"><span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span><span class="inhumation-ai-btn-label">Extraer con IA</span></button>
+              <p class="contract-inline-status" id="holder-document-status" aria-live="polite" hidden></p>
+            </div>
 
-        <div class="contract-doc-row">
-          <div class="inhumation-field">
-            <label for="beneficiary-document-upload">DNI beneficiario (PDF/JPG/JPEG/PNG)</label>
-            <input id="beneficiary-document-upload" name="beneficiary_document_upload" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
-            <p class="contract-inline-status" id="beneficiary-document-status" aria-live="polite"></p>
-          </div>
-          <button class="btn secondary inhumation-ai-btn" id="beneficiary-ai-extract-btn" type="button" aria-live="polite"><span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span><span class="inhumation-ai-btn-label">Extraer con IA</span></button>
-        </div>
+            <div class="contract-doc-row">
+              <label class="contract-doc-label" for="beneficiary-document-upload">DNI beneficiario (PDF/JPG/JPEG/PNG)</label>
+              <input id="beneficiary-document-upload" name="beneficiary_document_upload" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+              <button class="btn secondary inhumation-ai-btn" id="beneficiary-ai-extract-btn" type="button" aria-live="polite"><span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span><span class="inhumation-ai-btn-label">Extraer con IA</span></button>
+              <p class="contract-inline-status" id="beneficiary-document-status" aria-live="polite" hidden></p>
+            </div>
 
-        <div class="contract-doc-row">
-          <div class="inhumation-field">
-            <label for="billing-document-upload">Certificado cuenta bancaria (PDF/JPG/JPEG/PNG)</label>
-            <input id="billing-document-upload" name="billing_document_upload" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
-            <p class="contract-inline-status" id="billing-document-status" aria-live="polite"></p>
-          </div>
-          <button class="btn secondary inhumation-ai-btn" id="billing-ai-extract-btn" type="button" aria-live="polite"><span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span><span class="inhumation-ai-btn-label">Extraer con IA</span></button>
-        </div>
+            <div class="contract-doc-row">
+              <label class="contract-doc-label" for="billing-document-upload">Certificado cuenta bancaria (PDF/JPG/JPEG/PNG)</label>
+              <input id="billing-document-upload" name="billing_document_upload" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+              <button class="btn secondary inhumation-ai-btn" id="billing-ai-extract-btn" type="button" aria-live="polite"><span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span><span class="inhumation-ai-btn-label">Extraer con IA</span></button>
+              <p class="contract-inline-status" id="billing-document-status" aria-live="polite" hidden></p>
+            </div>
 
-        <div class="contract-doc-row">
-          <div class="inhumation-field">
-            <label for="burial-license-upload">Licencia de entierro/incineracion (PDF/JPG/JPEG/PNG)</label>
-            <input id="burial-license-upload" name="burial_license_upload" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
-            <p class="contract-inline-status" id="license-document-status" aria-live="polite"></p>
-          </div>
-          <button class="btn secondary inhumation-ai-btn" id="license-ai-extract-btn" type="button" aria-live="polite"><span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span><span class="inhumation-ai-btn-label">Extraer con IA</span></button>
-        </div>
+            <div class="contract-doc-row">
+              <label class="contract-doc-label" for="burial-license-upload">Licencia de entierro/incineracion (PDF/JPG/JPEG/PNG)</label>
+              <input id="burial-license-upload" name="burial_license_upload" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+              <button class="btn secondary inhumation-ai-btn" id="license-ai-extract-btn" type="button" aria-live="polite"><span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span><span class="inhumation-ai-btn-label">Extraer con IA</span></button>
+              <p class="contract-inline-status" id="license-document-status" aria-live="polite" hidden></p>
+            </div>
 
-        <div class="contract-doc-row">
-          <div class="inhumation-field">
-            <label for="death-certificate-upload">Certificado de defuncion (PDF/JPG/JPEG/PNG)</label>
-            <input id="death-certificate-upload" name="death_certificate_upload" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
-            <p class="contract-inline-status" id="death-document-status" aria-live="polite"></p>
-          </div>
-          <button class="btn secondary inhumation-ai-btn" id="death-ai-extract-btn" type="button" aria-live="polite"><span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span><span class="inhumation-ai-btn-label">Extraer con IA</span></button>
-        </div>
+            <div class="contract-doc-row">
+              <label class="contract-doc-label" for="death-certificate-upload">Certificado de defuncion (PDF/JPG/JPEG/PNG)</label>
+              <input id="death-certificate-upload" name="death_certificate_upload" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+              <button class="btn secondary inhumation-ai-btn" id="death-ai-extract-btn" type="button" aria-live="polite"><span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span><span class="inhumation-ai-btn-label">Extraer con IA</span></button>
+              <p class="contract-inline-status" id="death-document-status" aria-live="polite" hidden></p>
+            </div>
 
-        <div class="contract-doc-row">
-          <div class="inhumation-field">
-            <label for="burial-title-upload">Titulo de sepultura (PDF/JPG/JPEG/PNG)</label>
-            <input id="burial-title-upload" name="burial_title_upload" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
-            <p class="contract-inline-status" id="title-document-status" aria-live="polite"></p>
+            <div class="contract-doc-row">
+              <label class="contract-doc-label" for="burial-title-upload">Titulo de sepultura (PDF/JPG/JPEG/PNG)</label>
+              <input id="burial-title-upload" name="burial_title_upload" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+              <button class="btn secondary inhumation-ai-btn" id="title-ai-extract-btn" type="button" aria-live="polite"><span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span><span class="inhumation-ai-btn-label">Extraer con IA</span></button>
+              <p class="contract-inline-status" id="title-document-status" aria-live="polite" hidden></p>
+            </div>
           </div>
-          <button class="btn secondary inhumation-ai-btn" id="title-ai-extract-btn" type="button" aria-live="polite"><span class="inhumation-ai-icon" aria-hidden="true">{{ action_icon('ai') }}</span><span class="inhumation-ai-btn-label">Extraer con IA</span></button>
         </div>
-      </div>
+      </details>
     </section>
 
     <section class="box contract-step">
@@ -170,6 +168,11 @@
     const requiredUploadIds = ["holder-document-upload", "burial-license-upload"];
     const allowedExtensions = new Set(["pdf", "jpg", "jpeg", "png"]);
     const loadingLabel = "Procesando...";
+    const docToggle = document.getElementById("contract-doc-toggle");
+
+    if (docToggle && window.matchMedia("(max-width: 1024px)").matches) {
+      docToggle.open = false;
+    }
 
     function hasValue(value) {
       if (value === null || value === undefined) return false;

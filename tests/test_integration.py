@@ -380,6 +380,11 @@ def test_inhumation_assistant_page_renders_contract_assistant_layout(
     assert "Certificado medico de defuncion" not in html
     assert "Continuar" in html
     assert 'id="contract-continue-btn"' in html
+    assert 'id="contract-doc-toggle"' in html
+    assert 'class="contract-doc-summary"' in html
+    assert 'class="contract-doc-row"' in html
+    assert html.count('class="contract-doc-row"') == 6
+    assert 'class="contract-doc-label"' in html
 
     assert 'id="holder-document-upload"' in html
     assert 'id="beneficiary-document-upload"' in html
