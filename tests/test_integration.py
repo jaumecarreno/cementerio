@@ -374,6 +374,8 @@ def test_inhumation_assistant_page_renders_contract_assistant_layout(
     html = response.get_data(as_text=True)
     assert "Asistente de alta de contrato" in html
     assert "Documentacion" in html
+    assert "Datos del difunto" in html
+    assert "Seleccion de sepultura" in html
     assert "Datos del titular" in html
     assert "Datos del beneficiario" in html
     assert "Datos bancarios" in html
@@ -404,6 +406,27 @@ def test_inhumation_assistant_page_renders_contract_assistant_layout(
     assert 'id="beneficiary-dni-lookup-btn"' in html
     assert 'id="holder-dni-status"' in html
     assert 'id="beneficiary-dni-status"' in html
+
+    assert 'name="deceased_first_name"' in html
+    assert 'name="deceased_last_name"' in html
+    assert 'name="deceased_second_last_name"' in html
+    assert 'name="deceased_document_number"' in html
+    assert 'name="deceased_sex"' in html
+    assert 'name="deceased_birth_date"' in html
+    assert 'name="deceased_death_date"' in html
+    assert 'name="deceased_death_time"' in html
+    assert 'name="deceased_death_place"' in html
+
+    assert 'id="assistant_sepultura_id"' in html
+    assert 'id="assistant-sepultura-picker-btn"' in html
+    assert 'id="assistant_sepultura_selected"' in html
+    assert 'id="sepultura-lookup-status"' in html
+    assert 'name="sepultura_bloque" readonly' in html
+    assert 'name="sepultura_fila" readonly' in html
+    assert 'name="sepultura_columna" readonly' in html
+    assert 'name="sepultura_numero" readonly' in html
+    assert 'name="sepultura_modalidad" readonly' in html
+    assert 'name="sepultura_estado" readonly' in html
 
     assert 'name="holder_first_name"' in html
     assert 'name="holder_last_name"' in html
@@ -445,14 +468,18 @@ def test_inhumation_assistant_page_renders_contract_assistant_layout(
     assert "Extraer con IA" in html
 
     docs_pos = html.find("Paso 1")
-    holder_pos = html.find("Paso 2")
-    beneficiary_pos = html.find("Paso 3")
-    billing_pos = html.find("Paso 4")
+    deceased_pos = html.find("Paso 2")
+    sepultura_pos = html.find("Paso 3")
+    holder_pos = html.find("Paso 4")
+    beneficiary_pos = html.find("Paso 5")
+    billing_pos = html.find("Paso 6")
     assert docs_pos != -1
+    assert deceased_pos != -1
+    assert sepultura_pos != -1
     assert holder_pos != -1
     assert beneficiary_pos != -1
     assert billing_pos != -1
-    assert docs_pos < holder_pos < beneficiary_pos < billing_pos
+    assert docs_pos < deceased_pos < sepultura_pos < holder_pos < beneficiary_pos < billing_pos
 
 def test_inhumation_assistant_person_lookup_requires_login(client):
     response = client.get(
@@ -496,6 +523,76 @@ def test_inhumation_assistant_person_lookup_returns_person_when_found(
     assert payload["found"] is True
     assert payload["person"]["dni_nif"] == dni
     assert payload["person"]["first_name"] == first_name
+
+
+def test_inhumation_assistant_sepultura_lookup_requires_login(client):
+    response = client.get(
+        "/cementerio/inhumaciones/asistente/sepultura-por-id?sepultura_id=1",
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    assert "/auth/login" in response.headers.get("Location", "")
+
+
+def test_inhumation_assistant_sepultura_lookup_returns_400_without_id(client, login_admin):
+    login_admin()
+    response = client.get("/cementerio/inhumaciones/asistente/sepultura-por-id")
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload is not None
+    assert payload["success"] is False
+    assert payload["found"] is False
+    assert payload["sepultura"] is None
+
+
+def test_inhumation_assistant_sepultura_lookup_returns_400_for_invalid_id(
+    client, login_admin
+):
+    login_admin()
+    response = client.get(
+        "/cementerio/inhumaciones/asistente/sepultura-por-id?sepultura_id=ABC123"
+    )
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload is not None
+    assert payload["success"] is False
+    assert payload["found"] is False
+    assert payload["sepultura"] is None
+
+
+def test_inhumation_assistant_sepultura_lookup_returns_not_found(client, login_admin):
+    login_admin()
+    response = client.get(
+        "/cementerio/inhumaciones/asistente/sepultura-por-id?sepultura_id=999999999"
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload is not None
+    assert payload["success"] is True
+    assert payload["found"] is False
+    assert payload["sepultura"] is None
+
+
+def test_inhumation_assistant_sepultura_lookup_returns_sepultura_when_found(
+    app, client, login_admin
+):
+    login_admin()
+    with app.app_context():
+        sepultura = Sepultura.query.order_by(Sepultura.id.asc()).first()
+        assert sepultura is not None
+        sepultura_id = sepultura.id
+        expected_block = sepultura.bloque
+
+    response = client.get(
+        f"/cementerio/inhumaciones/asistente/sepultura-por-id?sepultura_id={sepultura_id}"
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload is not None
+    assert payload["success"] is True
+    assert payload["found"] is True
+    assert payload["sepultura"]["id"] == sepultura_id
+    assert payload["sepultura"]["bloque"] == expected_block
 
 
 def test_inhumation_assistant_extract_document_requires_login(client):

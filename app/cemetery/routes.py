@@ -349,6 +349,55 @@ def inhumation_assistant_person_lookup():
     return jsonify({"success": True, "found": True, "person": payload}), 200
 
 
+@cemetery_bp.get("/inhumaciones/asistente/sepultura-por-id")
+@login_required
+@require_membership
+def inhumation_assistant_sepultura_lookup():
+    raw_sepultura_id = (request.args.get("sepultura_id") or "").strip()
+    if not raw_sepultura_id:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "found": False,
+                    "sepultura": None,
+                    "message": "Debes informar un ID de sepultura.",
+                }
+            ),
+            400,
+        )
+    if not raw_sepultura_id.isdigit() or int(raw_sepultura_id) <= 0:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "found": False,
+                    "sepultura": None,
+                    "message": "El ID de sepultura debe ser numerico.",
+                }
+            ),
+            400,
+        )
+
+    sepultura = Sepultura.query.filter_by(
+        org_id=org_record().id, id=int(raw_sepultura_id)
+    ).first()
+    if not sepultura:
+        return jsonify({"success": True, "found": False, "sepultura": None}), 200
+
+    payload = {
+        "id": sepultura.id,
+        "location_label": sepultura.location_label,
+        "bloque": sepultura.bloque,
+        "fila": sepultura.fila,
+        "columna": sepultura.columna,
+        "numero": sepultura.numero,
+        "modalidad": sepultura.modalidad,
+        "estado": sepultura.estado.value,
+    }
+    return jsonify({"success": True, "found": True, "sepultura": payload}), 200
+
+
 @cemetery_bp.get("/personas")
 @login_required
 @require_membership

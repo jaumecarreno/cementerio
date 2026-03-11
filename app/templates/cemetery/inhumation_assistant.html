@@ -67,7 +67,55 @@
     </section>
 
     <section class="box contract-step">
-      <h2 class="contract-step-title"><span class="contract-step-pill">Paso 2</span> Datos del titular</h2>
+      <h2 class="contract-step-title"><span class="contract-step-pill">Paso 2</span> Datos del difunto</h2>
+      <div class="inhumation-cert-grid inhumation-cols-3">
+        <div class="inhumation-field"><label>Nombre</label><input type="text" name="deceased_first_name"></div>
+        <div class="inhumation-field"><label>Primer apellido</label><input type="text" name="deceased_last_name"></div>
+        <div class="inhumation-field"><label>Segundo apellido</label><input type="text" name="deceased_second_last_name"></div>
+      </div>
+      <div class="inhumation-cert-grid inhumation-cols-3">
+        <div class="inhumation-field"><label>DNI</label><input type="text" name="deceased_document_number" placeholder="DNI/NIE"></div>
+        <div class="inhumation-field"><label>Sexo</label><select name="deceased_sex"><option value=""></option><option value="M">Masculino</option><option value="F">Femenino</option><option value="X">No especificado</option></select></div>
+        <div class="inhumation-field"><label>Fecha de nacimiento</label><input type="date" name="deceased_birth_date"></div>
+      </div>
+      <div class="inhumation-cert-grid inhumation-cols-3">
+        <div class="inhumation-field"><label>Fecha de defuncion</label><input type="date" name="deceased_death_date"></div>
+        <div class="inhumation-field"><label>Hora de defuncion</label><input type="time" name="deceased_death_time"></div>
+        <div class="inhumation-field"><label>Lugar</label><input type="text" name="deceased_death_place"></div>
+      </div>
+    </section>
+
+    <section class="box contract-step">
+      <h2 class="contract-step-title"><span class="contract-step-pill">Paso 3</span> Seleccion de sepultura</h2>
+      <div class="inhumation-field">
+        <label for="assistant_sepultura_id">ID sepultura</label>
+        <div class="field-picker-row contract-sepultura-picker-row">
+          <input id="assistant_sepultura_id" type="text" name="sepultura_id" inputmode="numeric" placeholder="ID sepultura">
+          <button
+            class="icon-btn"
+            id="assistant-sepultura-picker-btn"
+            type="button"
+            title="Buscar sepultura"
+            aria-label="Buscar sepultura"
+          >{{ action_icon('folder') }}</button>
+        </div>
+        <div class="small muted field-picker-helper contract-sepultura-helper" id="assistant_sepultura_selected"></div>
+        <p class="contract-inline-status" id="sepultura-lookup-status" aria-live="polite" hidden></p>
+      </div>
+      <div class="inhumation-cert-grid inhumation-cols-3 contract-sepultura-grid">
+        <div class="inhumation-field"><label>Bloque</label><input type="text" name="sepultura_bloque" readonly></div>
+        <div class="inhumation-field"><label>Fila</label><input type="text" name="sepultura_fila" readonly></div>
+        <div class="inhumation-field"><label>Columna</label><input type="text" name="sepultura_columna" readonly></div>
+      </div>
+      <div class="inhumation-cert-grid inhumation-cols-3 contract-sepultura-grid">
+        <div class="inhumation-field"><label>Numero</label><input type="text" name="sepultura_numero" readonly></div>
+        <div class="inhumation-field"><label>Modalidad</label><input type="text" name="sepultura_modalidad" readonly></div>
+        <div class="inhumation-field"><label>Estado</label><input type="text" name="sepultura_estado" readonly></div>
+      </div>
+    </section>
+
+    <section class="box contract-step">
+      <h2 class="contract-step-title"><span class="contract-step-pill">Paso 4</span> Datos del titular</h2>
       <div class="contract-identity-row">
         <div class="inhumation-field">
           <label for="holder_document_number">DNI</label>
@@ -103,7 +151,7 @@
     </section>
 
     <section class="box contract-step">
-      <h2 class="contract-step-title"><span class="contract-step-pill">Paso 3</span> Datos del beneficiario</h2>
+      <h2 class="contract-step-title"><span class="contract-step-pill">Paso 5</span> Datos del beneficiario</h2>
       <div class="contract-identity-row">
         <div class="inhumation-field">
           <label for="beneficiary_document_number">DNI</label>
@@ -139,7 +187,7 @@
     </section>
 
     <section class="box contract-step">
-      <h2 class="contract-step-title"><span class="contract-step-pill">Paso 4</span> Datos bancarios</h2>
+      <h2 class="contract-step-title"><span class="contract-step-pill">Paso 6</span> Datos bancarios</h2>
       <div class="inhumation-cert-grid inhumation-cols-3">
         <div class="inhumation-field"><label>Titular de la cuenta</label><input type="text" name="billing_account_holder_name"></div>
         <div class="inhumation-field"><label>IBAN de la cuenta</label><input type="text" name="billing_iban" placeholder="ES0000000000000000000000"></div>
@@ -161,6 +209,8 @@
     if (!form) return;
     const extractionUrl = "{{ url_for('cemetery.inhumation_assistant_extract_document') }}";
     const personLookupUrl = "{{ url_for('cemetery.inhumation_assistant_person_lookup') }}";
+    const sepulturaLookupUrl = "{{ url_for('cemetery.inhumation_assistant_sepultura_lookup') }}";
+    const sepulturaPickerUrl = "{{ url_for('cemetery.expediente_sepultura_picker', target_field='assistant_sepultura_id', label_field='assistant_sepultura_selected') }}";
     const confidenceThreshold = Number("{{ config.get('INHUMATION_AI_MIN_CONFIDENCE', '0.80') }}") || 0.8;
     const continueBtn = document.getElementById("contract-continue-btn");
     const continueStatus = document.getElementById("continue-requirements-status");
@@ -201,6 +251,10 @@
 
     function sanitizeDni(raw) {
       return String(raw || "").trim().toUpperCase().replace(/\s+/g, "");
+    }
+
+    function sanitizeSepulturaId(raw) {
+      return String(raw || "").trim();
     }
 
     function toIsoDate(day, month, year) {
@@ -453,6 +507,142 @@
       setLoading(false);
     }
 
+    function createSepulturaLookup() {
+      const input = fieldByName("sepultura_id");
+      const actionBtn = document.getElementById("assistant-sepultura-picker-btn");
+      const statusNode = document.getElementById("sepultura-lookup-status");
+      const helper = document.getElementById("assistant_sepultura_selected");
+      if (!input) return;
+      let requestSerial = 0;
+      const detailFieldNames = [
+        "sepultura_bloque",
+        "sepultura_fila",
+        "sepultura_columna",
+        "sepultura_numero",
+        "sepultura_modalidad",
+        "sepultura_estado",
+      ];
+
+      function setHelperText(message) {
+        if (!helper) return;
+        helper.textContent = hasValue(message) ? String(message) : "";
+      }
+
+      function setFieldValue(name, value) {
+        const field = fieldByName(name);
+        if (!field) return;
+        field.value = hasValue(value) ? String(value).trim() : "";
+        field.dispatchEvent(new Event("input", { bubbles: true }));
+        field.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+
+      function clearDetailFields() {
+        detailFieldNames.forEach(function (name) {
+          setFieldValue(name, "");
+        });
+      }
+
+      async function runLookup() {
+        const normalizedId = sanitizeSepulturaId(input.value);
+        input.value = normalizedId;
+        if (!normalizedId) {
+          clearDetailFields();
+          setHelperText("");
+          setInlineStatus(statusNode, "Indica un ID de sepultura para completar sus datos.", "pending");
+          return;
+        }
+
+        requestSerial += 1;
+        const currentRequest = requestSerial;
+        setInlineStatus(statusNode, "Buscando sepultura...", "info");
+
+        let response;
+        try {
+          response = await fetch(sepulturaLookupUrl + "?sepultura_id=" + encodeURIComponent(normalizedId), { headers: { "X-Requested-With": "fetch" } });
+        } catch (_error) {
+          if (currentRequest !== requestSerial) return;
+          clearDetailFields();
+          setHelperText("");
+          setInlineStatus(statusNode, "No se pudo consultar la sepultura ahora mismo.", "error");
+          return;
+        }
+
+        if (currentRequest !== requestSerial) return;
+        const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+        if (!contentType.includes("application/json")) {
+          clearDetailFields();
+          setHelperText("");
+          setInlineStatus(statusNode, "Respuesta inesperada al consultar la sepultura.", "error");
+          return;
+        }
+
+        let payload;
+        try {
+          payload = await response.json();
+        } catch (_error) {
+          clearDetailFields();
+          setHelperText("");
+          setInlineStatus(statusNode, "No se pudo interpretar la respuesta del servidor.", "error");
+          return;
+        }
+
+        if (!response.ok) {
+          clearDetailFields();
+          setHelperText("");
+          setInlineStatus(statusNode, (payload && payload.message) || "No se pudo consultar la sepultura.", "error");
+          return;
+        }
+
+        if (!payload || payload.found !== true || !payload.sepultura) {
+          clearDetailFields();
+          setHelperText("");
+          setInlineStatus(statusNode, "Sepultura no encontrada.", "pending");
+          return;
+        }
+
+        const sepultura = payload.sepultura;
+        setFieldValue("sepultura_bloque", sepultura.bloque);
+        setFieldValue("sepultura_fila", sepultura.fila);
+        setFieldValue("sepultura_columna", sepultura.columna);
+        setFieldValue("sepultura_numero", sepultura.numero);
+        setFieldValue("sepultura_modalidad", sepultura.modalidad);
+        setFieldValue("sepultura_estado", sepultura.estado);
+        setHelperText(sepultura.location_label || ("Sepultura " + sepultura.id));
+        setInlineStatus(statusNode, "Sepultura encontrada y datos autocompletados.", "success");
+      }
+
+      input.addEventListener("input", function () {
+        const normalized = sanitizeSepulturaId(input.value);
+        if (input.value !== normalized) input.value = normalized;
+        setInlineStatus(statusNode, "", "");
+      });
+      input.addEventListener("blur", function () {
+        if (sanitizeSepulturaId(input.value)) runLookup();
+      });
+      input.addEventListener("change", function () {
+        if (sanitizeSepulturaId(input.value)) runLookup();
+        else {
+          clearDetailFields();
+          setHelperText("");
+        }
+      });
+      input.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          runLookup();
+        }
+      });
+      if (actionBtn) {
+        actionBtn.addEventListener("click", function () {
+          if (window.CemPopupPicker && typeof window.CemPopupPicker.open === "function") {
+            window.CemPopupPicker.open(sepulturaPickerUrl);
+            return;
+          }
+          window.location.href = sepulturaPickerUrl;
+        });
+      }
+    }
+
     function createDniLookup(prefix) {
       const input = fieldByName(prefix + "_document_number");
       const button = document.getElementById(prefix + "-dni-lookup-btn");
@@ -583,6 +773,7 @@
     createExtractionController({ fileInputId: "death-certificate-upload", buttonId: "death-ai-extract-btn", statusId: "death-document-status", placeholderOnly: true });
     createExtractionController({ fileInputId: "burial-title-upload", buttonId: "title-ai-extract-btn", statusId: "title-document-status", placeholderOnly: true });
 
+    createSepulturaLookup();
     createDniLookup("holder");
     createDniLookup("beneficiary");
 

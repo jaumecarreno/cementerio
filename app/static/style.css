@@ -2121,6 +2121,28 @@ tr:last-child td {
   align-items: end;
 }
 
+.contract-sepultura-picker-row {
+  align-items: center;
+}
+
+.contract-sepultura-picker-row .icon-btn {
+  flex-shrink: 0;
+}
+
+.contract-sepultura-picker-row input {
+  min-width: 0;
+}
+
+.contract-sepultura-helper {
+  min-height: 16px;
+}
+
+.contract-sepultura-grid input[readonly] {
+  cursor: default;
+  background: var(--surface-2);
+  color: var(--text-soft);
+}
+
 .contract-inline-status {
   margin: 0;
   font-size: 12px;
