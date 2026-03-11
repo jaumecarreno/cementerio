@@ -2209,6 +2209,11 @@ tr:last-child td {
   min-width: 0;
 }
 
+.contract-assistant-form .contract-sepultura-picker-row input {
+  padding-top: 14px;
+  padding-bottom: 3px;
+}
+
 .contract-sepultura-helper {
   min-height: 16px;
 }
