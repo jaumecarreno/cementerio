@@ -2033,6 +2033,7 @@ tr:last-child td {
   display: grid;
   gap: 6px;
   padding: 8px;
+  --contract-step-accent: #5d6f8f;
 }
 
 .contract-step-title {
@@ -2042,6 +2043,36 @@ tr:last-child td {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.contract-step-title::before {
+  content: "";
+  width: 4px;
+  height: 15px;
+  border-radius: 999px;
+  background: var(--contract-step-accent);
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+.contract-step--deceased {
+  --contract-step-accent: #3d8dff;
+}
+
+.contract-step--holder {
+  --contract-step-accent: #20c58d;
+}
+
+.contract-step--beneficiary {
+  --contract-step-accent: #f4a11a;
+}
+
+.contract-step--sepultura {
+  --contract-step-accent: #4aa9d8;
+}
+
+.contract-step--billing {
+  --contract-step-accent: #8b99b4;
 }
 
 .contract-step-pill {
