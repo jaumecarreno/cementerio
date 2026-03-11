@@ -2018,6 +2018,7 @@ tr:last-child td {
 }
 
 .contract-assistant-form .inhumation-field.is-filled > label,
+.contract-assistant-form .inhumation-field.is-static-float > label,
 .contract-assistant-form .inhumation-field.is-focused > label {
   top: 6px;
   transform: none;

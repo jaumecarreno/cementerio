@@ -246,7 +246,16 @@
         if (!label || !control) return;
 
         const labelText = String(label.textContent || "").trim();
-        if (control.tagName !== "SELECT") control.setAttribute("placeholder", labelText);
+        const controlName = String(control.getAttribute("name") || "");
+        const isStaticFloatField = control.matches("input[type='date'], input[type='time']") || controlName.startsWith("sepultura_");
+
+        if (!isStaticFloatField && control.tagName !== "SELECT") control.setAttribute("placeholder", labelText);
+        else if (control.tagName !== "SELECT") control.setAttribute("placeholder", "");
+
+        if (isStaticFloatField) {
+          field.classList.add("is-static-float", "is-filled");
+          return;
+        }
 
         function refreshState() {
           field.classList.toggle("is-filled", hasValue(control.value));
