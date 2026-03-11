@@ -142,6 +142,7 @@ from app.core.models import (
     DerechoFunerarioContrato,
     OperationStatus,
     OperationType,
+    OwnershipRecord,
     PaymentMethod,
     Person,
     ReportDeliveryLog,
@@ -316,6 +317,7 @@ def inhumation_assistant_person_lookup():
                     "success": False,
                     "found": False,
                     "person": None,
+                    "active_contracts": [],
                     "message": "Debes informar un DNI/NIE.",
                 }
             ),
@@ -324,11 +326,62 @@ def inhumation_assistant_person_lookup():
 
     person = person_by_dni_nif(raw_dni)
     if not person:
-        return jsonify({"success": True, "found": False, "person": None}), 200
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "found": False,
+                    "person": None,
+                    "active_contracts": [],
+                }
+            ),
+            200,
+        )
 
     last_parts = [part for part in (person.last_name or "").split(" ") if part]
     first_last_name = last_parts[0] if last_parts else ""
     second_last_name = " ".join(last_parts[1:]) if len(last_parts) > 1 else ""
+
+    today = date.today()
+    active_contract_rows = (
+        DerechoFunerarioContrato.query.join(
+            OwnershipRecord, OwnershipRecord.contract_id == DerechoFunerarioContrato.id
+        )
+        .join(Sepultura, Sepultura.id == DerechoFunerarioContrato.sepultura_id)
+        .filter(
+            DerechoFunerarioContrato.org_id == org_record().id,
+            OwnershipRecord.org_id == org_record().id,
+            Sepultura.org_id == org_record().id,
+            OwnershipRecord.person_id == person.id,
+            OwnershipRecord.start_date <= today,
+            or_(OwnershipRecord.end_date.is_(None), OwnershipRecord.end_date >= today),
+            DerechoFunerarioContrato.estado == "ACTIVO",
+            DerechoFunerarioContrato.fecha_inicio <= today,
+            DerechoFunerarioContrato.fecha_fin >= today,
+        )
+        .order_by(DerechoFunerarioContrato.id.desc())
+        .all()
+    )
+    active_contracts: list[dict[str, object]] = []
+    seen_contract_ids: set[int] = set()
+    for contract in active_contract_rows:
+        if contract.id in seen_contract_ids:
+            continue
+        seen_contract_ids.add(contract.id)
+        sepultura = contract.sepultura
+        if not sepultura:
+            continue
+        active_contracts.append(
+            {
+                "contract_id": contract.id,
+                "sepultura_id": sepultura.id,
+                "bloque": sepultura.bloque,
+                "fila": sepultura.fila,
+                "columna": sepultura.columna,
+                "numero": sepultura.numero,
+                "location_label": sepultura.location_label,
+            }
+        )
 
     payload = {
         "id": person.id,
@@ -346,7 +399,17 @@ def inhumation_assistant_person_lookup():
         "country": person.pais or "",
         "notes": person.notas or "",
     }
-    return jsonify({"success": True, "found": True, "person": payload}), 200
+    return (
+        jsonify(
+            {
+                "success": True,
+                "found": True,
+                "person": payload,
+                "active_contracts": active_contracts,
+            }
+        ),
+        200,
+    )
 
 
 @cemetery_bp.get("/inhumaciones/asistente/sepultura-por-id")

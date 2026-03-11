@@ -2219,6 +2219,47 @@ tr:last-child td {
   color: var(--text-soft);
 }
 
+.contract-holder-contracts {
+  display: grid;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.contract-holder-contracts-title {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-soft);
+  font-weight: 700;
+}
+
+.contract-holder-contracts-empty {
+  margin: 0;
+}
+
+.contract-holder-contracts-table-wrap {
+  overflow-x: auto;
+}
+
+.contract-holder-contracts-table th,
+.contract-holder-contracts-table td {
+  padding: 5px 6px;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.contract-holder-contracts-actions {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.contract-holder-contracts-actions .btn {
+  min-height: 28px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
 .contract-inline-status {
   margin: 0;
   font-size: 12px;

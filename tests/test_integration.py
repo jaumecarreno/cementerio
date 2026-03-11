@@ -374,9 +374,9 @@ def test_inhumation_assistant_page_renders_contract_assistant_layout(
     html = response.get_data(as_text=True)
     assert "Asistente de alta de contrato" in html
     assert "Documentacion" in html
+    assert "Datos del titular" in html
     assert "Datos del difunto" in html
     assert "Seleccion de sepultura" in html
-    assert "Datos del titular" in html
     assert "Datos del beneficiario" in html
     assert "Datos bancarios" in html
     assert "Certificado medico de defuncion" not in html
@@ -406,6 +406,10 @@ def test_inhumation_assistant_page_renders_contract_assistant_layout(
     assert 'id="beneficiary-dni-lookup-btn"' in html
     assert 'id="holder-dni-status"' in html
     assert 'id="beneficiary-dni-status"' in html
+    assert 'id="holder-active-contracts-block"' in html
+    assert 'id="holder-contracts-status"' in html
+    assert 'id="holder-active-contracts-body"' in html
+    assert "Contratos activos del titular" in html
 
     assert 'name="deceased_first_name"' in html
     assert 'name="deceased_last_name"' in html
@@ -468,18 +472,18 @@ def test_inhumation_assistant_page_renders_contract_assistant_layout(
     assert "Extraer con IA" in html
 
     docs_pos = html.find("Paso 1")
-    deceased_pos = html.find("Paso 2")
-    sepultura_pos = html.find("Paso 3")
-    holder_pos = html.find("Paso 4")
+    holder_pos = html.find("Paso 2")
+    deceased_pos = html.find("Paso 3")
+    sepultura_pos = html.find("Paso 4")
     beneficiary_pos = html.find("Paso 5")
     billing_pos = html.find("Paso 6")
     assert docs_pos != -1
+    assert holder_pos != -1
     assert deceased_pos != -1
     assert sepultura_pos != -1
-    assert holder_pos != -1
     assert beneficiary_pos != -1
     assert billing_pos != -1
-    assert docs_pos < deceased_pos < sepultura_pos < holder_pos < beneficiary_pos < billing_pos
+    assert docs_pos < holder_pos < deceased_pos < sepultura_pos < beneficiary_pos < billing_pos
 
 def test_inhumation_assistant_person_lookup_requires_login(client):
     response = client.get(
@@ -501,6 +505,7 @@ def test_inhumation_assistant_person_lookup_returns_400_without_dni(
     assert payload["success"] is False
     assert payload["found"] is False
     assert payload["person"] is None
+    assert payload["active_contracts"] == []
 
 
 def test_inhumation_assistant_person_lookup_returns_person_when_found(
@@ -523,6 +528,92 @@ def test_inhumation_assistant_person_lookup_returns_person_when_found(
     assert payload["found"] is True
     assert payload["person"]["dni_nif"] == dni
     assert payload["person"]["first_name"] == first_name
+    assert isinstance(payload["active_contracts"], list)
+
+
+def test_inhumation_assistant_person_lookup_returns_not_found_with_empty_contracts(
+    client, login_admin
+):
+    login_admin()
+    response = client.get(
+        "/cementerio/inhumaciones/asistente/persona-por-dni?dni=ZZZ-NO-EXISTE-001"
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload is not None
+    assert payload["success"] is True
+    assert payload["found"] is False
+    assert payload["person"] is None
+    assert payload["active_contracts"] == []
+
+
+def test_inhumation_assistant_person_lookup_returns_active_contracts_for_holder(
+    app, client, login_admin
+):
+    login_admin()
+    with app.app_context():
+        cemetery = Cemetery.query.order_by(Cemetery.id.asc()).first()
+        assert cemetery is not None
+        today = date.today()
+        holder = Person(
+            org_id=cemetery.org_id,
+            first_name="Titular",
+            last_name="Con Contrato",
+            dni_nif="HOLDER-CONTRACT-001",
+        )
+        sepultura = Sepultura(
+            org_id=cemetery.org_id,
+            cemetery_id=cemetery.id,
+            bloque="B-HOLDER",
+            fila=3,
+            columna=4,
+            via="V-HOLDER",
+            numero=321,
+            modalidad="Ninxol",
+            estado=SepulturaEstado.DISPONIBLE,
+            tipo_bloque="Ninxols",
+            tipo_lapida="Resina",
+            orientacion="Nord",
+        )
+        db.session.add_all([holder, sepultura])
+        db.session.flush()
+        contract = DerechoFunerarioContrato(
+            org_id=cemetery.org_id,
+            sepultura_id=sepultura.id,
+            tipo=DerechoTipo.CONCESION,
+            fecha_inicio=date(today.year - 1, 1, 1),
+            fecha_fin=date(today.year + 1, 12, 31),
+            annual_fee_amount=Decimal("20.00"),
+            estado="ACTIVO",
+        )
+        db.session.add(contract)
+        db.session.flush()
+        ownership = OwnershipRecord(
+            org_id=cemetery.org_id,
+            contract_id=contract.id,
+            person_id=holder.id,
+            start_date=date(today.year - 1, 1, 1),
+        )
+        db.session.add(ownership)
+        db.session.commit()
+        holder_dni = str(holder.dni_nif)
+        contract_id = contract.id
+        sepultura_id = sepultura.id
+
+    response = client.get(
+        f"/cementerio/inhumaciones/asistente/persona-por-dni?dni={holder_dni}"
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload is not None
+    assert payload["success"] is True
+    assert payload["found"] is True
+    assert isinstance(payload["active_contracts"], list)
+    assert payload["active_contracts"]
+    row = payload["active_contracts"][0]
+    assert row["contract_id"] == contract_id
+    assert row["sepultura_id"] == sepultura_id
+    assert row["bloque"] == "B-HOLDER"
 
 
 def test_inhumation_assistant_sepultura_lookup_requires_login(client):

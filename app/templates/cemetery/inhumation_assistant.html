@@ -66,56 +66,8 @@
       </details>
     </section>
 
-    <section class="box contract-step contract-step--deceased">
-      <h2 class="contract-step-title"><span class="contract-step-pill">Paso 2</span> Datos del difunto</h2>
-      <div class="inhumation-cert-grid inhumation-cols-3">
-        <div class="inhumation-field"><label>Nombre</label><input type="text" name="deceased_first_name"></div>
-        <div class="inhumation-field"><label>Primer apellido</label><input type="text" name="deceased_last_name"></div>
-        <div class="inhumation-field"><label>Segundo apellido</label><input type="text" name="deceased_second_last_name"></div>
-      </div>
-      <div class="inhumation-cert-grid inhumation-cols-3">
-        <div class="inhumation-field"><label>DNI</label><input type="text" name="deceased_document_number" placeholder="DNI/NIE"></div>
-        <div class="inhumation-field"><label>Sexo</label><select name="deceased_sex"><option value=""></option><option value="M">Masculino</option><option value="F">Femenino</option><option value="X">No especificado</option></select></div>
-        <div class="inhumation-field"><label>Fecha de nacimiento</label><input type="date" name="deceased_birth_date"></div>
-      </div>
-      <div class="inhumation-cert-grid inhumation-cols-3">
-        <div class="inhumation-field"><label>Fecha de defuncion</label><input type="date" name="deceased_death_date"></div>
-        <div class="inhumation-field"><label>Hora de defuncion</label><input type="time" name="deceased_death_time"></div>
-        <div class="inhumation-field"><label>Lugar</label><input type="text" name="deceased_death_place"></div>
-      </div>
-    </section>
-
-    <section class="box contract-step contract-step--sepultura">
-      <h2 class="contract-step-title"><span class="contract-step-pill">Paso 3</span> Seleccion de sepultura</h2>
-      <div class="inhumation-field">
-        <label for="assistant_sepultura_id">ID sepultura</label>
-        <div class="field-picker-row contract-sepultura-picker-row">
-          <input id="assistant_sepultura_id" type="text" name="sepultura_id" inputmode="numeric" placeholder="ID sepultura">
-          <button
-            class="icon-btn"
-            id="assistant-sepultura-picker-btn"
-            type="button"
-            title="Buscar sepultura"
-            aria-label="Buscar sepultura"
-          >{{ action_icon('folder') }}</button>
-        </div>
-        <div class="small muted field-picker-helper contract-sepultura-helper" id="assistant_sepultura_selected"></div>
-        <p class="contract-inline-status" id="sepultura-lookup-status" aria-live="polite" hidden></p>
-      </div>
-      <div class="inhumation-cert-grid inhumation-cols-3 contract-sepultura-grid">
-        <div class="inhumation-field"><label>Bloque</label><input type="text" name="sepultura_bloque" readonly></div>
-        <div class="inhumation-field"><label>Fila</label><input type="text" name="sepultura_fila" readonly></div>
-        <div class="inhumation-field"><label>Columna</label><input type="text" name="sepultura_columna" readonly></div>
-      </div>
-      <div class="inhumation-cert-grid inhumation-cols-3 contract-sepultura-grid">
-        <div class="inhumation-field"><label>Numero</label><input type="text" name="sepultura_numero" readonly></div>
-        <div class="inhumation-field"><label>Modalidad</label><input type="text" name="sepultura_modalidad" readonly></div>
-        <div class="inhumation-field"><label>Estado</label><input type="text" name="sepultura_estado" readonly></div>
-      </div>
-    </section>
-
     <section class="box contract-step contract-step--holder">
-      <h2 class="contract-step-title"><span class="contract-step-pill">Paso 4</span> Datos del titular</h2>
+      <h2 class="contract-step-title"><span class="contract-step-pill">Paso 2</span> Datos del titular</h2>
       <div class="contract-identity-row">
         <div class="inhumation-field">
           <label for="holder_document_number">DNI</label>
@@ -147,6 +99,75 @@
         <div class="inhumation-field"><label>Codigo postal</label><input type="text" name="holder_postal_code"></div>
         <div class="inhumation-field"><label>Poblacion</label><input type="text" name="holder_city" value="Terrassa"></div>
         <div class="inhumation-field"><label>Pais</label><input type="text" name="holder_country" value="Espana"></div>
+      </div>
+      <div class="contract-holder-contracts" id="holder-active-contracts-block" hidden>
+        <h3 class="contract-holder-contracts-title">Contratos activos del titular</h3>
+        <p class="contract-inline-status" id="holder-contracts-status" aria-live="polite" hidden></p>
+        <p class="small muted contract-holder-contracts-empty" id="holder-active-contracts-empty">Sin contratos activos para este titular.</p>
+        <div class="contract-holder-contracts-table-wrap" id="holder-active-contracts-table-wrap" hidden>
+          <table class="table-zebra contract-holder-contracts-table">
+            <thead>
+              <tr>
+                <th>Bloque</th>
+                <th>Fila</th>
+                <th>Columna</th>
+                <th>Numero</th>
+                <th>ID sepultura</th>
+                <th>ID contrato</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="holder-active-contracts-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="box contract-step contract-step--deceased">
+      <h2 class="contract-step-title"><span class="contract-step-pill">Paso 3</span> Datos del difunto</h2>
+      <div class="inhumation-cert-grid inhumation-cols-3">
+        <div class="inhumation-field"><label>Nombre</label><input type="text" name="deceased_first_name"></div>
+        <div class="inhumation-field"><label>Primer apellido</label><input type="text" name="deceased_last_name"></div>
+        <div class="inhumation-field"><label>Segundo apellido</label><input type="text" name="deceased_second_last_name"></div>
+      </div>
+      <div class="inhumation-cert-grid inhumation-cols-3">
+        <div class="inhumation-field"><label>DNI</label><input type="text" name="deceased_document_number" placeholder="DNI/NIE"></div>
+        <div class="inhumation-field"><label>Sexo</label><select name="deceased_sex"><option value=""></option><option value="M">Masculino</option><option value="F">Femenino</option><option value="X">No especificado</option></select></div>
+        <div class="inhumation-field"><label>Fecha de nacimiento</label><input type="date" name="deceased_birth_date"></div>
+      </div>
+      <div class="inhumation-cert-grid inhumation-cols-3">
+        <div class="inhumation-field"><label>Fecha de defuncion</label><input type="date" name="deceased_death_date"></div>
+        <div class="inhumation-field"><label>Hora de defuncion</label><input type="time" name="deceased_death_time"></div>
+        <div class="inhumation-field"><label>Lugar</label><input type="text" name="deceased_death_place"></div>
+      </div>
+    </section>
+
+    <section class="box contract-step contract-step--sepultura">
+      <h2 class="contract-step-title"><span class="contract-step-pill">Paso 4</span> Seleccion de sepultura</h2>
+      <div class="inhumation-field">
+        <label for="assistant_sepultura_id">ID sepultura</label>
+        <div class="field-picker-row contract-sepultura-picker-row">
+          <input id="assistant_sepultura_id" type="text" name="sepultura_id" inputmode="numeric" placeholder="ID sepultura">
+          <button
+            class="icon-btn"
+            id="assistant-sepultura-picker-btn"
+            type="button"
+            title="Buscar sepultura"
+            aria-label="Buscar sepultura"
+          >{{ action_icon('folder') }}</button>
+        </div>
+        <div class="small muted field-picker-helper contract-sepultura-helper" id="assistant_sepultura_selected"></div>
+        <p class="contract-inline-status" id="sepultura-lookup-status" aria-live="polite" hidden></p>
+      </div>
+      <div class="inhumation-cert-grid inhumation-cols-3 contract-sepultura-grid">
+        <div class="inhumation-field"><label>Bloque</label><input type="text" name="sepultura_bloque" readonly></div>
+        <div class="inhumation-field"><label>Fila</label><input type="text" name="sepultura_fila" readonly></div>
+        <div class="inhumation-field"><label>Columna</label><input type="text" name="sepultura_columna" readonly></div>
+      </div>
+      <div class="inhumation-cert-grid inhumation-cols-3 contract-sepultura-grid">
+        <div class="inhumation-field"><label>Numero</label><input type="text" name="sepultura_numero" readonly></div>
+        <div class="inhumation-field"><label>Modalidad</label><input type="text" name="sepultura_modalidad" readonly></div>
+        <div class="inhumation-field"><label>Estado</label><input type="text" name="sepultura_estado" readonly></div>
       </div>
     </section>
 
@@ -548,7 +569,12 @@
       const actionBtn = document.getElementById("assistant-sepultura-picker-btn");
       const statusNode = document.getElementById("sepultura-lookup-status");
       const helper = document.getElementById("assistant_sepultura_selected");
-      if (!input) return;
+      if (!input) {
+        return {
+          useSepulturaId: function () {},
+          clearSelection: function () {},
+        };
+      }
       let requestSerial = 0;
       const detailFieldNames = [
         "sepultura_bloque",
@@ -647,6 +673,22 @@
         setInlineStatus(statusNode, "Sepultura encontrada y datos autocompletados.", "success");
       }
 
+      function useSepulturaId(sepulturaId) {
+        const normalized = sanitizeSepulturaId(sepulturaId);
+        if (!normalized) return;
+        input.value = normalized;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+        input.focus();
+      }
+
+      function clearSelection() {
+        input.value = "";
+        clearDetailFields();
+        setHelperText("");
+        setInlineStatus(statusNode, "", "");
+      }
+
       input.addEventListener("input", function () {
         const normalized = sanitizeSepulturaId(input.value);
         if (input.value !== normalized) input.value = normalized;
@@ -677,6 +719,135 @@
           window.location.href = sepulturaPickerUrl;
         });
       }
+
+      return {
+        useSepulturaId: useSepulturaId,
+        clearSelection: clearSelection,
+      };
+    }
+
+    function createHolderContractsController(sepulturaLookupController) {
+      const block = document.getElementById("holder-active-contracts-block");
+      const statusNode = document.getElementById("holder-contracts-status");
+      const emptyNode = document.getElementById("holder-active-contracts-empty");
+      const tableWrap = document.getElementById("holder-active-contracts-table-wrap");
+      const body = document.getElementById("holder-active-contracts-body");
+      const emptyMessage = "Sin contratos activos para este titular.";
+
+      if (!block || !statusNode || !emptyNode || !tableWrap || !body) {
+        return {
+          clear: function () {},
+          render: function () {},
+        };
+      }
+
+      function showEmpty(message) {
+        emptyNode.textContent = hasValue(message) ? String(message) : emptyMessage;
+        emptyNode.hidden = false;
+        tableWrap.hidden = true;
+      }
+
+      function hideAll() {
+        block.hidden = true;
+        body.innerHTML = "";
+        showEmpty(emptyMessage);
+        setInlineStatus(statusNode, "", "");
+      }
+
+      function createCell(row, value) {
+        const cell = document.createElement("td");
+        cell.textContent = hasValue(value) ? String(value) : "-";
+        row.appendChild(cell);
+      }
+
+      function openInfo(sepulturaId) {
+        const cleanId = sanitizeSepulturaId(sepulturaId);
+        if (!cleanId) return;
+        const url = "/cementerio/sepulturas/" + encodeURIComponent(cleanId) + "?tab=principal";
+        window.open(url, "_blank", "noopener");
+      }
+
+      function useSepultura(sepulturaId) {
+        const cleanId = sanitizeSepulturaId(sepulturaId);
+        if (!cleanId) return;
+        if (sepulturaLookupController && typeof sepulturaLookupController.useSepulturaId === "function") {
+          sepulturaLookupController.useSepulturaId(cleanId);
+        }
+        setInlineStatus(statusNode, "Sepultura del contrato aplicada en el Paso 4.", "success");
+      }
+
+      body.addEventListener("click", function (event) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        const btn = target.closest("button[data-action]");
+        if (!btn) return;
+        const action = btn.getAttribute("data-action") || "";
+        const sepulturaId = btn.getAttribute("data-sepultura-id") || "";
+        if (action === "info") {
+          openInfo(sepulturaId);
+          return;
+        }
+        if (action === "use") {
+          useSepultura(sepulturaId);
+        }
+      });
+
+      function clear() {
+        hideAll();
+      }
+
+      function render(contracts) {
+        body.innerHTML = "";
+        const rows = Array.isArray(contracts) ? contracts : [];
+        block.hidden = false;
+        if (!rows.length) {
+          showEmpty(emptyMessage);
+          setInlineStatus(statusNode, "No se han encontrado contratos activos para este titular.", "pending");
+          return;
+        }
+
+        rows.forEach(function (contract) {
+          const tr = document.createElement("tr");
+          createCell(tr, contract && contract.bloque);
+          createCell(tr, contract && contract.fila);
+          createCell(tr, contract && contract.columna);
+          createCell(tr, contract && contract.numero);
+          createCell(tr, contract && contract.sepultura_id);
+          createCell(tr, contract && contract.contract_id);
+
+          const actions = document.createElement("td");
+          actions.className = "contract-holder-contracts-actions";
+
+          const infoBtn = document.createElement("button");
+          infoBtn.type = "button";
+          infoBtn.className = "btn";
+          infoBtn.textContent = "+Info";
+          infoBtn.setAttribute("data-action", "info");
+          infoBtn.setAttribute("data-sepultura-id", String((contract && contract.sepultura_id) || ""));
+          actions.appendChild(infoBtn);
+
+          const useBtn = document.createElement("button");
+          useBtn.type = "button";
+          useBtn.className = "btn primary";
+          useBtn.textContent = "Usar sepultura";
+          useBtn.setAttribute("data-action", "use");
+          useBtn.setAttribute("data-sepultura-id", String((contract && contract.sepultura_id) || ""));
+          actions.appendChild(useBtn);
+
+          tr.appendChild(actions);
+          body.appendChild(tr);
+        });
+
+        tableWrap.hidden = false;
+        emptyNode.hidden = true;
+        setInlineStatus(statusNode, "Contratos activos detectados para el titular.", "success");
+      }
+
+      hideAll();
+      return {
+        clear: clear,
+        render: render,
+      };
     }
 
     function createDniLookup(prefix) {
@@ -704,6 +875,7 @@
         const normalizedDni = sanitizeDni(input.value);
         input.value = normalizedDni;
         if (!normalizedDni) {
+          if (prefix === "holder" && holderContractsController) holderContractsController.clear();
           setInlineStatus(statusNode, "Indica un DNI para comprobarlo en el sistema.", "pending");
           return;
         }
@@ -719,6 +891,7 @@
         } catch (_error) {
           if (currentRequest !== requestSerial) return;
           setSearchingState(false);
+          if (prefix === "holder" && holderContractsController) holderContractsController.clear();
           setInlineStatus(statusNode, "No se pudo consultar el DNI ahora mismo.", "error");
           return;
         }
@@ -727,6 +900,7 @@
         setSearchingState(false);
         const contentType = String(response.headers.get("content-type") || "").toLowerCase();
         if (!contentType.includes("application/json")) {
+          if (prefix === "holder" && holderContractsController) holderContractsController.clear();
           setInlineStatus(statusNode, "Respuesta inesperada al comprobar el DNI.", "error");
           return;
         }
@@ -735,16 +909,19 @@
         try {
           payload = await response.json();
         } catch (_error) {
+          if (prefix === "holder" && holderContractsController) holderContractsController.clear();
           setInlineStatus(statusNode, "No se pudo interpretar la respuesta del servidor.", "error");
           return;
         }
 
         if (!response.ok) {
+          if (prefix === "holder" && holderContractsController) holderContractsController.clear();
           setInlineStatus(statusNode, (payload && payload.message) || "No se pudo comprobar el DNI.", "error");
           return;
         }
 
         if (!payload || payload.found !== true || !payload.person) {
+          if (prefix === "holder" && holderContractsController) holderContractsController.clear();
           setInlineStatus(statusNode, "DNI no encontrado. Puedes continuar con carga manual.", "pending");
           return;
         }
@@ -764,12 +941,16 @@
         setFieldValue(prefix + "_observations", person.notes);
         setInlineStatus(statusNode, "DNI encontrado. Datos autocompletados (editable).", "success");
 
-        if (prefix === "holder") updateBillingAccountHolderFromHolder(true);
+        if (prefix === "holder") {
+          updateBillingAccountHolderFromHolder(true);
+          if (holderContractsController) holderContractsController.render(payload.active_contracts || []);
+        }
       }
 
       input.addEventListener("input", function () {
         const normalized = sanitizeDni(input.value);
         if (input.value !== normalized) input.value = normalized;
+        if (prefix === "holder" && holderContractsController) holderContractsController.clear();
         setInlineStatus(statusNode, "", "");
       });
       input.addEventListener("blur", function () {
@@ -811,7 +992,8 @@
     createExtractionController({ fileInputId: "death-certificate-upload", buttonId: "death-ai-extract-btn", statusId: "death-document-status", placeholderOnly: true });
     createExtractionController({ fileInputId: "burial-title-upload", buttonId: "title-ai-extract-btn", statusId: "title-document-status", placeholderOnly: true });
 
-    createSepulturaLookup();
+    const sepulturaLookupController = createSepulturaLookup();
+    const holderContractsController = createHolderContractsController(sepulturaLookupController);
     createDniLookup("holder");
     createDniLookup("beneficiary");
 
