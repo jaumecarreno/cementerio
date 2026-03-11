@@ -1984,6 +1984,50 @@ tr:last-child td {
   line-height: 1.2;
 }
 
+.contract-assistant-form .inhumation-field {
+  position: relative;
+}
+
+.contract-assistant-form .inhumation-field > label {
+  position: absolute;
+  top: 50%;
+  left: 8px;
+  transform: translateY(-50%);
+  margin: 0;
+  max-width: calc(100% - 16px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  font-size: 12px;
+  line-height: 1;
+  z-index: 2;
+  transition: top 0.14s ease, transform 0.14s ease, font-size 0.14s ease, color 0.14s ease;
+}
+
+.contract-assistant-form .inhumation-field > input,
+.contract-assistant-form .inhumation-field > select,
+.contract-assistant-form .inhumation-field > textarea {
+  padding-top: 14px;
+  padding-bottom: 3px;
+}
+
+.contract-assistant-form .inhumation-field > input::placeholder,
+.contract-assistant-form .inhumation-field > textarea::placeholder {
+  color: transparent;
+}
+
+.contract-assistant-form .inhumation-field.is-filled > label,
+.contract-assistant-form .inhumation-field.is-focused > label {
+  top: 6px;
+  transform: none;
+  font-size: 10px;
+}
+
+.contract-assistant-form .inhumation-field.is-focused > label {
+  color: var(--btn-primary-bg);
+}
+
 .contract-step {
   display: grid;
   gap: 6px;

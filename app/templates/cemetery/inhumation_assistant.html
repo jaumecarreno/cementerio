@@ -238,6 +238,33 @@
       return form.querySelector('[name="' + escapeName(name) + '"]');
     }
 
+    function initFloatingFields() {
+      const fields = Array.from(form.querySelectorAll(".inhumation-field"));
+      fields.forEach(function (field) {
+        const label = field.querySelector("label");
+        const control = field.querySelector("input:not([type='hidden']):not([type='file']), select, textarea");
+        if (!label || !control) return;
+
+        const labelText = String(label.textContent || "").trim();
+        if (control.tagName !== "SELECT") control.setAttribute("placeholder", labelText);
+
+        function refreshState() {
+          field.classList.toggle("is-filled", hasValue(control.value));
+        }
+
+        control.addEventListener("focus", function () {
+          field.classList.add("is-focused");
+        });
+        control.addEventListener("blur", function () {
+          field.classList.remove("is-focused");
+          refreshState();
+        });
+        control.addEventListener("input", refreshState);
+        control.addEventListener("change", refreshState);
+        refreshState();
+      });
+    }
+
     function fileExtension(filename) {
       const dot = String(filename || "").lastIndexOf(".");
       if (dot === -1) return "";
@@ -747,6 +774,8 @@
       });
       button.addEventListener("click", function () { runLookup(); });
     }
+
+    initFloatingFields();
 
     createExtractionController({
       fileInputId: "holder-document-upload",
