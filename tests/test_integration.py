@@ -383,7 +383,7 @@ def test_inhumation_assistant_page_renders_contract_assistant_layout(
     assert "Datos del beneficiario" in html
     assert "Datos bancarios" in html
     assert "Certificado medico de defuncion" not in html
-    assert "Continuar" in html
+    assert "Crear Expediente" in html
     assert 'id="contract-continue-btn"' in html
     assert 'id="contract-doc-toggle"' in html
     assert 'class="contract-doc-summary"' in html
@@ -428,6 +428,7 @@ def test_inhumation_assistant_page_renders_contract_assistant_layout(
     assert 'id="assistant-sepultura-picker-btn"' in html
     assert 'id="assistant_sepultura_selected"' in html
     assert 'id="sepultura-lookup-status"' in html
+    assert "estado=LLIURE" in html
     assert 'name="sepultura_bloque" readonly' in html
     assert 'name="sepultura_fila" readonly' in html
     assert 'name="sepultura_columna" readonly' in html

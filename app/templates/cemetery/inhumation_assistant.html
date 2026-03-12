@@ -218,8 +218,8 @@
     </section>
 
     <div class="actions-row contract-actions">
-      <p class="small muted" id="continue-requirements-status" aria-live="polite">Para continuar: DNI titular, sepultura seleccionada, adjunto DNI titular y licencia.</p>
-      <button class="btn primary" id="contract-continue-btn" type="button" disabled aria-disabled="true">Continuar</button>
+      <p class="small muted" id="continue-requirements-status" aria-live="polite">Para crear expediente: DNI titular, sepultura seleccionada, adjunto DNI titular y licencia.</p>
+      <button class="btn primary" id="contract-continue-btn" type="button" disabled aria-disabled="true">Crear Expediente</button>
     </div>
     <div id="contract-action-status" class="warning inhumation-ai-feedback" hidden aria-live="polite"></div>
   </form>
@@ -232,7 +232,7 @@
     const personLookupUrl = "{{ url_for('cemetery.inhumation_assistant_person_lookup') }}";
     const sepulturaLookupUrl = "{{ url_for('cemetery.inhumation_assistant_sepultura_lookup') }}";
     const reserveSepulturaUrl = "{{ url_for('cemetery.inhumation_assistant_reserve_sepultura') }}";
-    const sepulturaPickerUrl = "{{ url_for('cemetery.expediente_sepultura_picker', target_field='assistant_sepultura_id', label_field='assistant_sepultura_selected') }}";
+    const sepulturaPickerUrl = "{{ url_for('cemetery.expediente_sepultura_picker', target_field='assistant_sepultura_id', label_field='assistant_sepultura_selected', estado='LLIURE') }}";
     const confidenceThreshold = Number("{{ config.get('INHUMATION_AI_MIN_CONFIDENCE', '0.80') }}") || 0.8;
     const continueBtn = document.getElementById("contract-continue-btn");
     const continueStatus = document.getElementById("continue-requirements-status");
@@ -241,7 +241,7 @@
     const allowedExtensions = new Set(["pdf", "jpg", "jpeg", "png"]);
     const loadingLabel = "Procesando...";
     const continueLoadingLabel = "Creando reserva...";
-    const continueDefaultLabel = continueBtn ? continueBtn.textContent : "Continuar";
+    const continueDefaultLabel = continueBtn ? continueBtn.textContent : "Crear Expediente";
     const docToggle = document.getElementById("contract-doc-toggle");
     let isCreatingReservation = false;
 
@@ -470,8 +470,8 @@
       }
       if (continueStatus) {
         continueStatus.textContent = isReady
-          ? "Requisitos completados: se creara una OT de reserva al continuar."
-          : "Para continuar: DNI titular, sepultura seleccionada, adjunto DNI titular y licencia.";
+          ? "Requisitos completados: se creara una OT de reserva al crear expediente."
+          : "Para crear expediente: DNI titular, sepultura seleccionada, adjunto DNI titular y licencia.";
       }
       return isReady;
     }
@@ -1030,7 +1030,7 @@
     async function createSepulturaReservation() {
       if (isCreatingReservation) return;
       if (!updateContinueState()) {
-        setGlobalStatus("No se puede continuar: faltan requisitos para reservar la sepultura.", "error");
+        setGlobalStatus("No se puede crear expediente: faltan requisitos para reservar la sepultura.", "error");
         return;
       }
 
