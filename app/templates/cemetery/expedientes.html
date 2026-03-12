@@ -10,8 +10,9 @@
 <h1 class="page-title">{{ t('cases.title') }}</h1>
 
 <div class="box">
-  <h3>Nuevo expediente</h3>
-  <form method="post" action="{{ url_for('cemetery.expedientes') }}">
+  <details id="expediente-create-toggle">
+    <summary><h3>Nuevo expediente</h3></summary>
+    <form method="post" action="{{ url_for('cemetery.expedientes') }}">
     <div class="form-grid">
       <div>
         <label>Tipo</label>
@@ -101,10 +102,11 @@
         <input type="text" name="notes">
       </div>
     </div>
-    <div class="actions-row">
-      <button class="btn primary" type="submit">Crear expediente</button>
-    </div>
-  </form>
+      <div class="actions-row">
+        <button class="btn primary" type="submit">Crear expediente</button>
+      </div>
+    </form>
+  </details>
 </div>
 
 <div class="box">

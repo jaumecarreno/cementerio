@@ -32,6 +32,15 @@ def _move_ot_to_completed(client, ot_id: int) -> None:
         assert response.status_code == 200
 
 
+def test_operations_new_case_box_is_collapsed_by_default(client, login_admin):
+    login_admin()
+    response = client.get("/cementerio/expedientes")
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert 'id="expediente-create-toggle"' in html
+    assert 'id="expediente-create-toggle" open' not in html
+
+
 def test_operations_page_and_create_case(app, client, login_admin):
     login_admin()
     with app.app_context():
