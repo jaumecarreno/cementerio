@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 from flask import (
     abort,
@@ -154,6 +154,7 @@ from app.core.models import (
     OwnershipTransferStatus,
     OwnershipTransferType,
     SepulturaEstado,
+    WorkOrder,
 )
 from app.core.permissions import require_membership, require_role
 from app.core.utils import money
@@ -459,6 +460,108 @@ def inhumation_assistant_sepultura_lookup():
         "estado": sepultura.estado.value,
     }
     return jsonify({"success": True, "found": True, "sepultura": payload}), 200
+
+
+@cemetery_bp.post("/inhumaciones/asistente/reservar-sepultura")
+@login_required
+@require_membership
+def inhumation_assistant_reserve_sepultura():
+    form_or_json = request.form or (request.get_json(silent=True) or {})
+    holder_dni = (form_or_json.get("holder_document_number") or "").strip().upper().replace(" ", "")
+    raw_sepultura_id = (form_or_json.get("sepultura_id") or "").strip()
+    holder_document_file = request.files.get("holder_document_upload")
+    burial_license_file = request.files.get("burial_license_upload")
+
+    validation_errors: list[str] = []
+    if not holder_dni:
+        validation_errors.append("Debes informar el DNI titular.")
+    if not raw_sepultura_id:
+        validation_errors.append("Debes seleccionar una sepultura.")
+    elif not raw_sepultura_id.isdigit() or int(raw_sepultura_id) <= 0:
+        validation_errors.append("El ID de sepultura debe ser numerico.")
+    if not holder_document_file or not (holder_document_file.filename or "").strip():
+        validation_errors.append("Debes adjuntar el DNI titular.")
+    if not burial_license_file or not (burial_license_file.filename or "").strip():
+        validation_errors.append("Debes adjuntar la licencia de entierro/incineracion.")
+    if validation_errors:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "message": " ".join(validation_errors),
+                    "errors": validation_errors,
+                }
+            ),
+            400,
+        )
+
+    sepultura_id = int(raw_sepultura_id)
+    sepultura = Sepultura.query.filter_by(org_id=org_record().id, id=sepultura_id).first()
+    if not sepultura:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "message": "Sepultura no encontrada.",
+                    "errors": ["Sepultura no encontrada."],
+                }
+            ),
+            400,
+        )
+
+    existing_reservation = (
+        WorkOrder.query.filter(
+            WorkOrder.org_id == org_record().id,
+            WorkOrder.sepultura_id == sepultura_id,
+            WorkOrder.title == "RESERVA",
+            WorkOrder.type_code == OperationType.INHUMACION.value,
+            WorkOrder.status.notin_([WorkOrderStatus.COMPLETADA, WorkOrderStatus.CANCELADA]),
+        )
+        .order_by(WorkOrder.id.desc())
+        .first()
+    )
+    if existing_reservation:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "message": f"La sepultura ya tiene una reserva activa ({existing_reservation.code}).",
+                    "work_order_id": existing_reservation.id,
+                    "work_order_code": existing_reservation.code,
+                }
+            ),
+            409,
+        )
+
+    planned_start_at = datetime.now(timezone.utc).replace(microsecond=0)
+    planned_end_at = planned_start_at + timedelta(hours=2)
+    payload = {
+        "title": "RESERVA",
+        "description": f"Reserva {holder_dni}",
+        "type_code": OperationType.INHUMACION.value,
+        "category": WorkOrderCategory.FUNERARIA.value,
+        "priority": WorkOrderPriority.MEDIA.value,
+        "status": WorkOrderStatus.PENDIENTE_PLANIFICACION.value,
+        "sepultura_id": str(sepultura_id),
+        "planned_start_at": planned_start_at.strftime("%Y-%m-%dT%H:%M"),
+        "planned_end_at": planned_end_at.strftime("%Y-%m-%dT%H:%M"),
+    }
+    try:
+        row = create_work_order(payload, current_user.id)
+    except ValueError as exc:
+        return jsonify({"success": False, "message": str(exc)}), 400
+
+    return (
+        jsonify(
+            {
+                "success": True,
+                "work_order_id": row.id,
+                "work_order_code": row.code,
+                "work_order_url": url_for("cemetery.ot_detail", ot_id=row.id),
+            }
+        ),
+        201,
+    )
 
 
 @cemetery_bp.get("/personas")

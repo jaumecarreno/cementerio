@@ -19,6 +19,9 @@ from app.core.models import (
     Person,
     Sepultura,
     SepulturaEstado,
+    WorkOrder,
+    WorkOrderPriority,
+    WorkOrderStatus,
 )
 
 
@@ -684,6 +687,141 @@ def test_inhumation_assistant_sepultura_lookup_returns_sepultura_when_found(
     assert payload["found"] is True
     assert payload["sepultura"]["id"] == sepultura_id
     assert payload["sepultura"]["bloque"] == expected_block
+
+
+def test_inhumation_assistant_reserve_sepultura_requires_login(client):
+    response = client.post(
+        "/cementerio/inhumaciones/asistente/reservar-sepultura",
+        data={
+            "holder_document_number": "12345678Z",
+            "sepultura_id": "1",
+            "holder_document_upload": (BytesIO(b"holder"), "holder.pdf"),
+            "burial_license_upload": (BytesIO(b"license"), "license.pdf"),
+        },
+        content_type="multipart/form-data",
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    assert "/auth/login" in response.headers.get("Location", "")
+
+
+def test_inhumation_assistant_reserve_sepultura_returns_400_when_missing_requirements(
+    app, client, login_admin
+):
+    login_admin()
+    with app.app_context():
+        sepultura = Sepultura.query.order_by(Sepultura.id.asc()).first()
+        assert sepultura is not None
+        sepultura_id = sepultura.id
+
+    cases = [
+        {"sepultura_id": str(sepultura_id), "holder_document_upload": (BytesIO(b"holder"), "holder.pdf"), "burial_license_upload": (BytesIO(b"license"), "license.pdf")},
+        {"holder_document_number": "12345678Z", "holder_document_upload": (BytesIO(b"holder"), "holder.pdf"), "burial_license_upload": (BytesIO(b"license"), "license.pdf")},
+        {"holder_document_number": "12345678Z", "sepultura_id": str(sepultura_id), "burial_license_upload": (BytesIO(b"license"), "license.pdf")},
+        {"holder_document_number": "12345678Z", "sepultura_id": str(sepultura_id), "holder_document_upload": (BytesIO(b"holder"), "holder.pdf")},
+    ]
+    for data in cases:
+        response = client.post(
+            "/cementerio/inhumaciones/asistente/reservar-sepultura",
+            data=data,
+            content_type="multipart/form-data",
+        )
+        assert response.status_code == 400
+        payload = response.get_json()
+        assert payload is not None
+        assert payload["success"] is False
+        assert "message" in payload
+
+
+def test_inhumation_assistant_reserve_sepultura_creates_reservation_ot(
+    app, client, login_admin
+):
+    login_admin()
+    with app.app_context():
+        sepultura = Sepultura.query.order_by(Sepultura.id.asc()).first()
+        assert sepultura is not None
+        sepultura_id = sepultura.id
+
+    response = client.post(
+        "/cementerio/inhumaciones/asistente/reservar-sepultura",
+        data={
+            "holder_document_number": "12345678Z",
+            "sepultura_id": str(sepultura_id),
+            "holder_document_upload": (BytesIO(b"holder"), "holder.pdf"),
+            "burial_license_upload": (BytesIO(b"license"), "license.pdf"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 201
+    payload = response.get_json()
+    assert payload is not None
+    assert payload["success"] is True
+    assert payload["work_order_id"] > 0
+    assert payload["work_order_code"].startswith("OT-")
+
+    with app.app_context():
+        row = db.session.get(WorkOrder, int(payload["work_order_id"]))
+        assert row is not None
+        assert row.title == "RESERVA"
+        assert row.description == "Reserva 12345678Z"
+        assert row.type_code == "INHUMACION"
+        assert row.priority == WorkOrderPriority.MEDIA
+        assert row.status == WorkOrderStatus.PENDIENTE_PLANIFICACION
+        assert row.sepultura_id == sepultura_id
+        assert row.planned_start_at is not None
+        assert row.planned_end_at is not None
+        assert int((row.planned_end_at - row.planned_start_at).total_seconds()) == 7200
+
+
+def test_inhumation_assistant_reserve_sepultura_returns_409_for_duplicate_open_reservation(
+    app, client, login_admin
+):
+    login_admin()
+    with app.app_context():
+        sepultura = Sepultura.query.order_by(Sepultura.id.asc()).first()
+        assert sepultura is not None
+        sepultura_id = sepultura.id
+        baseline_count = (
+            WorkOrder.query.filter_by(sepultura_id=sepultura_id, title="RESERVA", type_code="INHUMACION")
+            .filter(WorkOrder.status.notin_([WorkOrderStatus.COMPLETADA, WorkOrderStatus.CANCELADA]))
+            .count()
+        )
+
+    first = client.post(
+        "/cementerio/inhumaciones/asistente/reservar-sepultura",
+        data={
+            "holder_document_number": "12345678Z",
+            "sepultura_id": str(sepultura_id),
+            "holder_document_upload": (BytesIO(b"holder"), "holder.pdf"),
+            "burial_license_upload": (BytesIO(b"license"), "license.pdf"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert first.status_code == 201
+
+    second = client.post(
+        "/cementerio/inhumaciones/asistente/reservar-sepultura",
+        data={
+            "holder_document_number": "87654321X",
+            "sepultura_id": str(sepultura_id),
+            "holder_document_upload": (BytesIO(b"holder2"), "holder2.pdf"),
+            "burial_license_upload": (BytesIO(b"license2"), "license2.pdf"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert second.status_code == 409
+    second_payload = second.get_json()
+    assert second_payload is not None
+    assert second_payload["success"] is False
+    assert "reserva activa" in second_payload["message"].lower()
+
+    with app.app_context():
+        open_reservations = (
+            WorkOrder.query.filter_by(sepultura_id=sepultura_id, title="RESERVA", type_code="INHUMACION")
+            .filter(WorkOrder.status.notin_([WorkOrderStatus.COMPLETADA, WorkOrderStatus.CANCELADA]))
+            .count()
+        )
+        assert open_reservations == baseline_count + 1
 
 
 def test_inhumation_assistant_extract_document_requires_login(client):

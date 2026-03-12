@@ -218,7 +218,7 @@
     </section>
 
     <div class="actions-row contract-actions">
-      <p class="small muted" id="continue-requirements-status" aria-live="polite">Falta adjuntar DNI titular y Licencia para continuar.</p>
+      <p class="small muted" id="continue-requirements-status" aria-live="polite">Para continuar: DNI titular, sepultura seleccionada, adjunto DNI titular y licencia.</p>
       <button class="btn primary" id="contract-continue-btn" type="button" disabled aria-disabled="true">Continuar</button>
     </div>
     <div id="contract-action-status" class="warning inhumation-ai-feedback" hidden aria-live="polite"></div>
@@ -231,6 +231,7 @@
     const extractionUrl = "{{ url_for('cemetery.inhumation_assistant_extract_document') }}";
     const personLookupUrl = "{{ url_for('cemetery.inhumation_assistant_person_lookup') }}";
     const sepulturaLookupUrl = "{{ url_for('cemetery.inhumation_assistant_sepultura_lookup') }}";
+    const reserveSepulturaUrl = "{{ url_for('cemetery.inhumation_assistant_reserve_sepultura') }}";
     const sepulturaPickerUrl = "{{ url_for('cemetery.expediente_sepultura_picker', target_field='assistant_sepultura_id', label_field='assistant_sepultura_selected') }}";
     const confidenceThreshold = Number("{{ config.get('INHUMATION_AI_MIN_CONFIDENCE', '0.80') }}") || 0.8;
     const continueBtn = document.getElementById("contract-continue-btn");
@@ -239,7 +240,10 @@
     const requiredUploadIds = ["holder-document-upload", "burial-license-upload"];
     const allowedExtensions = new Set(["pdf", "jpg", "jpeg", "png"]);
     const loadingLabel = "Procesando...";
+    const continueLoadingLabel = "Creando reserva...";
+    const continueDefaultLabel = continueBtn ? continueBtn.textContent : "Continuar";
     const docToggle = document.getElementById("contract-doc-toggle");
+    let isCreatingReservation = false;
 
     if (docToggle && window.matchMedia("(max-width: 1024px)").matches) {
       docToggle.open = false;
@@ -437,18 +441,39 @@
       return { normalizedData: normalizedData, confidenceMap: confidenceMap };
     }
 
+    function setContinueButtonLoading(isLoading) {
+      if (!continueBtn) return;
+      continueBtn.disabled = !!isLoading;
+      continueBtn.setAttribute("aria-disabled", isLoading ? "true" : "false");
+      continueBtn.setAttribute("aria-busy", isLoading ? "true" : "false");
+      continueBtn.textContent = isLoading ? continueLoadingLabel : continueDefaultLabel;
+    }
+
     function updateContinueState() {
-      const isReady = requiredUploadIds.every(function (id) {
+      const requiredDocsReady = requiredUploadIds.every(function (id) {
         const input = document.getElementById(id);
         return input && input.files && input.files[0] && fileLooksValid(input.files[0]);
       });
-      if (continueBtn) {
+      const holderDniField = fieldByName("holder_document_number");
+      const holderDniReady = hasValue(sanitizeDni(holderDniField ? holderDniField.value : ""));
+      const sepulturaIdField = fieldByName("sepultura_id");
+      const sepulturaStateField = fieldByName("sepultura_estado");
+      const sepulturaIdReady = /^\d+$/.test(sanitizeSepulturaId(sepulturaIdField ? sepulturaIdField.value : ""));
+      const sepulturaReady = sepulturaIdReady && hasValue(sepulturaStateField ? sepulturaStateField.value : "");
+      const isReady = holderDniReady && sepulturaReady && requiredDocsReady;
+
+      if (continueBtn && !isCreatingReservation) {
         continueBtn.disabled = !isReady;
         continueBtn.setAttribute("aria-disabled", isReady ? "false" : "true");
+        continueBtn.setAttribute("aria-busy", "false");
+        continueBtn.textContent = continueDefaultLabel;
       }
       if (continueStatus) {
-        continueStatus.textContent = isReady ? "Documentacion minima completa. Puede continuar." : "Falta adjuntar DNI titular y Licencia para continuar.";
+        continueStatus.textContent = isReady
+          ? "Requisitos completados: se creara una OT de reserva al continuar."
+          : "Para continuar: DNI titular, sepultura seleccionada, adjunto DNI titular y licencia.";
       }
+      return isReady;
     }
 
     function buildHolderAccountName() {
@@ -627,6 +652,7 @@
         detailFieldNames.forEach(function (name) {
           setFieldValue(name, "");
         });
+        updateContinueState();
       }
 
       async function runLookup() {
@@ -636,6 +662,7 @@
           clearDetailFields();
           setHelperText("");
           setInlineStatus(statusNode, "Indica un ID de sepultura para completar sus datos.", "pending");
+          updateContinueState();
           return;
         }
 
@@ -651,6 +678,7 @@
           clearDetailFields();
           setHelperText("");
           setInlineStatus(statusNode, "No se pudo consultar la sepultura ahora mismo.", "error");
+          updateContinueState();
           return;
         }
 
@@ -660,6 +688,7 @@
           clearDetailFields();
           setHelperText("");
           setInlineStatus(statusNode, "Respuesta inesperada al consultar la sepultura.", "error");
+          updateContinueState();
           return;
         }
 
@@ -670,6 +699,7 @@
           clearDetailFields();
           setHelperText("");
           setInlineStatus(statusNode, "No se pudo interpretar la respuesta del servidor.", "error");
+          updateContinueState();
           return;
         }
 
@@ -677,6 +707,7 @@
           clearDetailFields();
           setHelperText("");
           setInlineStatus(statusNode, (payload && payload.message) || "No se pudo consultar la sepultura.", "error");
+          updateContinueState();
           return;
         }
 
@@ -684,6 +715,7 @@
           clearDetailFields();
           setHelperText("");
           setInlineStatus(statusNode, "Sepultura no encontrada.", "pending");
+          updateContinueState();
           return;
         }
 
@@ -696,6 +728,7 @@
         setFieldValue("sepultura_estado", sepultura.estado);
         setHelperText(sepultura.location_label || ("Sepultura " + sepultura.id));
         setInlineStatus(statusNode, "Sepultura encontrada y datos autocompletados.", "success");
+        updateContinueState();
       }
 
       function useSepulturaId(sepulturaId) {
@@ -712,12 +745,14 @@
         clearDetailFields();
         setHelperText("");
         setInlineStatus(statusNode, "", "");
+        updateContinueState();
       }
 
       input.addEventListener("input", function () {
         const normalized = sanitizeSepulturaId(input.value);
         if (input.value !== normalized) input.value = normalized;
         setInlineStatus(statusNode, "", "");
+        updateContinueState();
       });
       input.addEventListener("blur", function () {
         if (sanitizeSepulturaId(input.value)) runLookup();
@@ -977,9 +1012,11 @@
         if (input.value !== normalized) input.value = normalized;
         if (prefix === "holder" && holderContractsController) holderContractsController.clear();
         setInlineStatus(statusNode, "", "");
+        if (prefix === "holder") updateContinueState();
       });
       input.addEventListener("blur", function () {
         if (sanitizeDni(input.value)) runLookup();
+        if (prefix === "holder") updateContinueState();
       });
       input.addEventListener("keydown", function (event) {
         if (event.key === "Enter") {
@@ -988,6 +1025,80 @@
         }
       });
       button.addEventListener("click", function () { runLookup(); });
+    }
+
+    async function createSepulturaReservation() {
+      if (isCreatingReservation) return;
+      if (!updateContinueState()) {
+        setGlobalStatus("No se puede continuar: faltan requisitos para reservar la sepultura.", "error");
+        return;
+      }
+
+      const holderDniInput = fieldByName("holder_document_number");
+      const sepulturaIdInput = fieldByName("sepultura_id");
+      const holderDocumentInput = document.getElementById("holder-document-upload");
+      const burialLicenseInput = document.getElementById("burial-license-upload");
+      const holderFile = holderDocumentInput && holderDocumentInput.files ? holderDocumentInput.files[0] : null;
+      const licenseFile = burialLicenseInput && burialLicenseInput.files ? burialLicenseInput.files[0] : null;
+      const holderDni = sanitizeDni(holderDniInput ? holderDniInput.value : "");
+      const sepulturaId = sanitizeSepulturaId(sepulturaIdInput ? sepulturaIdInput.value : "");
+
+      if (!holderDni || !sepulturaId || !holderFile || !licenseFile) {
+        setGlobalStatus("Faltan datos o adjuntos obligatorios para crear la reserva.", "error");
+        updateContinueState();
+        return;
+      }
+
+      const body = new FormData();
+      body.append("holder_document_number", holderDni);
+      body.append("sepultura_id", sepulturaId);
+      body.append("holder_document_upload", holderFile);
+      body.append("burial_license_upload", licenseFile);
+
+      isCreatingReservation = true;
+      setContinueButtonLoading(true);
+      setGlobalStatus("Creando OT de reserva...", "info");
+
+      let response;
+      try {
+        response = await fetch(reserveSepulturaUrl, {
+          method: "POST",
+          body: body,
+          headers: { "X-Requested-With": "fetch" },
+        });
+      } catch (_error) {
+        isCreatingReservation = false;
+        setContinueButtonLoading(false);
+        updateContinueState();
+        setGlobalStatus("No se pudo conectar para crear la reserva.", "error");
+        return;
+      }
+
+      const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+      let payload = null;
+      if (contentType.includes("application/json")) {
+        try {
+          payload = await response.json();
+        } catch (_error) {
+          payload = null;
+        }
+      }
+
+      isCreatingReservation = false;
+      setContinueButtonLoading(false);
+      updateContinueState();
+
+      if (!response.ok) {
+        const message = (payload && payload.message) || "No se pudo crear la OT de reserva.";
+        setGlobalStatus(message, "error");
+        return;
+      }
+
+      const workOrderCode = payload && payload.work_order_code ? String(payload.work_order_code) : "";
+      const successMessage = workOrderCode
+        ? "OT " + workOrderCode + " creada para reservar la sepultura."
+        : "OT de reserva creada correctamente.";
+      setGlobalStatus(successMessage, "success");
     }
 
     initFloatingFields();
@@ -1024,8 +1135,19 @@
 
     if (continueBtn) {
       continueBtn.addEventListener("click", function () {
-        setGlobalStatus("Fase UX completada: guardado definitivo aun no implementado en este asistente.", "pending");
+        createSepulturaReservation();
       });
+    }
+
+    const holderDniInput = fieldByName("holder_document_number");
+    if (holderDniInput) {
+      holderDniInput.addEventListener("change", updateContinueState);
+      holderDniInput.addEventListener("blur", updateContinueState);
+    }
+    const sepulturaIdInput = fieldByName("sepultura_id");
+    if (sepulturaIdInput) {
+      sepulturaIdInput.addEventListener("change", updateContinueState);
+      sepulturaIdInput.addEventListener("blur", updateContinueState);
     }
 
     requiredUploadIds.forEach(function (id) {
