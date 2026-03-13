@@ -381,7 +381,6 @@ def test_inhumation_assistant_page_renders_contract_assistant_layout(
     assert "Datos del difunto" in html
     assert "Seleccion de sepultura" in html
     assert "Datos del beneficiario" in html
-    assert "Datos bancarios" in html
     assert "Certificado medico de defuncion" not in html
     assert "Crear Expediente" in html
     assert 'id="contract-continue-btn"' in html
@@ -468,9 +467,6 @@ def test_inhumation_assistant_page_renders_contract_assistant_layout(
     assert 'name="beneficiary_country"' in html
     assert 'name="beneficiary_observations"' in html
 
-    assert 'name="billing_account_holder_name"' in html
-    assert 'name="billing_iban"' in html
-    assert 'name="billing_bank_name"' in html
     assert 'value="Terrassa"' in html
     assert 'value="Espana"' in html
     assert "Extraer con IA" in html
@@ -480,14 +476,12 @@ def test_inhumation_assistant_page_renders_contract_assistant_layout(
     deceased_pos = html.find("Paso 3")
     sepultura_pos = html.find("Paso 4")
     beneficiary_pos = html.find("Paso 5")
-    billing_pos = html.find("Paso 6")
     assert docs_pos != -1
     assert holder_pos != -1
     assert deceased_pos != -1
     assert sepultura_pos != -1
     assert beneficiary_pos != -1
-    assert billing_pos != -1
-    assert docs_pos < holder_pos < deceased_pos < sepultura_pos < beneficiary_pos < billing_pos
+    assert docs_pos < holder_pos < deceased_pos < sepultura_pos < beneficiary_pos
 
 def test_inhumation_assistant_person_lookup_requires_login(client):
     response = client.get(
