@@ -10,6 +10,9 @@ from app.core.models import (
     Cemetery,
     DerechoFunerarioContrato,
     DerechoTipo,
+    OperationCase,
+    OperationStatus,
+    OperationType,
     OwnershipRecord,
     OwnershipTransferCase,
     OwnershipPartyRole,
@@ -840,21 +843,35 @@ def test_inhumation_assistant_reserve_sepultura_creates_reservation_ot(
     payload = response.get_json()
     assert payload is not None
     assert payload["success"] is True
+    assert payload["expediente_id"] > 0
+    assert payload["expediente_code"].startswith("OP-")
     assert payload["work_order_id"] > 0
     assert payload["work_order_code"].startswith("OT-")
 
     with app.app_context():
+        case = db.session.get(OperationCase, int(payload["expediente_id"]))
+        assert case is not None
+        assert case.code == payload["expediente_code"]
+        assert case.type == OperationType.INHUMACION
+        assert case.status == OperationStatus.BORRADOR
+        assert case.source_sepultura_id == sepultura_id
+
         row = db.session.get(WorkOrder, int(payload["work_order_id"]))
         assert row is not None
         assert row.title == "RESERVA"
-        assert row.description == "Reserva 12345678Z"
+        assert row.description == f"Reserva 12345678Z para {case.code}"
         assert row.type_code == "INHUMACION"
         assert row.priority == WorkOrderPriority.MEDIA
         assert row.status == WorkOrderStatus.PENDIENTE_PLANIFICACION
+        assert row.operation_case_id == case.id
         assert row.sepultura_id == sepultura_id
         assert row.planned_start_at is not None
         assert row.planned_end_at is not None
         assert int((row.planned_end_at - row.planned_start_at).total_seconds()) == 7200
+
+    listing = client.get("/cementerio/expedientes")
+    assert listing.status_code == 200
+    assert payload["expediente_code"].encode() in listing.data
 
 
 def test_inhumation_assistant_reserve_sepultura_returns_409_for_duplicate_open_reservation(

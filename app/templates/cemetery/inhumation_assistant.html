@@ -230,7 +230,7 @@
     const requiredUploadIds = ["holder-document-upload", "burial-license-upload"];
     const allowedExtensions = new Set(["pdf", "jpg", "jpeg", "png"]);
     const loadingLabel = "Procesando...";
-    const continueLoadingLabel = "Creando reserva...";
+    const continueLoadingLabel = "Creando expediente...";
     const continueDefaultLabel = continueBtn ? continueBtn.textContent : "Crear Expediente";
     const docToggle = document.getElementById("contract-doc-toggle");
     let isCreatingReservation = false;
@@ -460,7 +460,7 @@
       }
       if (continueStatus) {
         continueStatus.textContent = isReady
-          ? "Requisitos completados: se creara una OT de reserva al crear expediente."
+          ? "Requisitos completados: se creara un expediente y una OT de reserva."
           : "Para crear expediente: DNI titular, sepultura seleccionada, adjunto DNI titular y licencia.";
       }
       return isReady;
@@ -1047,7 +1047,7 @@
 
       isCreatingReservation = true;
       setContinueButtonLoading(true);
-      setGlobalStatus("Creando OT de reserva...", "info");
+      setGlobalStatus("Creando expediente y OT de reserva...", "info");
 
       let response;
       try {
@@ -1079,15 +1079,22 @@
       updateContinueState();
 
       if (!response.ok) {
-        const message = (payload && payload.message) || "No se pudo crear la OT de reserva.";
+        const message = (payload && payload.message) || "No se pudo crear el expediente y la OT de reserva.";
         setGlobalStatus(message, "error");
         return;
       }
 
+      const expedientesUrl = payload && payload.expedientes_url ? String(payload.expedientes_url) : "";
+      if (expedientesUrl) {
+        window.location.href = expedientesUrl;
+        return;
+      }
+
+      const expedienteCode = payload && payload.expediente_code ? String(payload.expediente_code) : "";
       const workOrderCode = payload && payload.work_order_code ? String(payload.work_order_code) : "";
-      const successMessage = workOrderCode
-        ? "OT " + workOrderCode + " creada para reservar la sepultura."
-        : "OT de reserva creada correctamente.";
+      const successMessage = expedienteCode && workOrderCode
+        ? "Expediente " + expedienteCode + " y OT " + workOrderCode + " creados correctamente."
+        : "Expediente creado correctamente.";
       setGlobalStatus(successMessage, "success");
     }
 

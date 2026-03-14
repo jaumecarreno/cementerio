@@ -534,15 +534,40 @@ def inhumation_assistant_reserve_sepultura():
             409,
         )
 
+    deceased_full_name = " ".join(
+        [
+            (form_or_json.get("deceased_first_name") or "").strip(),
+            (form_or_json.get("deceased_last_name") or "").strip(),
+            (form_or_json.get("deceased_second_last_name") or "").strip(),
+        ]
+    ).strip()
+    notes_parts = [
+        "Alta desde asistente de inhumacion",
+        f"Titular DNI: {holder_dni}",
+    ]
+    if deceased_full_name:
+        notes_parts.append(f"Difunto: {deceased_full_name}")
+
+    expediente_payload = {
+        "type": OperationType.INHUMACION.value,
+        "source_sepultura_id": str(sepultura_id),
+        "notes": " | ".join(notes_parts),
+    }
+    try:
+        case = create_operation_case(expediente_payload, current_user.id)
+    except ValueError as exc:
+        return jsonify({"success": False, "message": str(exc)}), 400
+
     planned_start_at = datetime.now(timezone.utc).replace(microsecond=0)
     planned_end_at = planned_start_at + timedelta(hours=2)
     payload = {
         "title": "RESERVA",
-        "description": f"Reserva {holder_dni}",
+        "description": f"Reserva {holder_dni} para {case.code}",
         "type_code": OperationType.INHUMACION.value,
         "category": WorkOrderCategory.FUNERARIA.value,
         "priority": WorkOrderPriority.MEDIA.value,
         "status": WorkOrderStatus.PENDIENTE_PLANIFICACION.value,
+        "operation_case_id": str(case.id),
         "sepultura_id": str(sepultura_id),
         "planned_start_at": planned_start_at.strftime("%Y-%m-%dT%H:%M"),
         "planned_end_at": planned_end_at.strftime("%Y-%m-%dT%H:%M"),
@@ -550,12 +575,31 @@ def inhumation_assistant_reserve_sepultura():
     try:
         row = create_work_order(payload, current_user.id)
     except ValueError as exc:
-        return jsonify({"success": False, "message": str(exc)}), 400
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "message": (
+                        f"Expediente {case.code} creado, pero no se pudo crear la OT de reserva: {exc}"
+                    ),
+                    "expediente_id": case.id,
+                    "expediente_code": case.code,
+                    "expediente_url": url_for("cemetery.expediente_detail", expediente_id=case.id),
+                    "expedientes_url": url_for("cemetery.expedientes"),
+                }
+            ),
+            400,
+        )
 
     return (
         jsonify(
             {
                 "success": True,
+                "message": f"Expediente {case.code} y OT {row.code} creados correctamente.",
+                "expediente_id": case.id,
+                "expediente_code": case.code,
+                "expediente_url": url_for("cemetery.expediente_detail", expediente_id=case.id),
+                "expedientes_url": url_for("cemetery.expedientes"),
                 "work_order_id": row.id,
                 "work_order_code": row.code,
                 "work_order_url": url_for("cemetery.ot_detail", ot_id=row.id),
