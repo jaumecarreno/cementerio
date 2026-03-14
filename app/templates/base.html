@@ -37,6 +37,10 @@
             <span class="menu-icon">{{ sidebar_icon('inventory') }}</span>
             <span class="menu-label">{{ t('cem.graves') }}</span>
           </a>
+          <a class="menu-link {% if active_cem == 'gestor_senda' %}active{% endif %}" href="{{ url_for('cemetery.gestor_senda') }}">
+            <span class="menu-icon">{{ sidebar_icon('inventory') }}</span>
+            <span class="menu-label">{{ t('cem.senda_manager') }}</span>
+          </a>
           <a class="menu-link {% if active_cem == 'expedientes' %}active{% endif %}" href="{{ url_for('cemetery.expedientes') }}">
             <span class="menu-icon">{{ sidebar_icon('work_orders') }}</span>
             <span class="menu-label">{{ t('cases.title') }}</span>
@@ -263,6 +267,7 @@
       const currentPath = window.location.pathname + window.location.search;
       const listEndpoints = new Set([
         "cemetery.search_graves",
+        "cemetery.gestor_senda",
         "cemetery.ownership_cases",
         "cemetery.billing_workspace",
         "cemetery.ot_list",

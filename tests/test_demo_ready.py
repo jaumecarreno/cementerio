@@ -64,6 +64,7 @@ def test_navigation_main_menu_routes_no_404(app, client, login_admin):
     paths = [
         "/cementerio/panel",
         "/cementerio/sepulturas/buscar",
+        "/cementerio/sepulturas/gestor-senda",
         "/cementerio/ot",
         "/cementerio/titularidad",
         "/cementerio/personas",
@@ -388,6 +389,7 @@ def test_sidebar_menu_contains_only_expected_links_and_no_top_tabs(app, client, 
     expected_hrefs = [
         b'href="/dashboard"',
         b'href="/cementerio/sepulturas/buscar"',
+        b'href="/cementerio/sepulturas/gestor-senda"',
         b'href="/cementerio/ordenes-trabajo"',
         b'href="/cementerio/facturacion"',
         b'href="/cementerio/titularidad"',

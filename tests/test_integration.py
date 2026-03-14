@@ -127,6 +127,95 @@ def test_search_graves_filters_by_modalidad_estado_deuda_and_shows_sepultura_id(
     assert expected_location in by_prefixed_location.data
 
 
+def test_gestor_senda_supports_individual_and_bulk_grave_creation(
+    app, client, login_admin
+):
+    login_admin()
+    page = client.get("/cementerio/sepulturas/gestor-senda")
+    assert page.status_code == 200
+    assert b"Gestor Senda" in page.data
+    assert b"Alta individual" in page.data
+    assert b"Alta masiva" in page.data
+
+    single_response = client.post(
+        "/cementerio/sepulturas/gestor-senda",
+        data={
+            "section": "individual",
+            "bloque": "GS-UNIT",
+            "fila": "9",
+            "columna": "3",
+            "numero": "903",
+            "via": "V-GS",
+            "tipo_bloque": "Ninxols",
+            "modalidad": "Ninxol nou",
+            "tipo_lapida": "Resina",
+            "orientacion": "Nord",
+            "estado": SepulturaEstado.LLIURE.value,
+        },
+        follow_redirects=True,
+    )
+    assert single_response.status_code == 200
+    assert b"Sepultura creada" in single_response.data
+
+    with app.app_context():
+        created_single = Sepultura.query.filter_by(
+            bloque="GS-UNIT",
+            fila=9,
+            columna=3,
+            numero=903,
+        ).first()
+        assert created_single is not None
+        assert created_single.via == "V-GS"
+
+        before_bulk = Sepultura.query.filter_by(bloque="GS-BULK").count()
+
+    preview_response = client.post(
+        "/cementerio/sepulturas/gestor-senda",
+        data={
+            "section": "bulk",
+            "bloque": "GS-BULK",
+            "via": "V-BULK",
+            "tipo_bloque": "Ninxols",
+            "modalidad": "Ninxol nou",
+            "tipo_lapida": "Resina",
+            "orientacion": "Nord",
+            "filas": "1-2",
+            "columnas": "1-2",
+            "action": "preview",
+        },
+        follow_redirects=True,
+    )
+    assert preview_response.status_code == 200
+    assert b"GS-BULK" in preview_response.data
+
+    with app.app_context():
+        after_preview = Sepultura.query.filter_by(bloque="GS-BULK").count()
+        assert after_preview == before_bulk
+
+    create_bulk_response = client.post(
+        "/cementerio/sepulturas/gestor-senda",
+        data={
+            "section": "bulk",
+            "bloque": "GS-BULK",
+            "via": "V-BULK",
+            "tipo_bloque": "Ninxols",
+            "modalidad": "Ninxol nou",
+            "tipo_lapida": "Resina",
+            "orientacion": "Nord",
+            "filas": "1-2",
+            "columnas": "1-2",
+            "action": "create",
+        },
+        follow_redirects=True,
+    )
+    assert create_bulk_response.status_code == 200
+    assert b"Sepulturas creadas en estado Lliure" in create_bulk_response.data
+
+    with app.app_context():
+        bulk_rows = Sepultura.query.filter_by(bloque="GS-BULK").all()
+        assert len(bulk_rows) == before_bulk + 4
+
+
 def test_grave_detail_shows_contract_number_and_facturacion_tab(app, client, login_admin):
     login_admin()
     with app.app_context():

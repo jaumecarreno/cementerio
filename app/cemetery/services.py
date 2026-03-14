@@ -1514,6 +1514,84 @@ def update_sepultura_notes(sepultura_id: int, payload: dict[str, str]) -> Sepult
     return sepultura
 
 
+def create_sepultura(
+    payload: dict[str, str],
+    user_id: int | None = None,
+) -> Sepultura:
+    cemetery = org_cemetery()
+    bloque = (payload.get("bloque") or "").strip()
+    via = (payload.get("via") or "").strip()
+    modalidad = (payload.get("modalidad") or "").strip()
+    tipo_bloque = (payload.get("tipo_bloque") or "").strip()
+    tipo_lapida = (payload.get("tipo_lapida") or "").strip()
+    orientacion = (payload.get("orientacion") or "").strip()
+
+    if not bloque:
+        raise ValueError("Bloque obligatorio")
+    if not via:
+        raise ValueError("Via obligatoria")
+    if not modalidad:
+        raise ValueError("Modalidad obligatoria")
+    if not tipo_bloque:
+        raise ValueError("Tipo de bloque obligatorio")
+    if not tipo_lapida:
+        raise ValueError("Tipo de lapida obligatorio")
+    if not orientacion:
+        raise ValueError("Orientacion obligatoria")
+
+    try:
+        fila = int((payload.get("fila") or "").strip())
+        columna = int((payload.get("columna") or "").strip())
+        numero = int((payload.get("numero") or "").strip())
+    except ValueError as exc:
+        raise ValueError("Fila, columna y numero deben ser numericos") from exc
+
+    if fila <= 0 or columna <= 0 or numero <= 0:
+        raise ValueError("Fila, columna y numero deben ser mayores que 0")
+
+    estado_raw = (payload.get("estado") or SepulturaEstado.LLIURE.value).strip().upper()
+    try:
+        estado = SepulturaEstado[estado_raw]
+    except KeyError as exc:
+        raise ValueError("Estado de sepultura invalido") from exc
+
+    exists = Sepultura.query.filter_by(
+        org_id=org_id(),
+        cemetery_id=cemetery.id,
+        bloque=bloque,
+        fila=fila,
+        columna=columna,
+        numero=numero,
+    ).first()
+    if exists:
+        raise ValueError("Ya existe una sepultura en esa ubicacion")
+
+    sepultura = Sepultura(
+        org_id=org_id(),
+        cemetery_id=cemetery.id,
+        bloque=bloque,
+        fila=fila,
+        columna=columna,
+        via=via,
+        numero=numero,
+        modalidad=modalidad,
+        estado=estado,
+        tipo_bloque=tipo_bloque,
+        tipo_lapida=tipo_lapida,
+        orientacion=orientacion,
+    )
+    db.session.add(sepultura)
+    db.session.flush()
+    _log_activity_event(
+        "SEPULTURA_ALTA_INDIVIDUAL",
+        f"Alta individual de sepultura {sepultura.location_label}",
+        user_id,
+        sepultura.id,
+    )
+    db.session.commit()
+    return sepultura
+
+
 def parse_range(value: str) -> tuple[int, int]:
     cleaned = value.replace(" ", "")
     parts = cleaned.split("-")

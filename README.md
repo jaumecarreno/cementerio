@@ -8,6 +8,9 @@ MVP vertical multi-tenant del modulo Cementerio, implementado con:
 - Jinja2 + HTMX
 - PostgreSQL
 
+## URL de produccion
+- Dashboard: `https://cementerio.bluetime.cloud/dashboard`
+
 ## Source of truth (spec)
 - `spec/GSF-reducido a cementerio.pdf` (referencia principal)
 - `spec/cementerio_extract.md` (digest operativo)

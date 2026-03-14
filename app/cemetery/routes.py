@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 
@@ -83,6 +83,7 @@ from app.cemetery.services import (
     create_inscripcion_lateral,
     create_person,
     create_ownership_case,
+    create_sepultura,
     create_funeral_right_contract,
     create_mass_sepulturas,
     expediente_by_id,
@@ -1579,7 +1580,7 @@ def reporting_schedule_run_now(schedule_id: int):
 @login_required
 @require_membership
 def search_graves():
-    # Spec 5.3.4 + 9.4.x - Buscar sepultura por ubicación/titular/difunto
+    # Spec 5.3.4 + 9.4.x - Buscar sepultura por ubicaciÃ³n/titular/difunto
     filters = {
         "bloque": request.values.get("bloque", "").strip(),
         "fila": request.values.get("fila", "").strip(),
@@ -2033,7 +2034,7 @@ def change_state(sepultura_id: int):
         change_sepultura_state(sep, new_state)
         flash("Estado actualizado", "success")
     except KeyError:
-        flash("Estado inválido", "error")
+        flash("Estado invÃ¡lido", "error")
     except ValueError as exc:
         flash(str(exc), "error")
     return redirect(
@@ -2256,21 +2257,81 @@ def billing_retry_submission(submission_id: int):
     return _billing_redirect_with_view(default_view="fiscal")
 
 
+def _single_sepultura_defaults(values):
+    return {
+        "bloque": values.get("bloque", "B-16"),
+        "fila": values.get("fila", "1"),
+        "columna": values.get("columna", "1"),
+        "numero": values.get("numero", "1"),
+        "via": values.get("via", "V-3"),
+        "tipo_bloque": values.get("tipo_bloque", "Ninxols"),
+        "modalidad": values.get("modalidad", "Ninxol nou"),
+        "tipo_lapida": values.get("tipo_lapida", "Resina fenolica"),
+        "orientacion": values.get("orientacion", "Nord"),
+        "estado": values.get("estado", SepulturaEstado.LLIURE.value),
+    }
+
+
+def _mass_create_defaults(values):
+    return {
+        "bloque": values.get("bloque", "B-16"),
+        "via": values.get("via", "V-3"),
+        "tipo_bloque": values.get("tipo_bloque", "Ninxols"),
+        "modalidad": values.get("modalidad", "Ninxol nou"),
+        "tipo_lapida": values.get("tipo_lapida", "Resina fenolica"),
+        "orientacion": values.get("orientacion", "Nord"),
+        "filas": values.get("filas", "1-12"),
+        "columnas": values.get("columnas", "1-24"),
+    }
+
+
+@cemetery_bp.route("/sepulturas/gestor-senda", methods=["GET", "POST"])
+@login_required
+@require_membership
+def gestor_senda():
+    form_values = request.form if request.method == "POST" else request.args
+    individual_data = _single_sepultura_defaults(form_values)
+    bulk_data = _mass_create_defaults(form_values)
+    preview = None
+    active_section = (form_values.get("section", "individual") or "individual").strip().lower()
+    if active_section not in {"individual", "bulk"}:
+        active_section = "individual"
+
+    if request.method == "POST":
+        if active_section == "individual":
+            try:
+                sep = create_sepultura(individual_data, current_user.id)
+                flash(f"Sepultura creada: {sep.location_label} (ID {sep.id})", "success")
+                return redirect(url_for("cemetery.grave_detail", sepultura_id=sep.id))
+            except ValueError as exc:
+                flash(str(exc), "error")
+        else:
+            action = (request.form.get("action", "preview") or "preview").strip().lower()
+            try:
+                preview = preview_mass_create(bulk_data)
+                if action == "create":
+                    created = create_mass_sepulturas(bulk_data)
+                    flash(f"Sepulturas creadas en estado Lliure: {created}", "success")
+                    return redirect(url_for("cemetery.gestor_senda", section="bulk"))
+            except ValueError as exc:
+                flash(str(exc), "error")
+
+    return render_template(
+        "cemetery/gestor_senda.html",
+        individual_data=individual_data,
+        bulk_data=bulk_data,
+        preview=preview,
+        active_section=active_section,
+        sepultura_states=[state.value for state in SepulturaEstado],
+    )
+
+
 @cemetery_bp.route("/sepulturas/alta-masiva", methods=["GET", "POST"])
 @login_required
 @require_membership
 def mass_create():
     # Spec 9.4.1 - Alta masiva de sepulturas por bloque
-    defaults = {
-        "bloque": request.form.get("bloque", "B-16"),
-        "via": request.form.get("via", "V-3"),
-        "tipo_bloque": request.form.get("tipo_bloque", "Nínxols"),
-        "modalidad": request.form.get("modalidad", "Nínxol nou"),
-        "tipo_lapida": request.form.get("tipo_lapida", "Resina fenòlica"),
-        "orientacion": request.form.get("orientacion", "Nord"),
-        "filas": request.form.get("filas", "1-12"),
-        "columnas": request.form.get("columnas", "1-24"),
-    }
+    defaults = _mass_create_defaults(request.form)
     preview = None
     if request.method == "POST":
         action = request.form.get("action", "preview")
@@ -2286,3 +2347,4 @@ def mass_create():
     if _is_htmx():
         return render_template("cemetery/_mass_preview.html", preview=preview)
     return render_template("cemetery/mass_create.html", data=defaults, preview=preview)
+
