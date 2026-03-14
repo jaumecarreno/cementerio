@@ -531,6 +531,8 @@ def test_inhumation_assistant_page_renders_contract_assistant_layout(
     assert 'name="holder_last_name"' in html
     assert 'name="holder_second_last_name"' in html
     assert 'name="holder_document_number"' in html
+    assert 'name="holder_person_id"' in html
+    assert 'name="holder_lookup_dni"' in html
     assert 'name="holder_sex"' in html
     assert 'name="holder_birth_date"' in html
     assert 'name="holder_phone_1"' in html
@@ -547,6 +549,8 @@ def test_inhumation_assistant_page_renders_contract_assistant_layout(
     assert 'name="beneficiary_last_name"' in html
     assert 'name="beneficiary_second_last_name"' in html
     assert 'name="beneficiary_document_number"' in html
+    assert 'name="beneficiary_person_id"' in html
+    assert 'name="beneficiary_lookup_dni"' in html
     assert 'name="beneficiary_sex"' in html
     assert 'name="beneficiary_birth_date"' in html
     assert 'name="beneficiary_phone_1"' in html
@@ -833,6 +837,12 @@ def test_inhumation_assistant_reserve_sepultura_creates_reservation_ot(
         "/cementerio/inhumaciones/asistente/reservar-sepultura",
         data={
             "holder_document_number": "12345678Z",
+            "holder_first_name": "Titular",
+            "beneficiary_document_number": "87654321X",
+            "beneficiary_first_name": "Beneficiario",
+            "deceased_document_number": "44556677H",
+            "deceased_first_name": "Difunto",
+            "deceased_last_name": "Reserva",
             "sepultura_id": str(sepultura_id),
             "holder_document_upload": (BytesIO(b"holder"), "holder.pdf"),
             "burial_license_upload": (BytesIO(b"license"), "license.pdf"),
@@ -855,6 +865,15 @@ def test_inhumation_assistant_reserve_sepultura_creates_reservation_ot(
         assert case.type == OperationType.INHUMACION
         assert case.status == OperationStatus.BORRADOR
         assert case.source_sepultura_id == sepultura_id
+        assert case.deceased_person_id is not None
+
+        holder = Person.query.filter_by(dni_nif="12345678Z").first()
+        beneficiary = Person.query.filter_by(dni_nif="87654321X").first()
+        deceased = Person.query.filter_by(dni_nif="44556677H").first()
+        assert holder is not None
+        assert beneficiary is not None
+        assert deceased is not None
+        assert case.deceased_person_id == deceased.id
 
         row = db.session.get(WorkOrder, int(payload["work_order_id"]))
         assert row is not None
@@ -872,6 +891,242 @@ def test_inhumation_assistant_reserve_sepultura_creates_reservation_ot(
     listing = client.get("/cementerio/expedientes")
     assert listing.status_code == 200
     assert payload["expediente_code"].encode() in listing.data
+
+
+def test_inhumation_assistant_reserve_sepultura_updates_people_when_lookup_dni_matches(
+    app, client, login_admin
+):
+    login_admin()
+    with app.app_context():
+        sepultura = Sepultura.query.order_by(Sepultura.id.asc()).first()
+        assert sepultura is not None
+        sepultura_id = sepultura.id
+        holder = Person(
+            org_id=sepultura.org_id,
+            first_name="Holder",
+            last_name="Original",
+            dni_nif="10000000H",
+            telefono="600000000",
+            provincia="Barcelona",
+        )
+        beneficiary = Person(
+            org_id=sepultura.org_id,
+            first_name="Benef",
+            last_name="Original",
+            dni_nif="20000000B",
+            telefono="611111111",
+        )
+        deceased = Person(
+            org_id=sepultura.org_id,
+            first_name="Deceased",
+            last_name="Original",
+            dni_nif="30000000D",
+        )
+        db.session.add_all([holder, beneficiary, deceased])
+        db.session.commit()
+        holder_id = holder.id
+        beneficiary_id = beneficiary.id
+        deceased_id = deceased.id
+
+    response = client.post(
+        "/cementerio/inhumaciones/asistente/reservar-sepultura",
+        data={
+            "holder_document_number": "10000000H",
+            "holder_first_name": "Holder",
+            "holder_last_name": "Actualizado",
+            "holder_phone_1": "699000111",
+            "holder_person_id": str(holder_id),
+            "holder_lookup_dni": "10000000H",
+            "beneficiary_document_number": "20000000B",
+            "beneficiary_first_name": "Benef",
+            "beneficiary_last_name": "Actualizado",
+            "beneficiary_phone_1": "688000222",
+            "beneficiary_person_id": str(beneficiary_id),
+            "beneficiary_lookup_dni": "20000000B",
+            "deceased_document_number": "30000000D",
+            "deceased_first_name": "Deceased",
+            "deceased_last_name": "Actualizado",
+            "sepultura_id": str(sepultura_id),
+            "holder_document_upload": (BytesIO(b"holder"), "holder.pdf"),
+            "burial_license_upload": (BytesIO(b"license"), "license.pdf"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 201
+
+    with app.app_context():
+        holder_after = db.session.get(Person, holder_id)
+        beneficiary_after = db.session.get(Person, beneficiary_id)
+        deceased_after = db.session.get(Person, deceased_id)
+        assert holder_after is not None
+        assert beneficiary_after is not None
+        assert deceased_after is not None
+        assert holder_after.last_name == "Actualizado"
+        assert holder_after.telefono == "699000111"
+        assert holder_after.provincia == "Barcelona"
+        assert beneficiary_after.last_name == "Actualizado"
+        assert beneficiary_after.telefono == "688000222"
+        assert deceased_after.last_name == "Actualizado"
+
+
+def test_inhumation_assistant_reserve_sepultura_creates_new_person_when_lookup_dni_changes(
+    app, client, login_admin
+):
+    login_admin()
+    with app.app_context():
+        sepultura = Sepultura.query.order_by(Sepultura.id.asc()).first()
+        assert sepultura is not None
+        sepultura_id = sepultura.id
+        holder = Person(
+            org_id=sepultura.org_id,
+            first_name="Holder",
+            last_name="Original",
+            dni_nif="40000000H",
+        )
+        beneficiary = Person(
+            org_id=sepultura.org_id,
+            first_name="Benef",
+            last_name="Original",
+            dni_nif="50000000B",
+        )
+        db.session.add_all([holder, beneficiary])
+        db.session.commit()
+        holder_id = holder.id
+        beneficiary_id = beneficiary.id
+
+    response = client.post(
+        "/cementerio/inhumaciones/asistente/reservar-sepultura",
+        data={
+            "holder_document_number": "40000001H",
+            "holder_first_name": "Holder Nuevo",
+            "holder_last_name": "Nuevo",
+            "holder_person_id": str(holder_id),
+            "holder_lookup_dni": "40000000H",
+            "beneficiary_document_number": "50000001B",
+            "beneficiary_first_name": "Benef Nuevo",
+            "beneficiary_last_name": "Nuevo",
+            "beneficiary_person_id": str(beneficiary_id),
+            "beneficiary_lookup_dni": "50000000B",
+            "deceased_document_number": "60000000D",
+            "deceased_first_name": "Deceased",
+            "deceased_last_name": "Nuevo",
+            "sepultura_id": str(sepultura_id),
+            "holder_document_upload": (BytesIO(b"holder"), "holder.pdf"),
+            "burial_license_upload": (BytesIO(b"license"), "license.pdf"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 201
+
+    with app.app_context():
+        old_holder = db.session.get(Person, holder_id)
+        old_beneficiary = db.session.get(Person, beneficiary_id)
+        new_holder = Person.query.filter_by(dni_nif="40000001H").first()
+        new_beneficiary = Person.query.filter_by(dni_nif="50000001B").first()
+        assert old_holder is not None
+        assert old_beneficiary is not None
+        assert new_holder is not None
+        assert new_beneficiary is not None
+        assert old_holder.first_name == "Holder"
+        assert old_beneficiary.first_name == "Benef"
+        assert new_holder.id != holder_id
+        assert new_beneficiary.id != beneficiary_id
+
+
+def test_inhumation_assistant_reserve_sepultura_validates_required_people_data(
+    app, client, login_admin
+):
+    login_admin()
+    with app.app_context():
+        sepultura = Sepultura.query.order_by(Sepultura.id.asc()).first()
+        assert sepultura is not None
+        sepultura_id = sepultura.id
+
+    response = client.post(
+        "/cementerio/inhumaciones/asistente/reservar-sepultura",
+        data={
+            "holder_document_number": "70000000H",
+            "holder_first_name": "Titular",
+            "beneficiary_first_name": "Beneficiario sin DNI",
+            "sepultura_id": str(sepultura_id),
+            "holder_document_upload": (BytesIO(b"holder"), "holder.pdf"),
+            "burial_license_upload": (BytesIO(b"license"), "license.pdf"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload is not None
+    assert payload["success"] is False
+    assert "DNI del beneficiario" in payload["message"]
+
+    response_deceased = client.post(
+        "/cementerio/inhumaciones/asistente/reservar-sepultura",
+        data={
+            "holder_document_number": "70000000H",
+            "holder_first_name": "Titular",
+            "beneficiary_document_number": "70000001B",
+            "beneficiary_first_name": "Beneficiario",
+            "sepultura_id": str(sepultura_id),
+            "holder_document_upload": (BytesIO(b"holder"), "holder.pdf"),
+            "burial_license_upload": (BytesIO(b"license"), "license.pdf"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert response_deceased.status_code == 400
+    deceased_payload = response_deceased.get_json()
+    assert deceased_payload is not None
+    assert deceased_payload["success"] is False
+    assert "DNI del difunto" in deceased_payload["message"] or "difunto" in deceased_payload["message"].lower()
+
+
+def test_inhumation_assistant_reserve_sepultura_fails_when_new_dni_collides(
+    app, client, login_admin
+):
+    login_admin()
+    with app.app_context():
+        sepultura = Sepultura.query.order_by(Sepultura.id.asc()).first()
+        assert sepultura is not None
+        sepultura_id = sepultura.id
+        holder = Person(
+            org_id=sepultura.org_id,
+            first_name="Holder",
+            last_name="Original",
+            dni_nif="80000000H",
+        )
+        existing_collision = Person(
+            org_id=sepultura.org_id,
+            first_name="Otra",
+            last_name="Persona",
+            dni_nif="80000001H",
+        )
+        db.session.add_all([holder, existing_collision])
+        db.session.commit()
+        holder_id = holder.id
+
+    response = client.post(
+        "/cementerio/inhumaciones/asistente/reservar-sepultura",
+        data={
+            "holder_document_number": "80000001H",
+            "holder_first_name": "Holder Nuevo",
+            "holder_person_id": str(holder_id),
+            "holder_lookup_dni": "80000000H",
+            "beneficiary_document_number": "80000002B",
+            "beneficiary_first_name": "Beneficiario",
+            "deceased_document_number": "80000003D",
+            "deceased_first_name": "Difunto",
+            "deceased_last_name": "Apellido",
+            "sepultura_id": str(sepultura_id),
+            "holder_document_upload": (BytesIO(b"holder"), "holder.pdf"),
+            "burial_license_upload": (BytesIO(b"license"), "license.pdf"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload is not None
+    assert payload["success"] is False
+    assert "DNI/NIF" in payload["message"]
 
 
 def test_inhumation_assistant_reserve_sepultura_returns_409_for_duplicate_open_reservation(
@@ -892,6 +1147,12 @@ def test_inhumation_assistant_reserve_sepultura_returns_409_for_duplicate_open_r
         "/cementerio/inhumaciones/asistente/reservar-sepultura",
         data={
             "holder_document_number": "12345678Z",
+            "holder_first_name": "Titular Uno",
+            "beneficiary_document_number": "77777777T",
+            "beneficiary_first_name": "Beneficiario Uno",
+            "deceased_document_number": "90000001A",
+            "deceased_first_name": "Difunto",
+            "deceased_last_name": "Uno",
             "sepultura_id": str(sepultura_id),
             "holder_document_upload": (BytesIO(b"holder"), "holder.pdf"),
             "burial_license_upload": (BytesIO(b"license"), "license.pdf"),
@@ -904,6 +1165,12 @@ def test_inhumation_assistant_reserve_sepultura_returns_409_for_duplicate_open_r
         "/cementerio/inhumaciones/asistente/reservar-sepultura",
         data={
             "holder_document_number": "87654321X",
+            "holder_first_name": "Titular Dos",
+            "beneficiary_document_number": "88888888R",
+            "beneficiary_first_name": "Beneficiario Dos",
+            "deceased_document_number": "90000002B",
+            "deceased_first_name": "Difunto",
+            "deceased_last_name": "Dos",
             "sepultura_id": str(sepultura_id),
             "holder_document_upload": (BytesIO(b"holder2"), "holder2.pdf"),
             "burial_license_upload": (BytesIO(b"license2"), "license2.pdf"),

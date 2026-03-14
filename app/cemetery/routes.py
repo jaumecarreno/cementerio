@@ -157,6 +157,7 @@ from app.core.models import (
     SepulturaEstado,
     WorkOrder,
 )
+from app.core.extensions import db
 from app.core.permissions import require_membership, require_role
 from app.core.utils import money
 
@@ -187,6 +188,234 @@ def _normalize_operation_payload(payload: dict[str, str]) -> dict[str, str]:
     if "notes" not in normalized and normalized.get("notas"):
         normalized["notes"] = normalized["notas"]
     return normalized
+
+
+def _normalize_assistant_dni(value: str | None) -> str:
+    return (value or "").strip().upper().replace(" ", "")
+
+
+def _combine_last_names(first_last_name: str | None, second_last_name: str | None) -> str:
+    return " ".join(
+        [
+            (first_last_name or "").strip(),
+            (second_last_name or "").strip(),
+        ]
+    ).strip()
+
+
+def _assistant_validate_email(value: str | None, label: str) -> str:
+    email = (value or "").strip()
+    if not email:
+        return ""
+    if "@" not in email or email.startswith("@") or email.endswith("@"):
+        raise ValueError(f"Email invalido en {label}")
+    return email
+
+
+def _assistant_collect_person_values(
+    payload: dict[str, str],
+    prefix: str,
+    role_label: str,
+) -> dict[str, str]:
+    return {
+        "first_name": (payload.get(f"{prefix}_first_name") or "").strip(),
+        "last_name": _combine_last_names(
+            payload.get(f"{prefix}_last_name"),
+            payload.get(f"{prefix}_second_last_name"),
+        ),
+        "dni_nif": _normalize_assistant_dni(payload.get(f"{prefix}_document_number")),
+        "telefono": (payload.get(f"{prefix}_phone_1") or "").strip(),
+        "telefono2": (payload.get(f"{prefix}_phone_2") or "").strip(),
+        "email": _assistant_validate_email(
+            payload.get(f"{prefix}_email_1"), f"{role_label} (email 1)"
+        ),
+        "email2": _assistant_validate_email(
+            payload.get(f"{prefix}_email_2"), f"{role_label} (email 2)"
+        ),
+        "direccion_linea": (payload.get(f"{prefix}_address") or "").strip(),
+        "codigo_postal": (payload.get(f"{prefix}_postal_code") or "").strip(),
+        "poblacion": (payload.get(f"{prefix}_city") or "").strip(),
+        "pais": (payload.get(f"{prefix}_country") or "").strip(),
+        "notas": (payload.get(f"{prefix}_observations") or "").strip(),
+    }
+
+
+def _assistant_collect_deceased_values(payload: dict[str, str]) -> dict[str, str]:
+    return {
+        "first_name": (payload.get("deceased_first_name") or "").strip(),
+        "last_name": _combine_last_names(
+            payload.get("deceased_last_name"),
+            payload.get("deceased_second_last_name"),
+        ),
+        "dni_nif": _normalize_assistant_dni(payload.get("deceased_document_number")),
+        "telefono": "",
+        "telefono2": "",
+        "email": "",
+        "email2": "",
+        "direccion_linea": "",
+        "codigo_postal": "",
+        "poblacion": "",
+        "pais": "",
+        "notas": "",
+    }
+
+
+def _assistant_compose_address(
+    direccion_linea: str,
+    codigo_postal: str,
+    poblacion: str,
+    provincia: str,
+    pais: str,
+) -> str:
+    parts: list[str] = []
+    street = (direccion_linea or "").strip()
+    if street:
+        parts.append(street)
+    locality = " ".join(
+        [
+            part
+            for part in [(codigo_postal or "").strip(), (poblacion or "").strip()]
+            if part
+        ]
+    ).strip()
+    if locality:
+        parts.append(locality)
+    province = (provincia or "").strip()
+    if province:
+        parts.append(province)
+    country = (pais or "").strip()
+    if country:
+        parts.append(country)
+    return ", ".join(parts)
+
+
+def _assistant_apply_person_updates(person: Person, values: dict[str, str]) -> Person:
+    if values["first_name"]:
+        person.first_name = values["first_name"]
+    if values["last_name"]:
+        person.last_name = values["last_name"]
+    if values["dni_nif"]:
+        person.dni_nif = values["dni_nif"]
+    if values["telefono"]:
+        person.telefono = values["telefono"]
+    if values["telefono2"]:
+        person.telefono2 = values["telefono2"]
+    if values["email"]:
+        person.email = values["email"]
+    if values["email2"]:
+        person.email2 = values["email2"]
+    address_updated = False
+    if values["direccion_linea"]:
+        person.direccion_linea = values["direccion_linea"]
+        address_updated = True
+    if values["codigo_postal"]:
+        person.codigo_postal = values["codigo_postal"]
+        address_updated = True
+    if values["poblacion"]:
+        person.poblacion = values["poblacion"]
+        address_updated = True
+    if values["pais"]:
+        person.pais = values["pais"]
+        address_updated = True
+    if address_updated:
+        person.direccion = _assistant_compose_address(
+            direccion_linea=person.direccion_linea or "",
+            codigo_postal=person.codigo_postal or "",
+            poblacion=person.poblacion or "",
+            provincia=person.provincia or "",
+            pais=person.pais or "",
+        )
+    if values["notas"]:
+        person.notas = values["notas"]
+    db.session.add(person)
+    db.session.flush()
+    return person
+
+
+def _assistant_create_person_record(role_label: str, values: dict[str, str]) -> Person:
+    if values["dni_nif"]:
+        existing = Person.query.filter_by(
+            org_id=org_record().id, dni_nif=values["dni_nif"]
+        ).first()
+        if existing:
+            raise ValueError(
+                f"Ya existe una persona con ese DNI/NIF para {role_label.lower()}"
+            )
+    person = Person(
+        org_id=org_record().id,
+        first_name=values["first_name"],
+        last_name=values["last_name"],
+        dni_nif=values["dni_nif"] or None,
+        telefono=values["telefono"],
+        telefono2=values["telefono2"],
+        email=values["email"],
+        email2=values["email2"],
+        direccion_linea=values["direccion_linea"],
+        codigo_postal=values["codigo_postal"],
+        poblacion=values["poblacion"],
+        pais=values["pais"],
+        notas=values["notas"],
+    )
+    person.direccion = _assistant_compose_address(
+        direccion_linea=person.direccion_linea or "",
+        codigo_postal=person.codigo_postal or "",
+        poblacion=person.poblacion or "",
+        provincia=person.provincia or "",
+        pais=person.pais or "",
+    )
+    db.session.add(person)
+    db.session.flush()
+    return person
+
+
+def _assistant_upsert_lookup_person(
+    payload: dict[str, str],
+    prefix: str,
+    role_label: str,
+    values: dict[str, str],
+) -> Person:
+    person_id_raw = (payload.get(f"{prefix}_person_id") or "").strip()
+    lookup_dni = _normalize_assistant_dni(payload.get(f"{prefix}_lookup_dni"))
+    current_dni = values["dni_nif"]
+
+    should_update = (
+        person_id_raw.isdigit()
+        and bool(lookup_dni)
+        and bool(current_dni)
+        and lookup_dni == current_dni
+    )
+    if should_update:
+        person = Person.query.filter_by(
+            org_id=org_record().id, id=int(person_id_raw)
+        ).first()
+        if not person:
+            raise ValueError(f"{role_label}: persona no encontrada para actualizar")
+        if current_dni and current_dni != (person.dni_nif or ""):
+            duplicate = (
+                Person.query.filter_by(org_id=org_record().id, dni_nif=current_dni)
+                .filter(Person.id != person.id)
+                .first()
+            )
+            if duplicate:
+                raise ValueError(
+                    f"Ya existe una persona con ese DNI/NIF para {role_label.lower()}"
+                )
+        return _assistant_apply_person_updates(person, values)
+
+    return _assistant_create_person_record(role_label, values)
+
+
+def _assistant_upsert_deceased_person(values: dict[str, str]) -> Person:
+    dni = values["dni_nif"]
+    if dni:
+        existing = person_by_dni_nif(dni)
+        if existing:
+            return _assistant_apply_person_updates(existing, values)
+    if not values["first_name"] or not values["last_name"]:
+        raise ValueError(
+            "Para crear un difunto nuevo debes informar nombre y apellido."
+        )
+    return _assistant_create_person_record("Difunto", values)
 
 
 def _operation_case_filters() -> dict[str, str]:
@@ -468,7 +697,17 @@ def inhumation_assistant_sepultura_lookup():
 @require_membership
 def inhumation_assistant_reserve_sepultura():
     form_or_json = request.form or (request.get_json(silent=True) or {})
-    holder_dni = (form_or_json.get("holder_document_number") or "").strip().upper().replace(" ", "")
+    try:
+        holder_values = _assistant_collect_person_values(
+            form_or_json, "holder", "Titular"
+        )
+        beneficiary_values = _assistant_collect_person_values(
+            form_or_json, "beneficiary", "Beneficiario"
+        )
+        deceased_values = _assistant_collect_deceased_values(form_or_json)
+    except ValueError as exc:
+        return jsonify({"success": False, "message": str(exc)}), 400
+    holder_dni = holder_values["dni_nif"]
     raw_sepultura_id = (form_or_json.get("sepultura_id") or "").strip()
     holder_document_file = request.files.get("holder_document_upload")
     burial_license_file = request.files.get("burial_license_upload")
@@ -476,6 +715,19 @@ def inhumation_assistant_reserve_sepultura():
     validation_errors: list[str] = []
     if not holder_dni:
         validation_errors.append("Debes informar el DNI titular.")
+    if not holder_values["first_name"]:
+        validation_errors.append("Debes informar el nombre del titular.")
+    if not beneficiary_values["dni_nif"]:
+        validation_errors.append("Debes informar el DNI del beneficiario.")
+    if not beneficiary_values["first_name"]:
+        validation_errors.append("Debes informar el nombre del beneficiario.")
+    deceased_has_name_and_last_name = bool(
+        deceased_values["first_name"] and deceased_values["last_name"]
+    )
+    if not deceased_values["dni_nif"] and not deceased_has_name_and_last_name:
+        validation_errors.append(
+            "Debes informar el DNI del difunto o nombre y apellido."
+        )
     if not raw_sepultura_id:
         validation_errors.append("Debes seleccionar una sepultura.")
     elif not raw_sepultura_id.isdigit() or int(raw_sepultura_id) <= 0:
@@ -534,16 +786,26 @@ def inhumation_assistant_reserve_sepultura():
             409,
         )
 
+    try:
+        holder_person = _assistant_upsert_lookup_person(
+            form_or_json, "holder", "Titular", holder_values
+        )
+        beneficiary_person = _assistant_upsert_lookup_person(
+            form_or_json, "beneficiary", "Beneficiario", beneficiary_values
+        )
+        deceased_person = _assistant_upsert_deceased_person(deceased_values)
+    except ValueError as exc:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(exc)}), 400
+
     deceased_full_name = " ".join(
-        [
-            (form_or_json.get("deceased_first_name") or "").strip(),
-            (form_or_json.get("deceased_last_name") or "").strip(),
-            (form_or_json.get("deceased_second_last_name") or "").strip(),
-        ]
+        [deceased_person.first_name or "", deceased_person.last_name or ""]
     ).strip()
     notes_parts = [
         "Alta desde asistente de inhumacion",
         f"Titular DNI: {holder_dni}",
+        f"Titular persona: {holder_person.id}",
+        f"Beneficiario persona: {beneficiary_person.id}",
     ]
     if deceased_full_name:
         notes_parts.append(f"Difunto: {deceased_full_name}")
@@ -551,11 +813,13 @@ def inhumation_assistant_reserve_sepultura():
     expediente_payload = {
         "type": OperationType.INHUMACION.value,
         "source_sepultura_id": str(sepultura_id),
+        "deceased_person_id": str(deceased_person.id),
         "notes": " | ".join(notes_parts),
     }
     try:
         case = create_operation_case(expediente_payload, current_user.id)
     except ValueError as exc:
+        db.session.rollback()
         return jsonify({"success": False, "message": str(exc)}), 400
 
     planned_start_at = datetime.now(timezone.utc).replace(microsecond=0)

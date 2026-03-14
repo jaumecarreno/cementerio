@@ -72,6 +72,8 @@
         <div class="inhumation-field">
           <label for="holder_document_number">DNI</label>
           <input id="holder_document_number" type="text" name="holder_document_number" placeholder="DNI/NIE">
+          <input type="hidden" name="holder_person_id" value="">
+          <input type="hidden" name="holder_lookup_dni" value="">
           <p class="contract-inline-status" id="holder-dni-status" aria-live="polite"></p>
         </div>
         <button class="btn" id="holder-dni-lookup-btn" type="button">Comprobar DNI</button>
@@ -177,6 +179,8 @@
         <div class="inhumation-field">
           <label for="beneficiary_document_number">DNI</label>
           <input id="beneficiary_document_number" type="text" name="beneficiary_document_number" placeholder="DNI/NIE">
+          <input type="hidden" name="beneficiary_person_id" value="">
+          <input type="hidden" name="beneficiary_lookup_dni" value="">
           <p class="contract-inline-status" id="beneficiary-dni-status" aria-live="polite"></p>
         </div>
         <button class="btn" id="beneficiary-dni-lookup-btn" type="button">Comprobar DNI</button>
@@ -208,7 +212,7 @@
     </section>
 
     <div class="actions-row contract-actions">
-      <p class="small muted" id="continue-requirements-status" aria-live="polite">Para crear expediente: DNI titular, sepultura seleccionada, adjunto DNI titular y licencia.</p>
+      <p class="small muted" id="continue-requirements-status" aria-live="polite">Para crear expediente: titular y beneficiario (DNI + nombre), difunto (DNI o nombre+apellido), sepultura seleccionada, adjunto DNI titular y licencia.</p>
       <button class="btn primary" id="contract-continue-btn" type="button" disabled aria-disabled="true">Crear Expediente</button>
     </div>
     <div id="contract-action-status" class="warning inhumation-ai-feedback" hidden aria-live="polite"></div>
@@ -445,12 +449,33 @@
         return input && input.files && input.files[0] && fileLooksValid(input.files[0]);
       });
       const holderDniField = fieldByName("holder_document_number");
+      const holderNameField = fieldByName("holder_first_name");
       const holderDniReady = hasValue(sanitizeDni(holderDniField ? holderDniField.value : ""));
+      const holderNameReady = hasValue(holderNameField ? holderNameField.value : "");
+      const beneficiaryDniField = fieldByName("beneficiary_document_number");
+      const beneficiaryNameField = fieldByName("beneficiary_first_name");
+      const beneficiaryDniReady = hasValue(sanitizeDni(beneficiaryDniField ? beneficiaryDniField.value : ""));
+      const beneficiaryNameReady = hasValue(beneficiaryNameField ? beneficiaryNameField.value : "");
+      const deceasedDniField = fieldByName("deceased_document_number");
+      const deceasedFirstNameField = fieldByName("deceased_first_name");
+      const deceasedLastNameField = fieldByName("deceased_last_name");
+      const deceasedSecondLastNameField = fieldByName("deceased_second_last_name");
+      const deceasedDniReady = hasValue(sanitizeDni(deceasedDniField ? deceasedDniField.value : ""));
+      const deceasedNameReady = hasValue(deceasedFirstNameField ? deceasedFirstNameField.value : "");
+      const deceasedLastNameReady = hasValue(deceasedLastNameField ? deceasedLastNameField.value : "") || hasValue(deceasedSecondLastNameField ? deceasedSecondLastNameField.value : "");
+      const deceasedReady = deceasedDniReady || (deceasedNameReady && deceasedLastNameReady);
       const sepulturaIdField = fieldByName("sepultura_id");
       const sepulturaStateField = fieldByName("sepultura_estado");
       const sepulturaIdReady = /^\d+$/.test(sanitizeSepulturaId(sepulturaIdField ? sepulturaIdField.value : ""));
       const sepulturaReady = sepulturaIdReady && hasValue(sepulturaStateField ? sepulturaStateField.value : "");
-      const isReady = holderDniReady && sepulturaReady && requiredDocsReady;
+      const isReady =
+        holderDniReady &&
+        holderNameReady &&
+        beneficiaryDniReady &&
+        beneficiaryNameReady &&
+        deceasedReady &&
+        sepulturaReady &&
+        requiredDocsReady;
 
       if (continueBtn && !isCreatingReservation) {
         continueBtn.disabled = !isReady;
@@ -461,7 +486,7 @@
       if (continueStatus) {
         continueStatus.textContent = isReady
           ? "Requisitos completados: se creara un expediente y una OT de reserva."
-          : "Para crear expediente: DNI titular, sepultura seleccionada, adjunto DNI titular y licencia.";
+          : "Para crear expediente: titular y beneficiario (DNI + nombre), difunto (DNI o nombre+apellido), sepultura seleccionada, adjunto DNI titular y licencia.";
       }
       return isReady;
     }
@@ -904,6 +929,8 @@
       const input = fieldByName(prefix + "_document_number");
       const button = document.getElementById(prefix + "-dni-lookup-btn");
       const statusNode = document.getElementById(prefix + "-dni-status");
+      const personIdField = fieldByName(prefix + "_person_id");
+      const lookupDniField = fieldByName(prefix + "_lookup_dni");
       if (!input || !button) return;
       let requestSerial = 0;
 
@@ -921,11 +948,22 @@
         markAutofilled(field, 1, "dni-lookup");
       }
 
+      function clearLookupTracking() {
+        if (personIdField) personIdField.value = "";
+        if (lookupDniField) lookupDniField.value = "";
+      }
+
+      function setLookupTracking(personId, dniValue) {
+        if (personIdField) personIdField.value = hasValue(personId) ? String(personId).trim() : "";
+        if (lookupDniField) lookupDniField.value = sanitizeDni(dniValue);
+      }
+
       async function runLookup() {
         const normalizedDni = sanitizeDni(input.value);
         input.value = normalizedDni;
         if (!normalizedDni) {
           if (prefix === "holder" && holderContractsController) holderContractsController.clear();
+          clearLookupTracking();
           setInlineStatus(statusNode, "Indica un DNI para comprobarlo en el sistema.", "pending");
           return;
         }
@@ -942,6 +980,7 @@
           if (currentRequest !== requestSerial) return;
           setSearchingState(false);
           if (prefix === "holder" && holderContractsController) holderContractsController.clear();
+          clearLookupTracking();
           setInlineStatus(statusNode, "No se pudo consultar el DNI ahora mismo.", "error");
           return;
         }
@@ -951,6 +990,7 @@
         const contentType = String(response.headers.get("content-type") || "").toLowerCase();
         if (!contentType.includes("application/json")) {
           if (prefix === "holder" && holderContractsController) holderContractsController.clear();
+          clearLookupTracking();
           setInlineStatus(statusNode, "Respuesta inesperada al comprobar el DNI.", "error");
           return;
         }
@@ -960,18 +1000,21 @@
           payload = await response.json();
         } catch (_error) {
           if (prefix === "holder" && holderContractsController) holderContractsController.clear();
+          clearLookupTracking();
           setInlineStatus(statusNode, "No se pudo interpretar la respuesta del servidor.", "error");
           return;
         }
 
         if (!response.ok) {
           if (prefix === "holder" && holderContractsController) holderContractsController.clear();
+          clearLookupTracking();
           setInlineStatus(statusNode, (payload && payload.message) || "No se pudo comprobar el DNI.", "error");
           return;
         }
 
         if (!payload || payload.found !== true || !payload.person) {
           if (prefix === "holder" && holderContractsController) holderContractsController.clear();
+          clearLookupTracking();
           setInlineStatus(statusNode, "DNI no encontrado. Puedes continuar con carga manual.", "pending");
           return;
         }
@@ -989,6 +1032,7 @@
         setFieldValue(prefix + "_city", person.city);
         setFieldValue(prefix + "_country", person.country);
         setFieldValue(prefix + "_observations", person.notes);
+        setLookupTracking(person.id || "", normalizedDni);
         setInlineStatus(statusNode, "DNI encontrado. Datos autocompletados (editable).", "success");
 
         if (prefix === "holder") {
@@ -1001,6 +1045,10 @@
         const normalized = sanitizeDni(input.value);
         if (input.value !== normalized) input.value = normalized;
         if (prefix === "holder" && holderContractsController) holderContractsController.clear();
+        const lookupDni = sanitizeDni(lookupDniField ? lookupDniField.value : "");
+        if (!normalized || (lookupDni && lookupDni !== normalized)) {
+          clearLookupTracking();
+        }
         setInlineStatus(statusNode, "", "");
         if (prefix === "holder") updateContinueState();
       });
@@ -1039,11 +1087,9 @@
         return;
       }
 
-      const body = new FormData();
-      body.append("holder_document_number", holderDni);
-      body.append("sepultura_id", sepulturaId);
-      body.append("holder_document_upload", holderFile);
-      body.append("burial_license_upload", licenseFile);
+      if (holderDniInput) holderDniInput.value = holderDni;
+      if (sepulturaIdInput) sepulturaIdInput.value = sepulturaId;
+      const body = new FormData(form);
 
       isCreatingReservation = true;
       setContinueButtonLoading(true);
@@ -1146,6 +1192,21 @@
       sepulturaIdInput.addEventListener("change", updateContinueState);
       sepulturaIdInput.addEventListener("blur", updateContinueState);
     }
+    [
+      "holder_first_name",
+      "beneficiary_document_number",
+      "beneficiary_first_name",
+      "deceased_document_number",
+      "deceased_first_name",
+      "deceased_last_name",
+      "deceased_second_last_name",
+    ].forEach(function (name) {
+      const input = fieldByName(name);
+      if (!input) return;
+      input.addEventListener("change", updateContinueState);
+      input.addEventListener("blur", updateContinueState);
+      input.addEventListener("input", updateContinueState);
+    });
 
     requiredUploadIds.forEach(function (id) {
       const input = document.getElementById(id);
