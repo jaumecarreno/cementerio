@@ -435,7 +435,64 @@ def test_sidebar_menu_contains_facturacion_and_not_tasas(app, client, login_admi
     sidebar = html[start:end]
 
     assert b'href="/cementerio/facturacion"' in sidebar
+    assert b'href="/cementerio/sepulturas/gestor-senda"' in sidebar
     assert b'href="/cementerio/tasas"' not in sidebar
+
+
+def test_gestor_senda_creates_sepultura_individual(app, client, login_admin):
+    login_admin()
+
+    create_response = client.post(
+        "/cementerio/sepulturas/gestor-senda?tab=individual",
+        data={
+            "mode": "individual",
+            "bloque": "B-SENDA",
+            "fila": "11",
+            "columna": "7",
+            "via": "V-11",
+            "numero": "1107",
+            "modalidad": "Ninxol nou",
+            "tipo_bloque": "Ninxols",
+            "tipo_lapida": "Resina",
+            "orientacion": "Nord",
+        },
+        follow_redirects=False,
+    )
+    assert create_response.status_code == 302
+    assert "/cementerio/sepulturas/" in create_response.headers.get("Location", "")
+
+    with app.app_context():
+        sep = Sepultura.query.filter_by(
+            bloque="B-SENDA",
+            fila=11,
+            columna=7,
+            numero=1107,
+        ).first()
+        assert sep is not None
+        assert sep.estado == SepulturaEstado.LLIURE
+
+
+def test_gestor_senda_mass_preview_works(app, client, login_admin):
+    login_admin()
+
+    response = client.post(
+        "/cementerio/sepulturas/gestor-senda?tab=mass",
+        data={
+            "mode": "mass",
+            "action": "preview",
+            "bloque": "B-SENDA-MASS",
+            "via": "V-99",
+            "tipo_bloque": "Ninxols",
+            "modalidad": "Ninxol nou",
+            "tipo_lapida": "Resina",
+            "orientacion": "Nord",
+            "filas": "1-2",
+            "columnas": "1-2",
+        },
+    )
+    assert response.status_code == 200
+    assert b"B-SENDA-MASS" in response.data
+    assert b"<td>4</td>" in response.data
 
 
 def test_dashboard_shows_inhumacion_button_before_resumen(app, client, login_admin):
@@ -452,6 +509,53 @@ def test_dashboard_shows_inhumacion_button_before_resumen(app, client, login_adm
     assert inhumacion_pos != -1
     assert resumen_pos != -1
     assert inhumacion_pos < resumen_pos
+
+
+def test_dashboard_lists_only_non_closed_expedientes(app, client, login_admin):
+    login_admin()
+    with app.app_context():
+        sepultura = Sepultura.query.order_by(Sepultura.id.asc()).first()
+        assert sepultura is not None
+
+        db.session.add_all(
+            [
+                OperationCase(
+                    org_id=sepultura.org_id,
+                    code="OP-DASH-OPEN",
+                    type=OperationType.INHUMACION,
+                    status=OperationStatus.EN_VALIDACION,
+                    source_sepultura_id=sepultura.id,
+                    notes="Pendiente de cierre",
+                ),
+                OperationCase(
+                    org_id=sepultura.org_id,
+                    code="OP-DASH-CLOSED",
+                    type=OperationType.INHUMACION,
+                    status=OperationStatus.CERRADA,
+                    source_sepultura_id=sepultura.id,
+                    notes="Caso cerrado",
+                ),
+                OperationCase(
+                    org_id=sepultura.org_id,
+                    code="OP-DASH-CANCELLED",
+                    type=OperationType.INHUMACION,
+                    status=OperationStatus.CANCELADA,
+                    source_sepultura_id=sepultura.id,
+                    notes="Caso cancelado",
+                ),
+            ]
+        )
+        db.session.commit()
+
+    response = client.get("/dashboard")
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+
+    assert "Expedientes en proceso" in html
+    assert "OP-DASH-OPEN" in html
+    assert "OP-DASH-CLOSED" not in html
+    assert "OP-DASH-CANCELLED" not in html
+
 
 def test_inhumation_assistant_requires_login(client):
     response = client.get("/cementerio/inhumaciones/asistente", follow_redirects=False)

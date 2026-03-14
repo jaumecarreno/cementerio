@@ -2591,24 +2591,30 @@ def _mass_create_defaults(values):
         "filas": values.get("filas", "1-12"),
         "columnas": values.get("columnas", "1-24"),
     }
-
-
 @cemetery_bp.route("/sepulturas/gestor-senda", methods=["GET", "POST"])
 @login_required
 @require_membership
 def gestor_senda():
+    selector = (
+        request.form.get("section")
+        or request.form.get("mode")
+        or request.args.get("section")
+        or request.args.get("tab")
+        or "individual"
+    ).strip().lower()
+    if selector == "mass":
+        selector = "bulk"
+    active_section = selector if selector in {"individual", "bulk"} else "individual"
+
     form_values = request.form if request.method == "POST" else request.args
     individual_data = _single_sepultura_defaults(form_values)
     bulk_data = _mass_create_defaults(form_values)
     preview = None
-    active_section = (form_values.get("section", "individual") or "individual").strip().lower()
-    if active_section not in {"individual", "bulk"}:
-        active_section = "individual"
 
     if request.method == "POST":
         if active_section == "individual":
             try:
-                sep = create_sepultura(individual_data, current_user.id)
+                sep = create_sepultura(individual_data)
                 flash(f"Sepultura creada: {sep.location_label} (ID {sep.id})", "success")
                 return redirect(url_for("cemetery.grave_detail", sepultura_id=sep.id))
             except ValueError as exc:
@@ -2628,8 +2634,10 @@ def gestor_senda():
         "cemetery/gestor_senda.html",
         individual_data=individual_data,
         bulk_data=bulk_data,
+        mass_data=bulk_data,
         preview=preview,
         active_section=active_section,
+        active_tab="mass" if active_section == "bulk" else "individual",
         sepultura_states=[state.value for state in SepulturaEstado],
     )
 

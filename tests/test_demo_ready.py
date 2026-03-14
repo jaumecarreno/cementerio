@@ -8,6 +8,8 @@ import subprocess
 import sys
 from unittest.mock import patch
 
+from sqlalchemy import text
+
 from app.core.demo_people import is_generic_demo_name
 from app.core.extensions import db
 from app.core.models import (
@@ -443,6 +445,13 @@ def test_demo_admin_can_load_initial_dataset_and_reset_to_zero(app, client, logi
     with app.app_context():
         assert Person.query.count() == 480
         assert Sepultura.query.count() == 350
+        blocks = {
+            block
+            for (block,) in db.session.query(Sepultura.bloque)
+            .distinct()
+            .all()
+        }
+        assert blocks == {"B-01"}
         assert DerechoFunerarioContrato.query.count() == 300
         assert OwnershipRecord.query.filter(OwnershipRecord.end_date.is_(None)).count() == 300
         assert Beneficiario.query.filter(Beneficiario.activo_hasta.is_(None)).count() == 180
@@ -522,6 +531,50 @@ def test_demo_reset_handles_internal_errors_gracefully(app, client, login_admin)
         response = client.post("/demo/reset", follow_redirects=False)
     assert response.status_code == 302
     assert response.headers["Location"].endswith("/demo")
+
+
+def test_demo_reset_purges_legacy_tables_when_present(app, client, login_admin):
+    login_admin()
+    with app.app_context():
+        oid = Sepultura.query.order_by(Sepultura.id.asc()).first().org_id
+        db.session.execute(
+            text(
+                """
+                INSERT INTO legacy_expediente
+                (org_id, numero, tipo, estado, sepultura_id, difunto_id, declarante_id, fecha_prevista, notas, created_at)
+                VALUES
+                (:oid, 'LEG-EXP-001', 'INHUMACION', 'ABIERTO', NULL, NULL, NULL, NULL, '', CURRENT_TIMESTAMP)
+                """
+            ),
+            {"oid": oid},
+        )
+        db.session.execute(
+            text(
+                """
+                INSERT INTO legacy_orden_trabajo
+                (org_id, expediente_id, titulo, estado, completed_at, notes, created_at)
+                VALUES
+                (:oid, NULL, 'OT Legacy', 'PENDIENTE', NULL, '', CURRENT_TIMESTAMP)
+                """
+            ),
+            {"oid": oid},
+        )
+        db.session.commit()
+
+    response = client.post("/demo/reset", follow_redirects=True)
+    assert response.status_code == 200
+
+    with app.app_context():
+        legacy_exp_count = db.session.execute(
+            text("SELECT COUNT(*) FROM legacy_expediente WHERE org_id = :oid"),
+            {"oid": oid},
+        ).scalar_one()
+        legacy_ot_count = db.session.execute(
+            text("SELECT COUNT(*) FROM legacy_orden_trabajo WHERE org_id = :oid"),
+            {"oid": oid},
+        ).scalar_one()
+        assert legacy_exp_count == 0
+        assert legacy_ot_count == 0
 
 
 def test_seed_demo_data_person_names_are_not_generic(app):

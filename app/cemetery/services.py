@@ -279,6 +279,22 @@ def panel_data() -> dict[str, object]:
         recent_activity = _recent_activity_companywide(recent_movements)
     recent_activity_by_sepultura = _recent_activity_by_sepultura(recent_activity)
 
+    expedientes_no_cerrados = (
+        OperationCase.query.options(
+            joinedload(OperationCase.source_sepultura),
+            joinedload(OperationCase.deceased_person),
+        )
+        .filter(OperationCase.org_id == oid)
+        .filter(
+            OperationCase.status.notin_(
+                [OperationStatus.CERRADA, OperationStatus.CANCELADA]
+            )
+        )
+        .order_by(OperationCase.created_at.desc(), OperationCase.id.desc())
+        .limit(8)
+        .all()
+    )
+
     lliures = Sepultura.query.filter_by(
         org_id=oid, estado=SepulturaEstado.LLIURE
     ).count()
@@ -307,6 +323,7 @@ def panel_data() -> dict[str, object]:
             "pendientes_notificar": pendientes_notificar,
         },
         "recent_expedientes": [],
+        "expedientes_no_cerrados": expedientes_no_cerrados,
         "recent_work_orders": recent_work_orders,
         "recent_activity_by_sepultura": recent_activity_by_sepultura,
         "recent_activity_by_titular": _recent_activity_by_titular(oid, recent_movements),
@@ -1601,6 +1618,81 @@ def parse_range(value: str) -> tuple[int, int]:
     if start <= 0 or end < start:
         raise ValueError("Rango inválido")
     return start, end
+
+
+def _parse_positive_int(value: str | None, field_name: str) -> int:
+    raw = (value or "").strip()
+    if not raw:
+        raise ValueError(f"Falta {field_name}")
+    if not raw.isdigit():
+        raise ValueError(f"{field_name} invalido")
+    parsed = int(raw)
+    if parsed <= 0:
+        raise ValueError(f"{field_name} debe ser mayor que cero")
+    return parsed
+
+
+def create_sepultura(payload: dict[str, str]) -> Sepultura:
+    # Alta individual de sepultura (estado inicial LLIURE).
+    cemetery = org_cemetery()
+    bloque = (payload.get("bloque") or "").strip()
+    via = (payload.get("via") or "").strip()
+    modalidad = (payload.get("modalidad") or "").strip()
+    tipo_bloque = (payload.get("tipo_bloque") or "").strip()
+    tipo_lapida = (payload.get("tipo_lapida") or "").strip()
+    orientacion = (payload.get("orientacion") or "").strip()
+    fila = _parse_positive_int(payload.get("fila"), "fila")
+    columna = _parse_positive_int(payload.get("columna"), "columna")
+    numero = _parse_positive_int(payload.get("numero"), "numero")
+
+    if not bloque:
+        raise ValueError("Falta bloque")
+    if not via:
+        raise ValueError("Falta via")
+    if not modalidad:
+        raise ValueError("Falta modalidad")
+    if not tipo_bloque:
+        raise ValueError("Falta tipo de bloque")
+    if not tipo_lapida:
+        raise ValueError("Falta tipo de lapida")
+    if not orientacion:
+        raise ValueError("Falta orientacion")
+
+    exists = Sepultura.query.filter_by(
+        org_id=org_id(),
+        cemetery_id=cemetery.id,
+        bloque=bloque,
+        fila=fila,
+        columna=columna,
+        numero=numero,
+    ).first()
+    if exists:
+        raise ValueError("Ya existe una sepultura en esa ubicacion")
+
+    sepultura = Sepultura(
+        org_id=org_id(),
+        cemetery_id=cemetery.id,
+        bloque=bloque,
+        fila=fila,
+        columna=columna,
+        via=via,
+        numero=numero,
+        modalidad=modalidad,
+        estado=SepulturaEstado.LLIURE,
+        tipo_bloque=tipo_bloque,
+        tipo_lapida=tipo_lapida,
+        orientacion=orientacion,
+    )
+    db.session.add(sepultura)
+    db.session.flush()
+    _log_activity_event(
+        "SEPULTURA_ALTA_INDIVIDUAL",
+        f"Alta individual de sepultura {sepultura.location_label}",
+        None,
+        sepultura.id,
+    )
+    db.session.commit()
+    return sepultura
 
 
 def preview_mass_create(payload: dict[str, str]) -> MassCreatePreview:
@@ -3879,9 +3971,28 @@ def _purge_org_operational_data() -> None:
     def _has(*tables: str) -> bool:
         return all(table in existing_tables for table in tables)
 
+    def _delete_legacy_table_by_org(table_name: str) -> None:
+        # Keep reset compatible with partially-upgraded environments where
+        # legacy tables still enforce FK chains to contracts/sepulturas.
+        db.session.execute(
+            text(f'DELETE FROM "{table_name}" WHERE org_id = :oid'),
+            {"oid": oid},
+        )
+
     for storage_root in _demo_storage_roots(oid):
         if storage_root.exists():
             shutil.rmtree(storage_root, ignore_errors=True)
+
+    for legacy_table in (
+        "payment",
+        "tasa_mantenimiento_ticket",
+        "invoice",
+        "titularidad",
+        "legacy_orden_trabajo",
+        "legacy_expediente",
+    ):
+        if _has(legacy_table):
+            _delete_legacy_table_by_org(legacy_table)
 
     if _has("report_delivery_log"):
         db.session.query(ReportDeliveryLog).filter_by(org_id=oid).delete(
@@ -4451,12 +4562,13 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
     }
     tipo_lapidas = ("Resina", "Marmol", "Granito", "Sin lapida")
     orientaciones = ("Nord", "Sud", "Est", "Oest")
+    demo_block_code = "B-01"
+    demo_columns_per_row = 25
     sepulturas: list[Sepultura] = []
     for idx in range(1, 351):
-        block_index = ((idx - 1) // 25) + 1
-        local_index = (idx - 1) % 25
-        fila = (local_index // 5) + 1
-        columna = (local_index % 5) + 1
+        local_index = idx - 1
+        fila = (local_index // demo_columns_per_row) + 1
+        columna = (local_index % demo_columns_per_row) + 1
         if idx <= 300:
             estado = SepulturaEstado.DISPONIBLE
         elif idx <= 320:
@@ -4476,11 +4588,11 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
             Sepultura(
                 org_id=oid,
                 cemetery_id=cemetery.id,
-                bloque=f"B-{block_index:02d}",
+                bloque=demo_block_code,
                 fila=fila,
                 columna=columna,
-                via=f"V-{((block_index - 1) % 8) + 1}",
-                numero=1000 + idx,
+                via="V-1",
+                numero=idx,
                 modalidad=modalidad,
                 estado=estado,
                 tipo_bloque=tipos_bloque[modalidad],

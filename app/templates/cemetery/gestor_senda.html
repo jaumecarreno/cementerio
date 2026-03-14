@@ -9,8 +9,9 @@
 <div class="panel-grid">
   <section class="box" id="gestor-senda-individual">
     <h3>Alta individual</h3>
-    <form method="post" action="{{ url_for('cemetery.gestor_senda') }}">
+    <form method="post" action="{{ url_for('cemetery.gestor_senda', section='individual') }}">
       <input type="hidden" name="section" value="individual">
+      <input type="hidden" name="mode" value="individual">
       <div class="form-grid">
         <div>
           <label>{{ t('field.block') }}</label>
@@ -65,8 +66,9 @@
 
   <section class="box" id="gestor-senda-bulk">
     <h3>Alta masiva</h3>
-    <form method="post" action="{{ url_for('cemetery.gestor_senda') }}">
+    <form method="post" action="{{ url_for('cemetery.gestor_senda', section='bulk') }}">
       <input type="hidden" name="section" value="bulk">
+      <input type="hidden" name="mode" value="mass">
       <div class="form-grid">
         <div>
           <label>{{ t('field.block') }}</label>

@@ -11,6 +11,30 @@
       <a class="btn primary" href="{{ url_for('cemetery.inhumation_assistant') }}">Inhumación</a>
     </div>
 
+    <div class="dashboard-card dashboard-open-cases-card">
+      <div class="dashboard-card-head">
+        <h3>Expedientes en proceso</h3>
+        <span class="dashboard-badge">{{ data.expedientes_no_cerrados|length }}</span>
+      </div>
+      {% if data.expedientes_no_cerrados %}
+      <ul class="dashboard-open-cases-list">
+        {% for row in data.expedientes_no_cerrados %}
+        <li class="dashboard-open-cases-item">
+          <div class="dashboard-open-cases-body">
+            <strong>{{ row.code }}</strong>
+            <p>Estado: {{ row.status.value }}</p>
+            <p>Origen: {{ row.source_sepultura.location_label if row.source_sepultura else '-' }}</p>
+            <p>Difunto: {{ row.deceased_person.full_name if row.deceased_person else '-' }}</p>
+          </div>
+          <a class="btn" href="{{ url_for('cemetery.expediente_detail', expediente_id=row.id) }}">Abrir</a>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="muted">No hay expedientes en proceso.</p>
+      {% endif %}
+    </div>
+
     <div class="dashboard-card dashboard-summary-card">
       <h3>Resumen</h3>
       <div class="dashboard-kpi-grid">
