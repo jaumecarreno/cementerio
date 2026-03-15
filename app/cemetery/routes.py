@@ -54,6 +54,8 @@ from app.cemetery.operation_service import (
     operation_acta_pdf,
     operation_case_by_id,
     operation_concession_context,
+    operation_progress_steps,
+    operation_status_label,
     permit_label,
     upload_operation_document,
     update_operation_concession,
@@ -460,12 +462,17 @@ def _render_operation_cases_page():
     create_type = (request.args.get("create_type") or "").strip().upper()
     if create_type not in {item.value for item in OperationType}:
         create_type = "INHUMACION"
+    operation_status_labels = {
+        item.value: operation_status_label(item)
+        for item in OperationStatus
+    }
     return render_template(
         "cemetery/expedientes.html",
         rows=rows,
         filters=filters,
         OperationType=OperationType,
         OperationStatus=OperationStatus,
+        operation_status_labels=operation_status_labels,
         create_type=create_type,
         prefill_source_sepultura_id=request.args.get("prefill_source_sepultura_id", "").strip(),
         prefill_target_sepultura_id=request.args.get("prefill_target_sepultura_id", "").strip(),
@@ -1013,12 +1020,18 @@ def operation_detail(case_id: int):
     documentation_rows = documentation_rows_for_case(case)
     permit_labels = {row.permit_type: permit_label(row.permit_type) for row in case.permits}
     concession_data = operation_concession_context(case)
+    operation_status_labels = {
+        item.value: operation_status_label(item)
+        for item in OperationStatus
+    }
     return render_template(
         "cemetery/expediente_detail.html",
         case=case,
         documentation_rows=documentation_rows,
         permit_labels=permit_labels,
         concession_data=concession_data,
+        operation_status_labels=operation_status_labels,
+        operation_progress=operation_progress_steps(case),
         OperationType=OperationType,
         OperationStatus=OperationStatus,
         WorkOrderStatus=WorkOrderStatus,
@@ -1035,6 +1048,7 @@ def operation_change_state(case_id: int):
             new_status_raw=request.form.get("status", ""),
             reason=request.form.get("reason", ""),
             user_id=current_user.id,
+            actor_role=_actor_role(),
         )
         flash("Estado de expediente actualizado", "success")
     except ValueError as exc:

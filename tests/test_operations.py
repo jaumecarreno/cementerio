@@ -70,7 +70,7 @@ def _create_test_sepultura(
 def _prepare_case_for_close(app, client, case_id: int) -> None:
     response = client.post(
         f"/cementerio/expedientes/{case_id}/estado",
-        data={"status": "DOCS_PENDIENTES"},
+        data={"status": "PDT_DOCUMENTACION"},
         follow_redirects=True,
     )
     assert response.status_code == 200
@@ -85,7 +85,12 @@ def _prepare_case_for_close(app, client, case_id: int) -> None:
         )
         assert verify_response.status_code == 200
 
-    for status in ["PROGRAMADA", "EN_EJECUCION", "EN_VALIDACION"]:
+    for status in [
+        "PDT_DERECHO_FUNERARIO",
+        "PDT_PAGO",
+        "PDT_PROGRAMACION",
+        "REALIZADO",
+    ]:
         transition_response = client.post(
             f"/cementerio/expedientes/{case_id}/estado",
             data={"status": status},
@@ -188,8 +193,8 @@ def test_traslado_type_mismatch_is_blocked(app, client, login_admin):
     assert b"Tipo de traslado invalido" in response.data
 
 
-def test_programada_requires_verified_permits(app, client, login_admin):
-    login_admin()
+def test_programada_requires_verified_permits(app, client, login_operator):
+    login_operator()
     with app.app_context():
         sep = Sepultura.query.filter_by(bloque="B-12", numero=127).first()
         assert sep is not None
@@ -212,14 +217,28 @@ def test_programada_requires_verified_permits(app, client, login_admin):
 
     status_docs = client.post(
         f"/cementerio/expedientes/{case_id}/estado",
-        data={"status": "DOCS_PENDIENTES"},
+        data={"status": "PDT_DOCUMENTACION"},
         follow_redirects=True,
     )
     assert status_docs.status_code == 200
 
+    status_derecho = client.post(
+        f"/cementerio/expedientes/{case_id}/estado",
+        data={"status": "PDT_DERECHO_FUNERARIO"},
+        follow_redirects=True,
+    )
+    assert status_derecho.status_code == 200
+
+    status_pago = client.post(
+        f"/cementerio/expedientes/{case_id}/estado",
+        data={"status": "PDT_PAGO"},
+        follow_redirects=True,
+    )
+    assert status_pago.status_code == 200
+
     status_programada = client.post(
         f"/cementerio/expedientes/{case_id}/estado",
-        data={"status": "PROGRAMADA"},
+        data={"status": "PDT_PROGRAMACION"},
         follow_redirects=True,
     )
     assert status_programada.status_code == 200
@@ -227,7 +246,7 @@ def test_programada_requires_verified_permits(app, client, login_admin):
 
     with app.app_context():
         case = db.session.get(OperationCase, case_id)
-        assert case.status == OperationStatus.DOCS_PENDIENTES
+        assert case.status == OperationStatus.PDT_PAGO
 
 
 def test_expediente_detail_select_reflects_current_status(app, client, login_admin):
@@ -254,14 +273,14 @@ def test_expediente_detail_select_reflects_current_status(app, client, login_adm
 
     update = client.post(
         f"/cementerio/expedientes/{case_id}/estado",
-        data={"status": "DOCS_PENDIENTES"},
+        data={"status": "PDT_DOCUMENTACION"},
         follow_redirects=True,
     )
     assert update.status_code == 200
 
     detail = client.get(f"/cementerio/expedientes/{case_id}")
     assert detail.status_code == 200
-    assert b'value="DOCS_PENDIENTES" selected' in detail.data
+    assert b'value="PDT_DOCUMENTACION" selected' in detail.data
 
 
 def test_expediente_inhumacion_summary_update_with_pickers(app, client, login_admin):
@@ -444,7 +463,7 @@ def test_close_traslado_flow_requires_completed_ot_and_generates_acta(
 
     client.post(
         f"/cementerio/expedientes/{case_id}/estado",
-        data={"status": "DOCS_PENDIENTES"},
+        data={"status": "PDT_DOCUMENTACION"},
         follow_redirects=True,
     )
     with app.app_context():
@@ -459,17 +478,22 @@ def test_close_traslado_flow_requires_completed_ot_and_generates_acta(
 
     client.post(
         f"/cementerio/expedientes/{case_id}/estado",
-        data={"status": "PROGRAMADA"},
+        data={"status": "PDT_DERECHO_FUNERARIO"},
         follow_redirects=True,
     )
     client.post(
         f"/cementerio/expedientes/{case_id}/estado",
-        data={"status": "EN_EJECUCION"},
+        data={"status": "PDT_PAGO"},
         follow_redirects=True,
     )
     client.post(
         f"/cementerio/expedientes/{case_id}/estado",
-        data={"status": "EN_VALIDACION"},
+        data={"status": "PDT_PROGRAMACION"},
+        follow_redirects=True,
+    )
+    client.post(
+        f"/cementerio/expedientes/{case_id}/estado",
+        data={"status": "REALIZADO"},
         follow_redirects=True,
     )
 
@@ -497,7 +521,7 @@ def test_close_traslado_flow_requires_completed_ot_and_generates_acta(
 
     with app.app_context():
         refreshed = db.session.get(OperationCase, case_id)
-        assert refreshed.status == OperationStatus.CERRADA
+        assert refreshed.status == OperationStatus.FINALIZADA
         acta = (
             OperationDocument.query.filter_by(operation_case_id=case_id, doc_type="ACTA_OPERACION")
             .order_by(OperationDocument.id.asc())
@@ -535,7 +559,7 @@ def test_rescate_close_is_blocked_without_remains(app, client, login_admin):
 
     client.post(
         f"/cementerio/expedientes/{case_id}/estado",
-        data={"status": "DOCS_PENDIENTES"},
+        data={"status": "PDT_DOCUMENTACION"},
         follow_redirects=True,
     )
     with app.app_context():
@@ -549,17 +573,22 @@ def test_rescate_close_is_blocked_without_remains(app, client, login_admin):
 
     client.post(
         f"/cementerio/expedientes/{case_id}/estado",
-        data={"status": "PROGRAMADA"},
+        data={"status": "PDT_DERECHO_FUNERARIO"},
         follow_redirects=True,
     )
     client.post(
         f"/cementerio/expedientes/{case_id}/estado",
-        data={"status": "EN_EJECUCION"},
+        data={"status": "PDT_PAGO"},
         follow_redirects=True,
     )
     client.post(
         f"/cementerio/expedientes/{case_id}/estado",
-        data={"status": "EN_VALIDACION"},
+        data={"status": "PDT_PROGRAMACION"},
+        follow_redirects=True,
+    )
+    client.post(
+        f"/cementerio/expedientes/{case_id}/estado",
+        data={"status": "REALIZADO"},
         follow_redirects=True,
     )
 
@@ -579,7 +608,7 @@ def test_rescate_close_is_blocked_without_remains(app, client, login_admin):
 
     with app.app_context():
         refreshed = db.session.get(OperationCase, case_id)
-        assert refreshed.status == OperationStatus.EN_VALIDACION
+        assert refreshed.status == OperationStatus.REALIZADO
         ot = db.session.get(WorkOrder, ot_id)
         assert ot.status == WorkOrderStatus.COMPLETADA
 
@@ -793,7 +822,7 @@ def test_close_inhumacion_without_contract_creates_and_links_concession(
     with app.app_context():
         refreshed = db.session.get(OperationCase, case_id)
         assert refreshed is not None
-        assert refreshed.status == OperationStatus.CERRADA
+        assert refreshed.status == OperationStatus.FINALIZADA
         assert refreshed.contract_id is not None
 
         contract = db.session.get(DerechoFunerarioContrato, refreshed.contract_id)
@@ -859,12 +888,120 @@ def test_close_inhumacion_with_active_contract_reuses_existing_contract(
     with app.app_context():
         refreshed = db.session.get(OperationCase, case_id)
         assert refreshed is not None
-        assert refreshed.status == OperationStatus.CERRADA
+        assert refreshed.status == OperationStatus.FINALIZADA
         assert refreshed.contract_id == contract_id
         after_count = DerechoFunerarioContrato.query.filter_by(
             sepultura_id=sepultura_id
         ).count()
         assert after_count == before_count
+
+
+def test_expediente_detail_shows_sticky_progress_and_hides_meta_row(app, client, login_admin):
+    login_admin()
+    with app.app_context():
+        sep = Sepultura.query.filter_by(bloque="B-12", numero=127).first()
+        assert sep is not None
+
+    create = client.post(
+        "/cementerio/expedientes",
+        data={
+            "type": "TRASLADO_CORTO",
+            "source_sepultura_id": str(sep.id),
+            "destination_municipality": "Terrassa",
+        },
+        follow_redirects=True,
+    )
+    assert create.status_code == 200
+    html = create.get_data(as_text=True)
+    assert 'class="operation-progress-sticky"' in html
+    assert "Borrador" in html
+    assert "Finalizada" in html
+    assert 'class="meta-row"' not in html
+
+
+def test_non_admin_transition_is_linear_and_can_cancel(app, client, login_operator):
+    login_operator()
+    with app.app_context():
+        sep = Sepultura.query.filter_by(bloque="B-12", numero=127).first()
+        assert sep is not None
+
+    create = client.post(
+        "/cementerio/expedientes",
+        data={
+            "type": "TRASLADO_CORTO",
+            "source_sepultura_id": str(sep.id),
+            "destination_municipality": "Terrassa",
+        },
+        follow_redirects=True,
+    )
+    assert create.status_code == 200
+
+    with app.app_context():
+        case = OperationCase.query.order_by(OperationCase.id.desc()).first()
+        assert case is not None
+        case_id = case.id
+
+    jump_response = client.post(
+        f"/cementerio/expedientes/{case_id}/estado",
+        data={"status": "PDT_PAGO"},
+        follow_redirects=True,
+    )
+    assert jump_response.status_code == 200
+    assert b"Transicion invalida" in jump_response.data
+
+    cancel_response = client.post(
+        f"/cementerio/expedientes/{case_id}/estado",
+        data={"status": "CANCELADO", "reason": "cancelado por operador"},
+        follow_redirects=True,
+    )
+    assert cancel_response.status_code == 200
+
+    with app.app_context():
+        refreshed = db.session.get(OperationCase, case_id)
+        assert refreshed is not None
+        assert refreshed.status == OperationStatus.CANCELADO
+
+
+def test_admin_can_reopen_from_finalizada(app, client, login_admin):
+    login_admin()
+    with app.app_context():
+        sep = Sepultura.query.filter_by(bloque="B-12", numero=127).first()
+        assert sep is not None
+
+    create = client.post(
+        "/cementerio/expedientes",
+        data={
+            "type": "TRASLADO_CORTO",
+            "source_sepultura_id": str(sep.id),
+            "destination_municipality": "Terrassa",
+        },
+        follow_redirects=True,
+    )
+    assert create.status_code == 200
+
+    with app.app_context():
+        case = OperationCase.query.order_by(OperationCase.id.desc()).first()
+        assert case is not None
+        case_id = case.id
+
+    finish_response = client.post(
+        f"/cementerio/expedientes/{case_id}/estado",
+        data={"status": "FINALIZADA", "reason": "finalizacion manual admin"},
+        follow_redirects=True,
+    )
+    assert finish_response.status_code == 200
+
+    reopen_response = client.post(
+        f"/cementerio/expedientes/{case_id}/estado",
+        data={"status": "BORRADOR", "reason": "reapertura admin"},
+        follow_redirects=True,
+    )
+    assert reopen_response.status_code == 200
+
+    with app.app_context():
+        refreshed = db.session.get(OperationCase, case_id)
+        assert refreshed is not None
+        assert refreshed.status == OperationStatus.BORRADOR
 
 
 def test_non_inhumacion_has_no_concession_card_and_concession_endpoint_fails(

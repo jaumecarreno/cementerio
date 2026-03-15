@@ -39,27 +39,62 @@ from app.core.models import (
 
 OPERATION_STATUS_TRANSITIONS: dict[OperationStatus, set[OperationStatus]] = {
     OperationStatus.BORRADOR: {
-        OperationStatus.DOCS_PENDIENTES,
-        OperationStatus.CANCELADA,
+        OperationStatus.PDT_DOCUMENTACION,
+        OperationStatus.CANCELADO,
     },
-    OperationStatus.DOCS_PENDIENTES: {
-        OperationStatus.PROGRAMADA,
-        OperationStatus.CANCELADA,
+    OperationStatus.PDT_DOCUMENTACION: {
+        OperationStatus.PDT_DERECHO_FUNERARIO,
+        OperationStatus.CANCELADO,
     },
-    OperationStatus.PROGRAMADA: {
-        OperationStatus.EN_EJECUCION,
-        OperationStatus.CANCELADA,
+    OperationStatus.PDT_DERECHO_FUNERARIO: {
+        OperationStatus.PDT_PAGO,
+        OperationStatus.CANCELADO,
     },
-    OperationStatus.EN_EJECUCION: {
-        OperationStatus.EN_VALIDACION,
-        OperationStatus.CANCELADA,
+    OperationStatus.PDT_PAGO: {
+        OperationStatus.PDT_PROGRAMACION,
+        OperationStatus.CANCELADO,
     },
-    OperationStatus.EN_VALIDACION: {
-        OperationStatus.CERRADA,
-        OperationStatus.CANCELADA,
+    OperationStatus.PDT_PROGRAMACION: {
+        OperationStatus.REALIZADO,
+        OperationStatus.CANCELADO,
     },
-    OperationStatus.CERRADA: set(),
-    OperationStatus.CANCELADA: set(),
+    OperationStatus.REALIZADO: {
+        OperationStatus.FINALIZADA,
+        OperationStatus.CANCELADO,
+    },
+    OperationStatus.FINALIZADA: set(),
+    OperationStatus.CANCELADO: set(),
+}
+
+OPERATION_STATUS_LABELS: dict[OperationStatus, str] = {
+    OperationStatus.BORRADOR: "Borrador",
+    OperationStatus.PDT_DOCUMENTACION: "Pdte Documentación",
+    OperationStatus.PDT_DERECHO_FUNERARIO: "Pdte Derecho Funerario",
+    OperationStatus.PDT_PAGO: "Pdte Pago",
+    OperationStatus.PDT_PROGRAMACION: "Pdte Programación",
+    OperationStatus.REALIZADO: "Realizado",
+    OperationStatus.FINALIZADA: "Finalizada",
+    OperationStatus.CANCELADO: "Cancelado",
+}
+
+OPERATION_PROGRESS_SEQUENCE: tuple[OperationStatus, ...] = (
+    OperationStatus.BORRADOR,
+    OperationStatus.PDT_DOCUMENTACION,
+    OperationStatus.PDT_DERECHO_FUNERARIO,
+    OperationStatus.PDT_PAGO,
+    OperationStatus.PDT_PROGRAMACION,
+    OperationStatus.REALIZADO,
+    OperationStatus.FINALIZADA,
+    OperationStatus.CANCELADO,
+)
+
+LEGACY_OPERATION_STATUS_ALIASES: dict[str, str] = {
+    "DOCS_PENDIENTES": "PDT_DOCUMENTACION",
+    "PROGRAMADA": "PDT_PROGRAMACION",
+    "EN_EJECUCION": "REALIZADO",
+    "EN_VALIDACION": "REALIZADO",
+    "CERRADA": "FINALIZADA",
+    "CANCELADA": "CANCELADO",
 }
 
 PermitRequirement = tuple[str, bool]
@@ -187,10 +222,57 @@ def _parse_operation_type(raw: str) -> OperationType:
 
 def _parse_operation_status(raw: str) -> OperationStatus:
     value = (raw or "").strip().upper()
+    value = LEGACY_OPERATION_STATUS_ALIASES.get(value, value)
     try:
         return OperationStatus[value]
     except KeyError as exc:
         raise ValueError("Estado de expediente invalido") from exc
+
+
+def operation_status_label(status: OperationStatus | str) -> str:
+    if isinstance(status, OperationStatus):
+        return OPERATION_STATUS_LABELS.get(status, status.value)
+    normalized = LEGACY_OPERATION_STATUS_ALIASES.get((status or "").strip().upper(), (status or "").strip().upper())
+    try:
+        parsed = OperationStatus[normalized]
+    except KeyError:
+        return (status or "").strip() or "-"
+    return OPERATION_STATUS_LABELS.get(parsed, parsed.value)
+
+
+def operation_progress_steps(case: OperationCase) -> list[dict[str, str]]:
+    current = case.status
+    if current == OperationStatus.CANCELADO:
+        return [
+            {
+                "value": status.value,
+                "label": OPERATION_STATUS_LABELS.get(status, status.value),
+                "state": "current-cancelled" if status == OperationStatus.CANCELADO else "pending",
+            }
+            for status in OPERATION_PROGRESS_SEQUENCE
+        ]
+
+    current_idx = -1
+    for idx, status in enumerate(OPERATION_PROGRESS_SEQUENCE):
+        if status == current:
+            current_idx = idx
+            break
+
+    steps: list[dict[str, str]] = []
+    for idx, status in enumerate(OPERATION_PROGRESS_SEQUENCE):
+        state = "pending"
+        if idx < current_idx:
+            state = "done"
+        elif idx == current_idx:
+            state = "current"
+        steps.append(
+            {
+                "value": status.value,
+                "label": OPERATION_STATUS_LABELS.get(status, status.value),
+                "state": state,
+            }
+        )
+    return steps
 
 
 def _sepultura_by_id(sepultura_id: int) -> Sepultura:
@@ -440,8 +522,8 @@ def list_operation_cases(filters: dict[str, str]) -> list[OperationCase]:
     status_raw = (filters.get("status") or "").strip().upper()
     if status_raw:
         try:
-            query = query.filter(OperationCase.status == OperationStatus[status_raw])
-        except KeyError:
+            query = query.filter(OperationCase.status == _parse_operation_status(status_raw))
+        except ValueError:
             return []
     source_sepultura_id = (filters.get("source_sepultura_id") or "").strip()
     if source_sepultura_id:
@@ -715,24 +797,33 @@ def update_operation_concession(
     return case
 
 
-def change_operation_status(case_id: int, new_status_raw: str, reason: str, user_id: int | None) -> OperationCase:
+def change_operation_status(
+    case_id: int,
+    new_status_raw: str,
+    reason: str,
+    user_id: int | None,
+    actor_role: str | None = None,
+) -> OperationCase:
     case = operation_case_by_id(case_id)
     target = _parse_operation_status(new_status_raw)
     current = case.status
     if target == current:
         return case
-    if target not in OPERATION_STATUS_TRANSITIONS.get(current, set()):
+    role = (actor_role or "").strip().lower()
+    is_admin = role == "admin"
+    if not is_admin and target not in OPERATION_STATUS_TRANSITIONS.get(current, set()):
         raise ValueError(f"Transicion invalida: {current.value} -> {target.value}")
     note = (reason or "").strip()
-    if target == OperationStatus.CANCELADA and not note:
+    if target == OperationStatus.CANCELADO and not note:
         raise ValueError("Motivo obligatorio para cancelar")
-    if target == OperationStatus.PROGRAMADA:
+    if target == OperationStatus.PDT_PROGRAMACION and not is_admin:
         missing = [p for p in case.permits if p.required and p.status != OperationPermitStatus.VERIFIED]
         if missing:
             raise ValueError("No se puede programar: faltan permisos verificados")
         _validate_transfer_type(case)
+    if target == OperationStatus.PDT_PROGRAMACION:
         _auto_create_work_order(case, user_id)
-    if target == OperationStatus.EN_EJECUCION and not case.executed_at:
+    if target == OperationStatus.REALIZADO and not case.executed_at:
         case.executed_at = _now()
     case.status = target
     db.session.add(case)
@@ -983,8 +1074,8 @@ def _completed_work_order_count(case_id: int) -> int:
 
 
 def _validate_closure(case: OperationCase) -> None:
-    if case.status != OperationStatus.EN_VALIDACION:
-        raise ValueError("Solo se puede cerrar en estado EN_VALIDACION")
+    if case.status != OperationStatus.REALIZADO:
+        raise ValueError("Solo se puede cerrar en estado REALIZADO")
     missing_permits = [p for p in case.permits if p.required and p.status != OperationPermitStatus.VERIFIED]
     if missing_permits:
         raise ValueError("No se puede cerrar: faltan permisos verificados")
@@ -1105,13 +1196,13 @@ def close_operation_case(case_id: int, payload: dict[str, str], user_id: int | N
     _ensure_acta_document(case, user_id)
 
     previous = case.status
-    case.status = OperationStatus.CERRADA
+    case.status = OperationStatus.FINALIZADA
     case.closed_at = _now()
     db.session.add(case)
     _log_status_change(
         case=case,
         from_status=previous,
-        to_status=OperationStatus.CERRADA,
+        to_status=OperationStatus.FINALIZADA,
         user_id=user_id,
         reason=(payload.get("reason") or "Cierre expediente").strip(),
     )

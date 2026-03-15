@@ -287,7 +287,7 @@ def panel_data() -> dict[str, object]:
         .filter(OperationCase.org_id == oid)
         .filter(
             OperationCase.status.notin_(
-                [OperationStatus.CERRADA, OperationStatus.CANCELADA]
+                [OperationStatus.FINALIZADA, OperationStatus.CANCELADO]
             )
         )
         .order_by(OperationCase.created_at.desc(), OperationCase.id.desc())
@@ -4800,13 +4800,14 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
     db.session.flush()
 
     operation_status_cycle = (
-        [OperationStatus.BORRADOR] * 24
-        + [OperationStatus.DOCS_PENDIENTES] * 36
-        + [OperationStatus.PROGRAMADA] * 24
-        + [OperationStatus.EN_EJECUCION] * 20
-        + [OperationStatus.EN_VALIDACION] * 18
-        + [OperationStatus.CERRADA] * 16
-        + [OperationStatus.CANCELADA] * 2
+        [OperationStatus.BORRADOR] * 18
+        + [OperationStatus.PDT_DOCUMENTACION] * 24
+        + [OperationStatus.PDT_DERECHO_FUNERARIO] * 20
+        + [OperationStatus.PDT_PAGO] * 20
+        + [OperationStatus.PDT_PROGRAMACION] * 20
+        + [OperationStatus.REALIZADO] * 18
+        + [OperationStatus.FINALIZADA] * 18
+        + [OperationStatus.CANCELADO] * 2
     )
     operation_types = (
         OperationType.INHUMACION,
@@ -4830,15 +4831,14 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
             created_at + timedelta(days=4)
             if status
             in {
-                OperationStatus.EN_EJECUCION,
-                OperationStatus.EN_VALIDACION,
-                OperationStatus.CERRADA,
+                OperationStatus.REALIZADO,
+                OperationStatus.FINALIZADA,
             }
             else None
         )
         closed_at = (
             created_at + timedelta(days=8)
-            if status == OperationStatus.CERRADA
+            if status == OperationStatus.FINALIZADA
             else None
         )
         operation_cases.append(
@@ -4875,7 +4875,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 notes=(
                     "Inhumacion pendiente de documentacion"
                     if op_type == OperationType.INHUMACION
-                    and status in {OperationStatus.BORRADOR, OperationStatus.DOCS_PENDIENTES}
+                    and status in {OperationStatus.BORRADOR, OperationStatus.PDT_DOCUMENTACION}
                     else "Operacion en tramitacion"
                 ),
                 created_by_user_id=default_operator_id,
@@ -4893,19 +4893,22 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
         for permit_type, permit_required in DEMO_OPERATION_PERMITS[case.type]:
             permit_status = OperationPermitStatus.MISSING
             if case.status in {
-                OperationStatus.PROGRAMADA,
-                OperationStatus.EN_EJECUCION,
-                OperationStatus.EN_VALIDACION,
-                OperationStatus.CERRADA,
+                OperationStatus.PDT_PROGRAMACION,
+                OperationStatus.REALIZADO,
+                OperationStatus.FINALIZADA,
             }:
                 permit_status = OperationPermitStatus.VERIFIED
-            elif case.status == OperationStatus.DOCS_PENDIENTES:
+            elif case.status in {
+                OperationStatus.PDT_DOCUMENTACION,
+                OperationStatus.PDT_DERECHO_FUNERARIO,
+                OperationStatus.PDT_PAGO,
+            }:
                 permit_status = (
                     OperationPermitStatus.PROVIDED
                     if idx % 2 == 0
                     else OperationPermitStatus.MISSING
                 )
-            elif case.status == OperationStatus.CANCELADA:
+            elif case.status == OperationStatus.CANCELADO:
                 permit_status = OperationPermitStatus.REJECTED
             operation_permits.append(
                 OperationPermit(
@@ -4933,13 +4936,12 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
 
         acta_status = (
             OperationPermitStatus.VERIFIED
-            if case.status == OperationStatus.CERRADA
+            if case.status == OperationStatus.FINALIZADA
             else (
                 OperationPermitStatus.PROVIDED
                 if case.status
                 in {
-                    OperationStatus.EN_EJECUCION,
-                    OperationStatus.EN_VALIDACION,
+                    OperationStatus.REALIZADO,
                 }
                 else OperationPermitStatus.MISSING
             )
@@ -5014,17 +5016,21 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
     for idx, case in enumerate(operation_cases[:140], start=1):
         work_order = work_orders[(idx - 1) % len(work_orders)]
         work_order.operation_case_id = case.id
-        if case.status == OperationStatus.CERRADA:
+        if case.status == OperationStatus.FINALIZADA:
             work_order.status = WorkOrderStatus.COMPLETADA
             work_order.completed_at = case.closed_at or (
                 case.created_at + timedelta(days=7)
             )
-        elif case.status == OperationStatus.EN_VALIDACION:
+        elif case.status == OperationStatus.REALIZADO:
             work_order.status = WorkOrderStatus.EN_VALIDACION
-        elif case.status == OperationStatus.EN_EJECUCION:
-            work_order.status = WorkOrderStatus.EN_CURSO
-        elif case.status == OperationStatus.PROGRAMADA:
+        elif case.status == OperationStatus.PDT_PROGRAMACION:
             work_order.status = WorkOrderStatus.PLANIFICADA
+        elif case.status == OperationStatus.PDT_PAGO:
+            work_order.status = WorkOrderStatus.PLANIFICADA
+        elif case.status == OperationStatus.PDT_DERECHO_FUNERARIO:
+            work_order.status = WorkOrderStatus.PENDIENTE_PLANIFICACION
+        elif case.status == OperationStatus.PDT_DOCUMENTACION:
+            work_order.status = WorkOrderStatus.PENDIENTE_PLANIFICACION
 
     case_types = (
         OwnershipTransferType.MORTIS_CAUSA_TESTAMENTO,

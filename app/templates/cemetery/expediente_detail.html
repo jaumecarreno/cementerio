@@ -10,6 +10,17 @@
 {% block content %}
 <h1 class="page-title">Expediente {{ case.code }}</h1>
 
+<div class="operation-progress-sticky" aria-label="Progreso del expediente">
+  <ol class="operation-progress-list">
+    {% for item in operation_progress %}
+    <li class="operation-progress-step is-{{ item.state }}">
+      <span class="operation-progress-dot" aria-hidden="true"></span>
+      <span class="operation-progress-label">{{ item.label }}</span>
+    </li>
+    {% endfor %}
+  </ol>
+</div>
+
 <div class="box">
   <h3>Resumen</h3>
   {% if case.type == OperationType.INHUMACION %}
@@ -89,26 +100,6 @@
     </div>
   </form>
   {% endif %}
-  <div class="meta-row">
-    {% if case.type != OperationType.INHUMACION %}
-    <div><strong>Tipo:</strong> {{ case.type.value }}</div>
-    {% endif %}
-    <div><strong>Estado:</strong> {{ case.status.value }}</div>
-    <div><strong>Origen:</strong> {{ case.source_sepultura.location_label if case.source_sepultura else '-' }}</div>
-    <div><strong>Destino:</strong> {{ case.target_sepultura.location_label if case.target_sepultura else (case.destination_name or case.destination_municipality or '-') }}</div>
-    <div><strong>Difunto:</strong> {{ case.deceased_person.full_name if case.deceased_person else '-' }}</div>
-    <div><strong>Titular:</strong> {{ case.holder_person.full_name if case.holder_person else (case.declarant_person.full_name if case.declarant_person else '-') }}</div>
-    <div><strong>Beneficiario:</strong> {{ case.beneficiary_person.full_name if case.beneficiary_person else '-' }}</div>
-    {% if case.type == OperationType.INHUMACION %}
-    <div><strong>Fecha entierro:</strong> {{ case.scheduled_at.strftime('%Y-%m-%d') if case.scheduled_at else '-' }}</div>
-    <div><strong>Hora entierro:</strong> {{ case.scheduled_at.strftime('%H:%M') if case.scheduled_at else '-' }}</div>
-    {% else %}
-    <div><strong>Programada:</strong> {{ case.scheduled_at.strftime('%Y-%m-%d %H:%M') if case.scheduled_at else '-' }}</div>
-    {% endif %}
-    <div><strong>Ejecutada:</strong> {{ case.executed_at.strftime('%Y-%m-%d %H:%M') if case.executed_at else '-' }}</div>
-    <div><strong>Cerrada:</strong> {{ case.closed_at.strftime('%Y-%m-%d %H:%M') if case.closed_at else '-' }}</div>
-    <div><strong>Transfronterizo:</strong> {% if case.cross_border %}Si{% else %}No{% endif %}</div>
-  </div>
   <p><strong>Notas:</strong> {{ case.notes or '-' }}</p>
 </div>
 
@@ -119,7 +110,7 @@
       <label>Estado</label>
       <select name="status" required>
         {% for item in OperationStatus %}
-        <option value="{{ item.value }}" {% if item == case.status %}selected{% endif %}>{{ item.value }}</option>
+        <option value="{{ item.value }}" {% if item == case.status %}selected{% endif %}>{{ operation_status_labels.get(item.value, item.value) }}</option>
         {% endfor %}
       </select>
       <label>Motivo</label>
@@ -362,7 +353,7 @@
       {% for item in case.status_logs %}
       <tr>
         <td>{{ item.changed_at.strftime('%Y-%m-%d %H:%M') }}</td>
-        <td>{{ item.from_status or '-' }} -> {{ item.to_status }}</td>
+        <td>{{ operation_status_labels.get(item.from_status, item.from_status or '-') }} -> {{ operation_status_labels.get(item.to_status, item.to_status) }}</td>
         <td>{{ item.changed_by.full_name if item.changed_by else '-' }}</td>
         <td>{{ item.reason or '-' }}</td>
       </tr>

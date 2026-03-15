@@ -135,7 +135,7 @@
         <select name="status">
           <option value="">Todos</option>
           {% for item in OperationStatus %}
-          <option value="{{ item.value }}" {% if filters.status == item.value %}selected{% endif %}>{{ item.value }}</option>
+          <option value="{{ item.value }}" {% if filters.status == item.value %}selected{% endif %}>{{ operation_status_labels.get(item.value, item.value) }}</option>
           {% endfor %}
         </select>
       </div>
@@ -183,7 +183,7 @@
       <tr>
         <td>{{ row.code }}</td>
         <td>{{ row.type.value }}</td>
-        <td>{{ row.status.value }}</td>
+        <td>{{ operation_status_labels.get(row.status.value, row.status.value) }}</td>
         <td>{{ row.source_sepultura.location_label if row.source_sepultura else '-' }}</td>
         <td>{{ row.target_sepultura.location_label if row.target_sepultura else (row.destination_name or row.destination_municipality or '-') }}</td>
         <td>{{ row.deceased_person.full_name if row.deceased_person else '-' }}</td>

@@ -2937,3 +2937,79 @@ th {
     padding: var(--compact-pad);
   }
 }
+
+.operation-progress-sticky {
+  position: sticky;
+  top: 6px;
+  z-index: 18;
+  margin-bottom: 8px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(3px);
+}
+
+.operation-progress-list {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.operation-progress-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-soft);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.operation-progress-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.55;
+  flex-shrink: 0;
+}
+
+.operation-progress-step.is-done {
+  border-color: #a6d5ba;
+  background: #e7f8ec;
+  color: #1f7b46;
+}
+
+.operation-progress-step.is-current {
+  border-color: var(--btn-primary-border);
+  background: color-mix(in srgb, var(--btn-primary-bg) 14%, var(--surface));
+  color: var(--btn-primary-bg);
+}
+
+.operation-progress-step.is-current-cancelled {
+  border-color: #e0a2a2;
+  background: #ffecec;
+  color: #a42525;
+}
+
+@media (max-width: 1024px) {
+  .operation-progress-sticky {
+    top: 54px;
+    padding: 4px 6px;
+  }
+
+  .operation-progress-step {
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+}
