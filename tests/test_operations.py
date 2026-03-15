@@ -68,7 +68,21 @@ def test_operations_page_and_create_case(app, client, login_admin):
         assert created.type == OperationType.INHUMACION
         permits = OperationPermit.query.filter_by(operation_case_id=created.id).all()
         permit_types = {row.permit_type for row in permits}
-        assert {"LICENCIA_ENTERRAMIENTO", "PERMISO_SANITARIO"} <= permit_types
+        assert {
+            "DNI_TITULAR",
+            "DNI_BENEFICIARIO",
+            "DNI_DIFUNTO",
+            "LICENCIA_ENTERRAMIENTO",
+            "CERTIFICADO_DEFUNCION",
+            "CERTIFICADO_MEDICO_DEFUNCION",
+        } <= permit_types
+        permit_required = {row.permit_type: row.required for row in permits}
+        assert permit_required.get("DNI_TITULAR") is True
+        assert permit_required.get("LICENCIA_ENTERRAMIENTO") is True
+        assert permit_required.get("DNI_BENEFICIARIO") is False
+        assert permit_required.get("DNI_DIFUNTO") is False
+        assert permit_required.get("CERTIFICADO_DEFUNCION") is False
+        assert permit_required.get("CERTIFICADO_MEDICO_DEFUNCION") is False
         docs = OperationDocument.query.filter_by(operation_case_id=created.id).all()
         acta = next((row for row in docs if row.doc_type == "ACTA_OPERACION"), None)
         assert acta is not None
@@ -169,6 +183,110 @@ def test_expediente_detail_select_reflects_current_status(app, client, login_adm
     detail = client.get(f"/cementerio/expedientes/{case_id}")
     assert detail.status_code == 200
     assert b'value="DOCS_PENDIENTES" selected' in detail.data
+
+
+def test_expediente_inhumacion_summary_update_with_pickers(app, client, login_admin):
+    login_admin()
+    with app.app_context():
+        source = Sepultura.query.filter_by(bloque="B-12", numero=127).first()
+        replacement = Sepultura.query.filter_by(bloque="B-12", numero=128).first()
+        deceased = Person.query.filter_by(first_name="Antoni", last_name="Ferrer").first()
+        holder = Person.query.filter_by(first_name="Marta", last_name="Soler").first()
+        beneficiary = Person.query.filter_by(first_name="Joan", last_name="Riera").first()
+        assert source is not None
+        assert replacement is not None
+        assert deceased is not None
+        assert holder is not None
+        assert beneficiary is not None
+
+    create = client.post(
+        "/cementerio/expedientes",
+        data={
+            "type": "INHUMACION",
+            "source_sepultura_id": str(source.id),
+            "deceased_person_id": str(deceased.id),
+        },
+        follow_redirects=True,
+    )
+    assert create.status_code == 200
+
+    with app.app_context():
+        case = OperationCase.query.order_by(OperationCase.id.desc()).first()
+        assert case is not None
+        case_id = case.id
+
+    update = client.post(
+        f"/cementerio/expedientes/{case_id}/resumen",
+        data={
+            "source_sepultura_id": str(replacement.id),
+            "deceased_person_id": str(deceased.id),
+            "holder_person_id": str(holder.id),
+            "beneficiary_person_id": str(beneficiary.id),
+        },
+        follow_redirects=True,
+    )
+    assert update.status_code == 200
+    assert b"Resumen del expediente actualizado" in update.data
+
+    with app.app_context():
+        refreshed = db.session.get(OperationCase, case_id)
+        assert refreshed is not None
+        assert refreshed.source_sepultura_id == replacement.id
+        assert refreshed.deceased_person_id == deceased.id
+        assert refreshed.holder_person_id == holder.id
+        assert refreshed.beneficiary_person_id == beneficiary.id
+        assert refreshed.declarant_person_id == holder.id
+
+    detail = client.get(f"/cementerio/expedientes/{case_id}")
+    assert detail.status_code == 200
+    html = detail.get_data(as_text=True)
+    assert "Documentación" in html
+    assert "DNI titular" in html
+    assert "estado=LLIURE" in html
+
+
+def test_expediente_summary_requires_holder_for_inhumacion(app, client, login_admin):
+    login_admin()
+    with app.app_context():
+        source = Sepultura.query.filter_by(bloque="B-12", numero=127).first()
+        deceased = Person.query.filter_by(first_name="Antoni", last_name="Ferrer").first()
+        assert source is not None
+        assert deceased is not None
+
+    create = client.post(
+        "/cementerio/expedientes",
+        data={
+            "type": "INHUMACION",
+            "source_sepultura_id": str(source.id),
+            "deceased_person_id": str(deceased.id),
+        },
+        follow_redirects=True,
+    )
+    assert create.status_code == 200
+
+    with app.app_context():
+        case = OperationCase.query.order_by(OperationCase.id.desc()).first()
+        assert case is not None
+        case_id = case.id
+        previous_holder = case.holder_person_id
+
+    update = client.post(
+        f"/cementerio/expedientes/{case_id}/resumen",
+        data={
+            "source_sepultura_id": str(source.id),
+            "deceased_person_id": str(deceased.id),
+            "holder_person_id": "",
+            "beneficiary_person_id": "",
+        },
+        follow_redirects=True,
+    )
+    assert update.status_code == 200
+    assert b"Debes seleccionar un titular" in update.data
+
+    with app.app_context():
+        refreshed = db.session.get(OperationCase, case_id)
+        assert refreshed is not None
+        assert refreshed.holder_person_id == previous_holder
 
 
 def test_close_traslado_flow_requires_completed_ot_and_generates_acta(

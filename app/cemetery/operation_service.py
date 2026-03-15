@@ -57,12 +57,56 @@ OPERATION_STATUS_TRANSITIONS: dict[OperationStatus, set[OperationStatus]] = {
     OperationStatus.CANCELADA: set(),
 }
 
-OPERATION_PERMIT_REQUIREMENTS: dict[OperationType, tuple[str, ...]] = {
-    OperationType.INHUMACION: ("LICENCIA_ENTERRAMIENTO", "PERMISO_SANITARIO"),
-    OperationType.EXHUMACION: ("AUTORIZACION_EXHUMACION", "PERMISO_SANITARIO"),
-    OperationType.TRASLADO_CORTO: ("AUTORIZACION_TRASLADO", "PERMISO_SANITARIO"),
-    OperationType.TRASLADO_LARGO: ("AUTORIZACION_TRASLADO", "PERMISO_SANITARIO"),
-    OperationType.RESCATE: ("AUTORIZACION_RETIRO_RESTOS", "PERMISO_SANITARIO"),
+PermitRequirement = tuple[str, bool]
+
+INHUMACION_DOCUMENTATION_ORDER: tuple[str, ...] = (
+    "DNI_TITULAR",
+    "DNI_BENEFICIARIO",
+    "DNI_DIFUNTO",
+    "LICENCIA_ENTERRAMIENTO",
+    "CERTIFICADO_DEFUNCION",
+    "CERTIFICADO_MEDICO_DEFUNCION",
+)
+
+PERMIT_LABELS: dict[str, str] = {
+    "DNI_TITULAR": "DNI titular",
+    "DNI_BENEFICIARIO": "DNI beneficiario",
+    "DNI_DIFUNTO": "DNI difunto",
+    "LICENCIA_ENTERRAMIENTO": "Licencia enterramiento",
+    "CERTIFICADO_DEFUNCION": "Certificado defuncion",
+    "CERTIFICADO_MEDICO_DEFUNCION": "Certificado medico defuncion",
+    "AUTORIZACION_EXHUMACION": "Autorizacion exhumacion",
+    "AUTORIZACION_TRASLADO": "Autorizacion traslado",
+    "AUTORIZACION_RETIRO_RESTOS": "Autorizacion retiro restos",
+    "AUTORIZACION_FRONTERIZA": "Autorizacion fronteriza",
+    "PERMISO_SANITARIO": "Permiso sanitario",
+}
+
+OPERATION_PERMIT_REQUIREMENTS: dict[OperationType, tuple[PermitRequirement, ...]] = {
+    OperationType.INHUMACION: (
+        ("DNI_TITULAR", True),
+        ("DNI_BENEFICIARIO", False),
+        ("DNI_DIFUNTO", False),
+        ("LICENCIA_ENTERRAMIENTO", True),
+        ("CERTIFICADO_DEFUNCION", False),
+        ("CERTIFICADO_MEDICO_DEFUNCION", False),
+    ),
+    OperationType.EXHUMACION: (
+        ("AUTORIZACION_EXHUMACION", True),
+        ("PERMISO_SANITARIO", True),
+    ),
+    OperationType.TRASLADO_CORTO: (
+        ("AUTORIZACION_TRASLADO", True),
+        ("PERMISO_SANITARIO", True),
+    ),
+    OperationType.TRASLADO_LARGO: (
+        ("AUTORIZACION_TRASLADO", True),
+        ("PERMISO_SANITARIO", True),
+    ),
+    OperationType.RESCATE: (
+        ("AUTORIZACION_RETIRO_RESTOS", True),
+        ("PERMISO_SANITARIO", True),
+    ),
 }
 
 ACTA_DOC_TYPE = "ACTA_OPERACION"
@@ -147,10 +191,12 @@ def _next_operation_code() -> str:
     return f"{prefix}{count + 1:04d}"
 
 
-def _required_permits(operation_type: OperationType, cross_border: bool) -> list[str]:
+def _required_permits(
+    operation_type: OperationType, cross_border: bool
+) -> list[PermitRequirement]:
     permits = list(OPERATION_PERMIT_REQUIREMENTS.get(operation_type, ()))
     if operation_type in {OperationType.TRASLADO_CORTO, OperationType.TRASLADO_LARGO} and cross_border:
-        permits.append("AUTORIZACION_FRONTERIZA")
+        permits.append(("AUTORIZACION_FRONTERIZA", True))
     return permits
 
 
@@ -198,12 +244,12 @@ def _validate_transfer_type(case: OperationCase) -> None:
 
 
 def _seed_initial_checklists(case: OperationCase) -> None:
-    for permit_type in _required_permits(case.type, case.cross_border):
+    for permit_type, required in _required_permits(case.type, case.cross_border):
         db.session.add(
             OperationPermit(
                 operation_case_id=case.id,
                 permit_type=permit_type,
-                required=True,
+                required=required,
                 status=OperationPermitStatus.MISSING,
             )
         )
@@ -268,6 +314,32 @@ def _auto_create_work_order(case: OperationCase, user_id: int | None) -> WorkOrd
     return create_work_order(payload, user_id=user_id)
 
 
+def permit_label(permit_type: str) -> str:
+    key = (permit_type or "").strip().upper()
+    if not key:
+        return "-"
+    if key in PERMIT_LABELS:
+        return PERMIT_LABELS[key]
+    return key.replace("_", " ").title()
+
+
+def documentation_rows_for_case(case: OperationCase) -> list[OperationPermit]:
+    if case.type != OperationType.INHUMACION:
+        return sorted(case.permits, key=lambda item: (item.permit_type, item.id))
+
+    inhumation_rank = {code: idx for idx, code in enumerate(INHUMACION_DOCUMENTATION_ORDER)}
+    inhumation_rows = [
+        item for item in case.permits if item.permit_type in inhumation_rank
+    ]
+    inhumation_rows.sort(
+        key=lambda item: (
+            inhumation_rank.get(item.permit_type, 999),
+            item.id,
+        )
+    )
+    return inhumation_rows
+
+
 def list_operation_cases(filters: dict[str, str]) -> list[OperationCase]:
     query = (
         OperationCase.query.options(
@@ -275,6 +347,8 @@ def list_operation_cases(filters: dict[str, str]) -> list[OperationCase]:
             joinedload(OperationCase.target_sepultura),
             joinedload(OperationCase.deceased_person),
             joinedload(OperationCase.declarant_person),
+            joinedload(OperationCase.holder_person),
+            joinedload(OperationCase.beneficiary_person),
         )
         .filter(OperationCase.org_id == _org_id())
         .order_by(OperationCase.created_at.desc(), OperationCase.id.desc())
@@ -321,6 +395,8 @@ def operation_case_by_id(case_id: int) -> OperationCase:
             joinedload(OperationCase.destination_cemetery),
             joinedload(OperationCase.deceased_person),
             joinedload(OperationCase.declarant_person),
+            joinedload(OperationCase.holder_person),
+            joinedload(OperationCase.beneficiary_person),
             joinedload(OperationCase.permits),
             joinedload(OperationCase.documents),
             joinedload(OperationCase.status_logs).joinedload(OperationStatusLog.changed_by),
@@ -373,6 +449,25 @@ def create_operation_case(payload: dict[str, str], user_id: int | None) -> Opera
         declarant_person_id = int(declarant_raw)
         _person_exists(declarant_person_id, "Declarante")
 
+    holder_person_id = None
+    holder_raw = (payload.get("holder_person_id") or "").strip()
+    if holder_raw:
+        if not holder_raw.isdigit():
+            raise ValueError("Titular invalido")
+        holder_person_id = int(holder_raw)
+        _person_exists(holder_person_id, "Titular")
+
+    beneficiary_person_id = None
+    beneficiary_raw = (payload.get("beneficiary_person_id") or "").strip()
+    if beneficiary_raw:
+        if not beneficiary_raw.isdigit():
+            raise ValueError("Beneficiario invalido")
+        beneficiary_person_id = int(beneficiary_raw)
+        _person_exists(beneficiary_person_id, "Beneficiario")
+
+    if holder_person_id is None and declarant_person_id is not None:
+        holder_person_id = declarant_person_id
+
     cross_border = _parse_bool(payload.get("cross_border"))
     destination_municipality = (payload.get("destination_municipality") or "").strip()
 
@@ -389,6 +484,8 @@ def create_operation_case(payload: dict[str, str], user_id: int | None) -> Opera
         target_sepultura_id=target_sepultura_id,
         deceased_person_id=deceased_person_id,
         declarant_person_id=declarant_person_id,
+        holder_person_id=holder_person_id,
+        beneficiary_person_id=beneficiary_person_id,
         scheduled_at=_parse_optional_datetime(payload.get("scheduled_at")),
         destination_cemetery_id=destination_cemetery_id,
         destination_name=(payload.get("destination_name") or "").strip(),
@@ -430,6 +527,58 @@ def create_operation_case(payload: dict[str, str], user_id: int | None) -> Opera
         },
         user_id=user_id,
     )
+    return case
+
+
+def update_operation_summary(
+    case_id: int, payload: dict[str, str], user_id: int | None
+) -> OperationCase:
+    case = operation_case_by_id(case_id)
+    if case.type != OperationType.INHUMACION:
+        raise ValueError("Solo INHUMACION permite editar este resumen")
+
+    source_raw = (payload.get("source_sepultura_id") or "").strip()
+    if not source_raw.isdigit() or int(source_raw) <= 0:
+        raise ValueError("Debes seleccionar una sepultura valida")
+    source_sepultura_id = int(source_raw)
+    _sepultura_by_id(source_sepultura_id)
+
+    holder_raw = (payload.get("holder_person_id") or "").strip()
+    if not holder_raw.isdigit() or int(holder_raw) <= 0:
+        raise ValueError("Debes seleccionar un titular")
+    holder_person_id = int(holder_raw)
+    _person_exists(holder_person_id, "Titular")
+
+    deceased_person_id = None
+    deceased_raw = (payload.get("deceased_person_id") or "").strip()
+    if deceased_raw:
+        if not deceased_raw.isdigit() or int(deceased_raw) <= 0:
+            raise ValueError("Difunto invalido")
+        deceased_person_id = int(deceased_raw)
+        _person_exists(deceased_person_id, "Difunto")
+
+    beneficiary_person_id = None
+    beneficiary_raw = (payload.get("beneficiary_person_id") or "").strip()
+    if beneficiary_raw:
+        if not beneficiary_raw.isdigit() or int(beneficiary_raw) <= 0:
+            raise ValueError("Beneficiario invalido")
+        beneficiary_person_id = int(beneficiary_raw)
+        _person_exists(beneficiary_person_id, "Beneficiario")
+
+    case.source_sepultura_id = source_sepultura_id
+    case.deceased_person_id = deceased_person_id
+    case.holder_person_id = holder_person_id
+    case.beneficiary_person_id = beneficiary_person_id
+    case.declarant_person_id = holder_person_id
+    db.session.add(case)
+
+    _log_activity(
+        case,
+        "OPERATION_CASE_SUMMARY",
+        f"{case.code}: resumen de inhumacion actualizado",
+        user_id,
+    )
+    db.session.commit()
     return case
 
 

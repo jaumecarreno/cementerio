@@ -4291,12 +4291,31 @@ DEMO_STREETS = (
     "Carrer de Colom",
     "Carrer de Baldrich",
 )
-DEMO_OPERATION_PERMITS: dict[OperationType, tuple[str, ...]] = {
-    OperationType.INHUMACION: ("LICENCIA_ENTERRAMIENTO", "PERMISO_SANITARIO"),
-    OperationType.EXHUMACION: ("AUTORIZACION_EXHUMACION", "PERMISO_SANITARIO"),
-    OperationType.TRASLADO_CORTO: ("AUTORIZACION_TRASLADO", "PERMISO_SANITARIO"),
-    OperationType.TRASLADO_LARGO: ("AUTORIZACION_TRASLADO", "PERMISO_SANITARIO"),
-    OperationType.RESCATE: ("AUTORIZACION_RETIRO_RESTOS", "PERMISO_SANITARIO"),
+DEMO_OPERATION_PERMITS: dict[OperationType, tuple[tuple[str, bool], ...]] = {
+    OperationType.INHUMACION: (
+        ("DNI_TITULAR", True),
+        ("DNI_BENEFICIARIO", False),
+        ("DNI_DIFUNTO", False),
+        ("LICENCIA_ENTERRAMIENTO", True),
+        ("CERTIFICADO_DEFUNCION", False),
+        ("CERTIFICADO_MEDICO_DEFUNCION", False),
+    ),
+    OperationType.EXHUMACION: (
+        ("AUTORIZACION_EXHUMACION", True),
+        ("PERMISO_SANITARIO", True),
+    ),
+    OperationType.TRASLADO_CORTO: (
+        ("AUTORIZACION_TRASLADO", True),
+        ("PERMISO_SANITARIO", True),
+    ),
+    OperationType.TRASLADO_LARGO: (
+        ("AUTORIZACION_TRASLADO", True),
+        ("PERMISO_SANITARIO", True),
+    ),
+    OperationType.RESCATE: (
+        ("AUTORIZACION_RETIRO_RESTOS", True),
+        ("PERMISO_SANITARIO", True),
+    ),
 }
 
 POSTGRES_ENUM_TYPES: tuple[tuple[str, type[Enum]], ...] = (
@@ -4832,6 +4851,10 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 target_sepultura_id=target_sep.id if target_sep else None,
                 deceased_person_id=extras[(idx * 2) % len(extras)].id,
                 declarant_person_id=holders[(idx * 3) % len(holders)].id,
+                holder_person_id=holders[(idx * 3) % len(holders)].id,
+                beneficiary_person_id=(
+                    holders[(idx * 5) % len(holders)].id if idx % 4 else None
+                ),
                 scheduled_at=scheduled_at,
                 executed_at=executed_at,
                 closed_at=closed_at,
@@ -4867,7 +4890,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
     operation_documents: list[OperationDocument] = []
     operation_logs: list[OperationStatusLog] = []
     for idx, case in enumerate(operation_cases, start=1):
-        for permit_type in DEMO_OPERATION_PERMITS[case.type]:
+        for permit_type, permit_required in DEMO_OPERATION_PERMITS[case.type]:
             permit_status = OperationPermitStatus.MISSING
             if case.status in {
                 OperationStatus.PROGRAMADA,
@@ -4888,7 +4911,7 @@ def load_demo_org_initial_dataset(user_id: int | None = None) -> dict[str, int]:
                 OperationPermit(
                     operation_case_id=case.id,
                     permit_type=permit_type,
-                    required=True,
+                    required=permit_required,
                     status=permit_status,
                     reference_number=f"PERM-{case.code}-{permit_type[:4]}",
                     issued_at=(

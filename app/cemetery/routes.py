@@ -49,10 +49,13 @@ from app.cemetery.operation_service import (
     close_operation_case,
     create_operation_case,
     create_operation_work_order,
+    documentation_rows_for_case,
     list_operation_cases,
     operation_acta_pdf,
     operation_case_by_id,
+    permit_label,
     upload_operation_document,
+    update_operation_summary,
     verify_operation_document,
     verify_operation_permit,
 )
@@ -181,6 +184,12 @@ def _normalize_operation_payload(payload: dict[str, str]) -> dict[str, str]:
         normalized["deceased_person_id"] = normalized["difunto_id"]
     if "declarant_person_id" not in normalized and normalized.get("declarante_id"):
         normalized["declarant_person_id"] = normalized["declarante_id"]
+    if "holder_person_id" not in normalized and normalized.get("declarant_person_id"):
+        normalized["holder_person_id"] = normalized["declarant_person_id"]
+    if "holder_person_id" not in normalized and normalized.get("titular_person_id"):
+        normalized["holder_person_id"] = normalized["titular_person_id"]
+    if "beneficiary_person_id" not in normalized and normalized.get("beneficiario_person_id"):
+        normalized["beneficiary_person_id"] = normalized["beneficiario_person_id"]
     if "scheduled_at" not in normalized and normalized.get("fecha_prevista"):
         raw_date = (normalized.get("fecha_prevista") or "").strip()
         if raw_date:
@@ -814,6 +823,8 @@ def inhumation_assistant_reserve_sepultura():
         "type": OperationType.INHUMACION.value,
         "source_sepultura_id": str(sepultura_id),
         "deceased_person_id": str(deceased_person.id),
+        "holder_person_id": str(holder_person.id),
+        "beneficiary_person_id": str(beneficiary_person.id),
         "notes": " | ".join(notes_parts),
     }
     try:
@@ -993,9 +1004,13 @@ def operation_detail(case_id: int):
         case = operation_case_by_id(case_id)
     except ValueError:
         abort(404)
+    documentation_rows = documentation_rows_for_case(case)
+    permit_labels = {row.permit_type: permit_label(row.permit_type) for row in case.permits}
     return render_template(
         "cemetery/expediente_detail.html",
         case=case,
+        documentation_rows=documentation_rows,
+        permit_labels=permit_labels,
         OperationType=OperationType,
         OperationStatus=OperationStatus,
         WorkOrderStatus=WorkOrderStatus,
@@ -1014,6 +1029,19 @@ def operation_change_state(case_id: int):
             user_id=current_user.id,
         )
         flash("Estado de expediente actualizado", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.expediente_detail", expediente_id=case_id))
+
+
+@cemetery_bp.post("/operaciones/<int:case_id>/resumen")
+@login_required
+@require_membership
+def operation_summary_update(case_id: int):
+    payload = {k: v for k, v in request.form.items()}
+    try:
+        update_operation_summary(case_id, payload, current_user.id)
+        flash("Resumen del expediente actualizado", "success")
     except ValueError as exc:
         flash(str(exc), "error")
     return redirect(url_for("cemetery.expediente_detail", expediente_id=case_id))
@@ -1118,6 +1146,13 @@ def expediente_detail(expediente_id: int):
 @require_membership
 def expediente_change_state(expediente_id: int):
     return operation_change_state(expediente_id)
+
+
+@cemetery_bp.post("/expedientes/<int:expediente_id>/resumen")
+@login_required
+@require_membership
+def expediente_summary_update(expediente_id: int):
+    return operation_summary_update(expediente_id)
 
 
 @cemetery_bp.post("/expedientes/<int:expediente_id>/ot")
