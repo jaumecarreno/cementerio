@@ -192,6 +192,10 @@ def _normalize_operation_payload(payload: dict[str, str]) -> dict[str, str]:
         normalized["holder_person_id"] = normalized["titular_person_id"]
     if "beneficiary_person_id" not in normalized and normalized.get("beneficiario_person_id"):
         normalized["beneficiary_person_id"] = normalized["beneficiario_person_id"]
+    if "burial_date" not in normalized and normalized.get("fecha_entierro"):
+        normalized["burial_date"] = normalized["fecha_entierro"]
+    if "burial_time" not in normalized and normalized.get("hora_entierro"):
+        normalized["burial_time"] = normalized["hora_entierro"]
     if "scheduled_at" not in normalized and normalized.get("fecha_prevista"):
         raw_date = (normalized.get("fecha_prevista") or "").strip()
         if raw_date:

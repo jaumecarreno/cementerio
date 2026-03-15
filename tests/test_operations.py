@@ -130,6 +130,8 @@ def test_operations_page_and_create_case(app, client, login_admin):
             "type": "INHUMACION",
             "source_sepultura_id": str(sep.id),
             "deceased_person_id": str(deceased.id),
+            "burial_date": "2026-04-15",
+            "burial_time": "10:30",
             "notes": "Expediente de prueba",
         },
         follow_redirects=True,
@@ -141,6 +143,8 @@ def test_operations_page_and_create_case(app, client, login_admin):
         created = OperationCase.query.order_by(OperationCase.id.desc()).first()
         assert created is not None
         assert created.type == OperationType.INHUMACION
+        assert created.scheduled_at is not None
+        assert created.scheduled_at.strftime("%Y-%m-%d %H:%M") == "2026-04-15 10:30"
         permits = OperationPermit.query.filter_by(operation_case_id=created.id).all()
         permit_types = {row.permit_type for row in permits}
         assert {
@@ -297,6 +301,8 @@ def test_expediente_inhumacion_summary_update_with_pickers(app, client, login_ad
             "deceased_person_id": str(deceased.id),
             "holder_person_id": str(holder.id),
             "beneficiary_person_id": str(beneficiary.id),
+            "burial_date": "2026-04-16",
+            "burial_time": "11:45",
         },
         follow_redirects=True,
     )
@@ -311,6 +317,8 @@ def test_expediente_inhumacion_summary_update_with_pickers(app, client, login_ad
         assert refreshed.holder_person_id == holder.id
         assert refreshed.beneficiary_person_id == beneficiary.id
         assert refreshed.declarant_person_id == holder.id
+        assert refreshed.scheduled_at is not None
+        assert refreshed.scheduled_at.strftime("%Y-%m-%d %H:%M") == "2026-04-16 11:45"
 
     detail = client.get(f"/cementerio/expedientes/{case_id}")
     assert detail.status_code == 200
@@ -362,6 +370,48 @@ def test_expediente_summary_requires_holder_for_inhumacion(app, client, login_ad
         refreshed = db.session.get(OperationCase, case_id)
         assert refreshed is not None
         assert refreshed.holder_person_id == previous_holder
+
+
+def test_expediente_summary_requires_burial_date_and_time_pair(app, client, login_admin):
+    login_admin()
+    with app.app_context():
+        source = Sepultura.query.filter_by(bloque="B-12", numero=127).first()
+        deceased = Person.query.filter_by(first_name="Antoni", last_name="Ferrer").first()
+        holder = Person.query.filter_by(first_name="Marta", last_name="Soler").first()
+        assert source is not None
+        assert deceased is not None
+        assert holder is not None
+
+    create = client.post(
+        "/cementerio/expedientes",
+        data={
+            "type": "INHUMACION",
+            "source_sepultura_id": str(source.id),
+            "deceased_person_id": str(deceased.id),
+        },
+        follow_redirects=True,
+    )
+    assert create.status_code == 200
+
+    with app.app_context():
+        case = OperationCase.query.order_by(OperationCase.id.desc()).first()
+        assert case is not None
+        case_id = case.id
+
+    update = client.post(
+        f"/cementerio/expedientes/{case_id}/resumen",
+        data={
+            "source_sepultura_id": str(source.id),
+            "deceased_person_id": str(deceased.id),
+            "holder_person_id": str(holder.id),
+            "beneficiary_person_id": "",
+            "burial_date": "2026-04-17",
+            "burial_time": "",
+        },
+        follow_redirects=True,
+    )
+    assert update.status_code == 200
+    assert b"Debes informar fecha y hora de entierro" in update.data
 
 
 def test_close_traslado_flow_requires_completed_ot_and_generates_acta(

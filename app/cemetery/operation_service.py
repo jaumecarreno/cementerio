@@ -149,6 +149,16 @@ def _parse_optional_datetime(value: str | None) -> datetime | None:
     return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
 
 
+def _parse_burial_datetime(payload: dict[str, str]) -> datetime | None:
+    burial_date = (payload.get("burial_date") or "").strip()
+    burial_time = (payload.get("burial_time") or "").strip()
+    if burial_date or burial_time:
+        if not burial_date or not burial_time:
+            raise ValueError("Debes informar fecha y hora de entierro")
+        return _parse_optional_datetime(f"{burial_date}T{burial_time}")
+    return _parse_optional_datetime(payload.get("scheduled_at"))
+
+
 def _parse_iso_date(value: str | None, field_name: str) -> date:
     raw = (value or "").strip()
     if not raw:
@@ -560,7 +570,7 @@ def create_operation_case(payload: dict[str, str], user_id: int | None) -> Opera
         beneficiary_person_id=beneficiary_person_id,
         concession_start_date=concession_start_date,
         concession_end_date=concession_end_date,
-        scheduled_at=_parse_optional_datetime(payload.get("scheduled_at")),
+        scheduled_at=_parse_burial_datetime(payload),
         destination_cemetery_id=destination_cemetery_id,
         destination_name=(payload.get("destination_name") or "").strip(),
         destination_municipality=destination_municipality,
@@ -644,6 +654,8 @@ def update_operation_summary(
     case.holder_person_id = holder_person_id
     case.beneficiary_person_id = beneficiary_person_id
     case.declarant_person_id = holder_person_id
+    if any(key in payload for key in ("burial_date", "burial_time", "scheduled_at")):
+        case.scheduled_at = _parse_burial_datetime(payload)
     db.session.add(case)
 
     _log_activity(

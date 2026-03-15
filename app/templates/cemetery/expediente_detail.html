@@ -75,6 +75,14 @@
         </div>
         <div class="small muted field-picker-helper" id="summary_beneficiary_person_selected">{{ case.beneficiary_person.full_name if case.beneficiary_person else '' }}</div>
       </div>
+      <div>
+        <label>Fecha entierro</label>
+        <input type="date" name="burial_date" value="{{ case.scheduled_at.strftime('%Y-%m-%d') if case.scheduled_at else '' }}">
+      </div>
+      <div>
+        <label>Hora entierro</label>
+        <input type="time" name="burial_time" step="60" value="{{ case.scheduled_at.strftime('%H:%M') if case.scheduled_at else '' }}">
+      </div>
     </div>
     <div class="actions-row">
       <button class="btn primary" type="submit">Guardar</button>
@@ -91,7 +99,12 @@
     <div><strong>Difunto:</strong> {{ case.deceased_person.full_name if case.deceased_person else '-' }}</div>
     <div><strong>Titular:</strong> {{ case.holder_person.full_name if case.holder_person else (case.declarant_person.full_name if case.declarant_person else '-') }}</div>
     <div><strong>Beneficiario:</strong> {{ case.beneficiary_person.full_name if case.beneficiary_person else '-' }}</div>
+    {% if case.type == OperationType.INHUMACION %}
+    <div><strong>Fecha entierro:</strong> {{ case.scheduled_at.strftime('%Y-%m-%d') if case.scheduled_at else '-' }}</div>
+    <div><strong>Hora entierro:</strong> {{ case.scheduled_at.strftime('%H:%M') if case.scheduled_at else '-' }}</div>
+    {% else %}
     <div><strong>Programada:</strong> {{ case.scheduled_at.strftime('%Y-%m-%d %H:%M') if case.scheduled_at else '-' }}</div>
+    {% endif %}
     <div><strong>Ejecutada:</strong> {{ case.executed_at.strftime('%Y-%m-%d %H:%M') if case.executed_at else '-' }}</div>
     <div><strong>Cerrada:</strong> {{ case.closed_at.strftime('%Y-%m-%d %H:%M') if case.closed_at else '-' }}</div>
     <div><strong>Transfronterizo:</strong> {% if case.cross_border %}Si{% else %}No{% endif %}</div>
