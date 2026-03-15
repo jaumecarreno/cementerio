@@ -790,6 +790,13 @@ class OperationCase(db.Model):
     declarant_person_id: Mapped[int | None] = mapped_column(ForeignKey("person.id"), nullable=True, index=True)
     holder_person_id: Mapped[int | None] = mapped_column(ForeignKey("person.id"), nullable=True, index=True)
     beneficiary_person_id: Mapped[int | None] = mapped_column(ForeignKey("person.id"), nullable=True, index=True)
+    contract_id: Mapped[int | None] = mapped_column(
+        ForeignKey("derecho_funerario_contrato.id"),
+        nullable=True,
+        index=True,
+    )
+    concession_start_date: Mapped[date | None] = mapped_column(nullable=True)
+    concession_end_date: Mapped[date | None] = mapped_column(nullable=True)
     scheduled_at: Mapped[datetime | None] = mapped_column(nullable=True)
     executed_at: Mapped[datetime | None] = mapped_column(nullable=True)
     closed_at: Mapped[datetime | None] = mapped_column(nullable=True)
@@ -810,6 +817,7 @@ class OperationCase(db.Model):
     declarant_person = relationship("Person", foreign_keys=[declarant_person_id])
     holder_person = relationship("Person", foreign_keys=[holder_person_id])
     beneficiary_person = relationship("Person", foreign_keys=[beneficiary_person_id])
+    contract = relationship("DerechoFunerarioContrato", foreign_keys=[contract_id])
     destination_cemetery = relationship("Cemetery", foreign_keys=[destination_cemetery_id])
     created_by = relationship("User", foreign_keys=[created_by_user_id])
     managed_by = relationship("User", foreign_keys=[managed_by_user_id])
@@ -817,6 +825,12 @@ class OperationCase(db.Model):
     documents = relationship("OperationDocument", back_populates="operation_case", cascade="all, delete-orphan")
     status_logs = relationship("OperationStatusLog", back_populates="operation_case", cascade="all, delete-orphan")
     work_orders = relationship("WorkOrder", back_populates="operation_case")
+
+    @property
+    def concession_duration_years(self) -> int | None:
+        if self.concession_start_date and self.concession_end_date:
+            return self.concession_end_date.year - self.concession_start_date.year
+        return None
 
 
 class OperationPermit(db.Model):

@@ -53,8 +53,10 @@ from app.cemetery.operation_service import (
     list_operation_cases,
     operation_acta_pdf,
     operation_case_by_id,
+    operation_concession_context,
     permit_label,
     upload_operation_document,
+    update_operation_concession,
     update_operation_summary,
     verify_operation_document,
     verify_operation_permit,
@@ -1006,11 +1008,13 @@ def operation_detail(case_id: int):
         abort(404)
     documentation_rows = documentation_rows_for_case(case)
     permit_labels = {row.permit_type: permit_label(row.permit_type) for row in case.permits}
+    concession_data = operation_concession_context(case)
     return render_template(
         "cemetery/expediente_detail.html",
         case=case,
         documentation_rows=documentation_rows,
         permit_labels=permit_labels,
+        concession_data=concession_data,
         OperationType=OperationType,
         OperationStatus=OperationStatus,
         WorkOrderStatus=WorkOrderStatus,
@@ -1042,6 +1046,19 @@ def operation_summary_update(case_id: int):
     try:
         update_operation_summary(case_id, payload, current_user.id)
         flash("Resumen del expediente actualizado", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cemetery.expediente_detail", expediente_id=case_id))
+
+
+@cemetery_bp.post("/operaciones/<int:case_id>/concesion")
+@login_required
+@require_membership
+def operation_concession_update(case_id: int):
+    payload = {k: v for k, v in request.form.items()}
+    try:
+        update_operation_concession(case_id, payload, current_user.id)
+        flash("Concesion actualizada", "success")
     except ValueError as exc:
         flash(str(exc), "error")
     return redirect(url_for("cemetery.expediente_detail", expediente_id=case_id))
@@ -1153,6 +1170,13 @@ def expediente_change_state(expediente_id: int):
 @require_membership
 def expediente_summary_update(expediente_id: int):
     return operation_summary_update(expediente_id)
+
+
+@cemetery_bp.post("/expedientes/<int:expediente_id>/concesion")
+@login_required
+@require_membership
+def expediente_concession_update(expediente_id: int):
+    return operation_concession_update(expediente_id)
 
 
 @cemetery_bp.post("/expedientes/<int:expediente_id>/ot")

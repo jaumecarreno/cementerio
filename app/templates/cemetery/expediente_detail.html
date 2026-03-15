@@ -169,7 +169,7 @@
 </div>
 
 <div class="box">
-  <h3>Documentos</h3>
+  <h3>Documentos 2</h3>
   <table>
     <thead>
       <tr>
@@ -228,6 +228,57 @@
     </div>
   </form>
 </div>
+
+{% if case.type == OperationType.INHUMACION and concession_data %}
+<div class="box">
+  <h3>Concesion</h3>
+  {% if concession_data.active_contract %}
+  <p class="small muted">Contrato activo reutilizado: C{{ concession_data.active_contract.id }}.</p>
+  {% endif %}
+  <form method="post" action="{{ url_for('cemetery.expediente_concession_update', expediente_id=case.id) }}">
+    <div class="form-grid">
+      <div>
+        <label>Fecha inicio</label>
+        <input
+          id="concession_start_date"
+          type="date"
+          name="concession_start_date"
+          value="{{ concession_data.start_date.isoformat() }}"
+          required
+          {% if concession_data.readonly %}disabled{% endif %}
+        >
+      </div>
+      <div>
+        <label>Fecha fin</label>
+        <input
+          id="concession_end_date"
+          type="date"
+          name="concession_end_date"
+          value="{{ concession_data.end_date.isoformat() }}"
+          required
+          {% if concession_data.readonly %}disabled{% endif %}
+        >
+      </div>
+      <div>
+        <label>Duracion (anos)</label>
+        <input
+          id="concession_duration_years"
+          type="number"
+          value="{{ concession_data.duration_years }}"
+          readonly
+        >
+      </div>
+    </div>
+    {% if concession_data.readonly %}
+    <p class="small muted">La concesion se toma del contrato activo y no puede editarse desde este expediente.</p>
+    {% else %}
+    <div class="actions-row">
+      <button class="btn primary" type="submit">Guardar concesion</button>
+    </div>
+    {% endif %}
+  </form>
+</div>
+{% endif %}
 
 <div class="box">
   <h3>Ordenes de trabajo</h3>
@@ -308,4 +359,32 @@
     </tbody>
   </table>
 </div>
+{% if case.type == OperationType.INHUMACION and concession_data and not concession_data.readonly %}
+<script>
+  (function () {
+    var startInput = document.getElementById("concession_start_date");
+    var endInput = document.getElementById("concession_end_date");
+    var durationInput = document.getElementById("concession_duration_years");
+    if (!startInput || !endInput || !durationInput) return;
+
+    function updateDuration() {
+      if (!startInput.value || !endInput.value) {
+        durationInput.value = "";
+        return;
+      }
+      var startDate = new Date(startInput.value + "T00:00:00");
+      var endDate = new Date(endInput.value + "T00:00:00");
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        durationInput.value = "";
+        return;
+      }
+      durationInput.value = String(endDate.getUTCFullYear() - startDate.getUTCFullYear());
+    }
+
+    startInput.addEventListener("change", updateDuration);
+    endInput.addEventListener("change", updateDuration);
+    updateDuration();
+  })();
+</script>
+{% endif %}
 {% endblock %}

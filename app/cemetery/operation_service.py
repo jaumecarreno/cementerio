@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from decimal import Decimal
 from io import BytesIO
 from pathlib import Path
 
@@ -14,7 +15,10 @@ from app.cemetery.work_order_service import create_work_order, emit_work_order_e
 from app.core.extensions import db
 from app.core.models import (
     ActivityLog,
+    Beneficiario,
     Cemetery,
+    DerechoFunerarioContrato,
+    DerechoTipo,
     MovimientoSepultura,
     MovimientoTipo,
     OperationCase,
@@ -24,6 +28,7 @@ from app.core.models import (
     OperationStatus,
     OperationStatusLog,
     OperationType,
+    OwnershipRecord,
     Sepultura,
     SepulturaDifunto,
     WorkOrder,
@@ -116,6 +121,10 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _today() -> date:
+    return date.today()
+
+
 def _org_id() -> int:
     return g.org.id
 
@@ -138,6 +147,24 @@ def _parse_optional_datetime(value: str | None) -> datetime | None:
     except ValueError as exc:
         raise ValueError("Formato de fecha/hora invalido") from exc
     return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
+
+
+def _parse_iso_date(value: str | None, field_name: str) -> date:
+    raw = (value or "").strip()
+    if not raw:
+        raise ValueError(f"Debes informar {field_name}")
+    try:
+        return date.fromisoformat(raw)
+    except ValueError as exc:
+        raise ValueError(f"Formato invalido para {field_name}") from exc
+
+
+def _add_years(base: date, years: int) -> date:
+    try:
+        return base.replace(year=base.year + years)
+    except ValueError:
+        # Leap day edge case.
+        return base.replace(month=2, day=28, year=base.year + years)
 
 
 def _parse_operation_type(raw: str) -> OperationType:
@@ -189,6 +216,44 @@ def _next_operation_code() -> str:
         or 0
     )
     return f"{prefix}{count + 1:04d}"
+
+
+def _active_contract_for_sepultura(
+    sepultura_id: int, on_date: date | None = None
+) -> DerechoFunerarioContrato | None:
+    ref_date = on_date or _today()
+    return (
+        DerechoFunerarioContrato.query.filter_by(
+            org_id=_org_id(),
+            sepultura_id=sepultura_id,
+            estado="ACTIVO",
+        )
+        .filter(DerechoFunerarioContrato.fecha_inicio <= ref_date)
+        .filter(DerechoFunerarioContrato.fecha_fin >= ref_date)
+        .order_by(DerechoFunerarioContrato.id.desc())
+        .first()
+    )
+
+
+def _default_concession_dates(case: OperationCase) -> tuple[date, date]:
+    start = case.concession_start_date or _today()
+    end = case.concession_end_date or _add_years(start, 25)
+    return start, end
+
+
+def _apply_concession_dates(case: OperationCase, start_date: date, end_date: date) -> None:
+    if end_date < start_date:
+        raise ValueError("La fecha fin no puede ser anterior a la fecha inicio")
+    case.concession_start_date = start_date
+    case.concession_end_date = end_date
+
+
+def _sync_case_concession_from_contract(
+    case: OperationCase, contract: DerechoFunerarioContrato
+) -> None:
+    case.contract_id = contract.id
+    case.concession_start_date = contract.fecha_inicio
+    case.concession_end_date = contract.fecha_fin
 
 
 def _required_permits(
@@ -397,6 +462,7 @@ def operation_case_by_id(case_id: int) -> OperationCase:
             joinedload(OperationCase.declarant_person),
             joinedload(OperationCase.holder_person),
             joinedload(OperationCase.beneficiary_person),
+            joinedload(OperationCase.contract),
             joinedload(OperationCase.permits),
             joinedload(OperationCase.documents),
             joinedload(OperationCase.status_logs).joinedload(OperationStatusLog.changed_by),
@@ -475,6 +541,12 @@ def create_operation_case(payload: dict[str, str], user_id: int | None) -> Opera
         if not target_sepultura_id and not destination_cemetery_id and not destination_municipality:
             raise ValueError("Debes indicar destino de traslado")
 
+    concession_start_date = None
+    concession_end_date = None
+    if operation_type == OperationType.INHUMACION:
+        concession_start_date = _today()
+        concession_end_date = _add_years(concession_start_date, 25)
+
     case = OperationCase(
         org_id=_org_id(),
         code=_next_operation_code(),
@@ -486,6 +558,8 @@ def create_operation_case(payload: dict[str, str], user_id: int | None) -> Opera
         declarant_person_id=declarant_person_id,
         holder_person_id=holder_person_id,
         beneficiary_person_id=beneficiary_person_id,
+        concession_start_date=concession_start_date,
+        concession_end_date=concession_end_date,
         scheduled_at=_parse_optional_datetime(payload.get("scheduled_at")),
         destination_cemetery_id=destination_cemetery_id,
         destination_name=(payload.get("destination_name") or "").strip(),
@@ -576,6 +650,53 @@ def update_operation_summary(
         case,
         "OPERATION_CASE_SUMMARY",
         f"{case.code}: resumen de inhumacion actualizado",
+        user_id,
+    )
+    db.session.commit()
+    return case
+
+
+def operation_concession_context(case: OperationCase) -> dict[str, object] | None:
+    if case.type != OperationType.INHUMACION:
+        return None
+
+    active_contract = _active_contract_for_sepultura(case.source_sepultura_id)
+    if active_contract:
+        start_date = active_contract.fecha_inicio
+        end_date = active_contract.fecha_fin
+    else:
+        start_date, end_date = _default_concession_dates(case)
+
+    return {
+        "readonly": active_contract is not None,
+        "active_contract": active_contract,
+        "start_date": start_date,
+        "end_date": end_date,
+        "duration_years": end_date.year - start_date.year,
+    }
+
+
+def update_operation_concession(
+    case_id: int, payload: dict[str, str], user_id: int | None
+) -> OperationCase:
+    case = operation_case_by_id(case_id)
+    if case.type != OperationType.INHUMACION:
+        raise ValueError("Solo INHUMACION permite editar la concesion")
+
+    active_contract = _active_contract_for_sepultura(case.source_sepultura_id)
+    if active_contract:
+        raise ValueError(
+            f"La concesion se reutiliza desde el contrato activo C{active_contract.id} y no puede editarse"
+        )
+
+    start_date = _parse_iso_date(payload.get("concession_start_date"), "fecha inicio")
+    end_date = _parse_iso_date(payload.get("concession_end_date"), "fecha fin")
+    _apply_concession_dates(case, start_date, end_date)
+    db.session.add(case)
+    _log_activity(
+        case,
+        "OPERATION_CASE_CONCESSION",
+        f"{case.code}: concesion actualizada ({start_date} - {end_date})",
         user_id,
     )
     db.session.commit()
@@ -905,10 +1026,70 @@ def _move_remains(case: OperationCase) -> None:
             )
 
 
+def _ensure_inhumacion_contract(case: OperationCase, user_id: int | None) -> DerechoFunerarioContrato | None:
+    if case.type != OperationType.INHUMACION:
+        return None
+
+    today = _today()
+    active_contract = _active_contract_for_sepultura(case.source_sepultura_id, today)
+    if active_contract:
+        _sync_case_concession_from_contract(case, active_contract)
+        db.session.add(case)
+        return active_contract
+
+    if not case.holder_person_id:
+        raise ValueError("No se puede cerrar: INHUMACION requiere titular para crear la concesion")
+
+    start_date, end_date = _default_concession_dates(case)
+    _apply_concession_dates(case, start_date, end_date)
+
+    contract = DerechoFunerarioContrato(
+        org_id=_org_id(),
+        sepultura_id=case.source_sepultura_id,
+        tipo=DerechoTipo.CONCESION,
+        fecha_inicio=start_date,
+        fecha_fin=end_date,
+        legacy_99_years=False,
+        annual_fee_amount=Decimal("0.00"),
+        estado="ACTIVO",
+    )
+    db.session.add(contract)
+    db.session.flush()
+
+    db.session.add(
+        OwnershipRecord(
+            org_id=_org_id(),
+            contract_id=contract.id,
+            person_id=case.holder_person_id,
+            start_date=start_date,
+        )
+    )
+    if case.beneficiary_person_id:
+        db.session.add(
+            Beneficiario(
+                org_id=_org_id(),
+                contrato_id=contract.id,
+                person_id=case.beneficiary_person_id,
+                activo_desde=start_date,
+            )
+        )
+
+    _sync_case_concession_from_contract(case, contract)
+    db.session.add(case)
+    _log_activity(
+        case,
+        "OPERATION_CASE_CONCESSION_LINKED",
+        f"{case.code}: concesion C{contract.id} creada al cerrar inhumacion",
+        user_id,
+    )
+    return contract
+
+
 def close_operation_case(case_id: int, payload: dict[str, str], user_id: int | None) -> OperationCase:
     case = operation_case_by_id(case_id)
     _validate_closure(case)
     _move_remains(case)
+    _ensure_inhumacion_contract(case, user_id)
     _ensure_acta_document(case, user_id)
 
     previous = case.status

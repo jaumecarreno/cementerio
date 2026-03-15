@@ -1,15 +1,24 @@
 from __future__ import annotations
 
+from datetime import date
+from decimal import Decimal
+
 from app.core.extensions import db
 from app.core.models import (
+    Beneficiario,
+    Cemetery,
+    DerechoFunerarioContrato,
+    DerechoTipo,
     OperationCase,
     OperationDocument,
     OperationPermit,
     OperationPermitStatus,
     OperationStatus,
     OperationType,
+    OwnershipRecord,
     Person,
     Sepultura,
+    SepulturaEstado,
     SepulturaDifunto,
     WorkOrder,
     WorkOrderStatus,
@@ -30,6 +39,72 @@ def _move_ot_to_completed(client, ot_id: int) -> None:
             follow_redirects=True,
         )
         assert response.status_code == 200
+
+
+def _create_test_sepultura(
+    org_id: int,
+    cemetery_id: int,
+    bloque: str,
+    numero: int,
+    estado: SepulturaEstado = SepulturaEstado.DISPONIBLE,
+) -> Sepultura:
+    sep = Sepultura(
+        org_id=org_id,
+        cemetery_id=cemetery_id,
+        bloque=bloque,
+        fila=1,
+        columna=1,
+        via="V-TEST",
+        numero=numero,
+        modalidad="Ninxol",
+        estado=estado,
+        tipo_bloque="Ninxols",
+        tipo_lapida="Resina",
+        orientacion="Nord",
+    )
+    db.session.add(sep)
+    db.session.flush()
+    return sep
+
+
+def _prepare_case_for_close(app, client, case_id: int) -> None:
+    response = client.post(
+        f"/cementerio/expedientes/{case_id}/estado",
+        data={"status": "DOCS_PENDIENTES"},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+
+    with app.app_context():
+        permits = OperationPermit.query.filter_by(operation_case_id=case_id).all()
+    for permit in permits:
+        verify_response = client.post(
+            f"/cementerio/expedientes/{case_id}/permisos/{permit.id}/verify",
+            data={"action": "verify"},
+            follow_redirects=True,
+        )
+        assert verify_response.status_code == 200
+
+    for status in ["PROGRAMADA", "EN_EJECUCION", "EN_VALIDACION"]:
+        transition_response = client.post(
+            f"/cementerio/expedientes/{case_id}/estado",
+            data={"status": status},
+            follow_redirects=True,
+        )
+        assert transition_response.status_code == 200
+
+    with app.app_context():
+        ot = WorkOrder.query.filter_by(operation_case_id=case_id).order_by(WorkOrder.id.desc()).first()
+        assert ot is not None
+        ot_id = ot.id
+    _move_ot_to_completed(client, ot_id)
+    with app.app_context():
+        ot = db.session.get(WorkOrder, ot_id)
+        assert ot is not None
+        if ot.status != WorkOrderStatus.COMPLETADA:
+            ot.status = WorkOrderStatus.COMPLETADA
+            db.session.add(ot)
+            db.session.commit()
 
 
 def test_operations_new_case_box_is_collapsed_by_default(client, login_admin):
@@ -457,3 +532,334 @@ def test_rescate_close_is_blocked_without_remains(app, client, login_admin):
         assert refreshed.status == OperationStatus.EN_VALIDACION
         ot = db.session.get(WorkOrder, ot_id)
         assert ot.status == WorkOrderStatus.COMPLETADA
+
+
+def test_inhumacion_detail_shows_documentos_2_and_concesion_defaults(
+    app, client, login_admin
+):
+    login_admin()
+    with app.app_context():
+        cemetery = Cemetery.query.order_by(Cemetery.id.asc()).first()
+        assert cemetery is not None
+        sep = _create_test_sepultura(
+            cemetery.org_id,
+            cemetery.id,
+            bloque="OP-CONC-DET",
+            numero=9001,
+            estado=SepulturaEstado.DISPONIBLE,
+        )
+        deceased = Person.query.filter_by(first_name="Antoni", last_name="Ferrer").first()
+        assert deceased is not None
+        sep_id = sep.id
+        deceased_id = deceased.id
+        db.session.commit()
+
+    create_response = client.post(
+        "/cementerio/expedientes",
+        data={
+            "type": "INHUMACION",
+            "source_sepultura_id": str(sep_id),
+            "deceased_person_id": str(deceased_id),
+        },
+        follow_redirects=True,
+    )
+    assert create_response.status_code == 200
+    assert b"Documentos 2" in create_response.data
+    assert b"Concesion" in create_response.data
+
+    with app.app_context():
+        case = OperationCase.query.order_by(OperationCase.id.desc()).first()
+        assert case is not None
+        assert case.type == OperationType.INHUMACION
+        today = date.today()
+        try:
+            expected_end = today.replace(year=today.year + 25)
+        except ValueError:
+            expected_end = today.replace(month=2, day=28, year=today.year + 25)
+        assert case.concession_start_date == today
+        assert case.concession_end_date == expected_end
+        assert case.concession_duration_years == 25
+
+
+def test_inhumacion_concession_update_persists_dates(app, client, login_admin):
+    login_admin()
+    with app.app_context():
+        cemetery = Cemetery.query.order_by(Cemetery.id.asc()).first()
+        assert cemetery is not None
+        sep = _create_test_sepultura(
+            cemetery.org_id,
+            cemetery.id,
+            bloque="OP-CONC-UPD",
+            numero=9002,
+            estado=SepulturaEstado.DISPONIBLE,
+        )
+        deceased = Person.query.filter_by(first_name="Antoni", last_name="Ferrer").first()
+        assert deceased is not None
+        sep_id = sep.id
+        deceased_id = deceased.id
+        db.session.commit()
+
+    client.post(
+        "/cementerio/expedientes",
+        data={
+            "type": "INHUMACION",
+            "source_sepultura_id": str(sep_id),
+            "deceased_person_id": str(deceased_id),
+        },
+        follow_redirects=True,
+    )
+    with app.app_context():
+        case = OperationCase.query.order_by(OperationCase.id.desc()).first()
+        assert case is not None
+        case_id = case.id
+
+    update_response = client.post(
+        f"/cementerio/expedientes/{case_id}/concesion",
+        data={
+            "concession_start_date": "2026-01-01",
+            "concession_end_date": "2051-01-01",
+        },
+        follow_redirects=True,
+    )
+    assert update_response.status_code == 200
+    assert b"Concesion actualizada" in update_response.data
+
+    with app.app_context():
+        refreshed = db.session.get(OperationCase, case_id)
+        assert refreshed is not None
+        assert refreshed.concession_start_date == date(2026, 1, 1)
+        assert refreshed.concession_end_date == date(2051, 1, 1)
+        assert refreshed.concession_duration_years == 25
+
+
+def test_inhumacion_with_active_contract_shows_readonly_concession_and_rejects_edit(
+    app, client, login_admin
+):
+    login_admin()
+    with app.app_context():
+        active_contract = (
+            DerechoFunerarioContrato.query.filter_by(estado="ACTIVO")
+            .order_by(DerechoFunerarioContrato.id.asc())
+            .first()
+        )
+        deceased = Person.query.filter_by(first_name="Antoni", last_name="Ferrer").first()
+        assert active_contract is not None
+        assert deceased is not None
+        contract_id = active_contract.id
+        sepultura_id = active_contract.sepultura_id
+        deceased_id = deceased.id
+
+    client.post(
+        "/cementerio/expedientes",
+        data={
+            "type": "INHUMACION",
+            "source_sepultura_id": str(sepultura_id),
+            "deceased_person_id": str(deceased_id),
+        },
+        follow_redirects=True,
+    )
+    with app.app_context():
+        case = OperationCase.query.order_by(OperationCase.id.desc()).first()
+        assert case is not None
+        case_id = case.id
+
+    detail_response = client.get(f"/cementerio/expedientes/{case_id}")
+    assert detail_response.status_code == 200
+    html = detail_response.get_data(as_text=True)
+    assert f"Contrato activo reutilizado: C{contract_id}" in html
+    assert 'name="concession_start_date"' in html
+    assert "disabled" in html
+
+    update_response = client.post(
+        f"/cementerio/expedientes/{case_id}/concesion",
+        data={
+            "concession_start_date": "2028-01-01",
+            "concession_end_date": "2053-01-01",
+        },
+        follow_redirects=True,
+    )
+    assert update_response.status_code == 200
+    assert b"no puede editarse" in update_response.data
+
+    with app.app_context():
+        refreshed = db.session.get(OperationCase, case_id)
+        assert refreshed is not None
+        assert refreshed.concession_start_date != date(2028, 1, 1)
+        assert refreshed.concession_end_date != date(2053, 1, 1)
+
+
+def test_close_inhumacion_without_contract_creates_and_links_concession(
+    app, client, login_admin
+):
+    login_admin()
+    with app.app_context():
+        cemetery = Cemetery.query.order_by(Cemetery.id.asc()).first()
+        deceased = Person.query.filter_by(first_name="Antoni", last_name="Ferrer").first()
+        holder = Person.query.filter_by(first_name="Marta", last_name="Soler").first()
+        beneficiary = Person.query.filter_by(first_name="Joan", last_name="Riera").first()
+        assert cemetery is not None
+        assert deceased is not None
+        assert holder is not None
+        assert beneficiary is not None
+        sep = _create_test_sepultura(
+            cemetery.org_id,
+            cemetery.id,
+            bloque="OP-CONC-CLOSE-N",
+            numero=9003,
+            estado=SepulturaEstado.DISPONIBLE,
+        )
+        sep_id = sep.id
+        deceased_id = deceased.id
+        holder_id = holder.id
+        beneficiary_id = beneficiary.id
+        db.session.commit()
+
+    create_response = client.post(
+        "/cementerio/expedientes",
+        data={
+            "type": "INHUMACION",
+            "source_sepultura_id": str(sep_id),
+            "deceased_person_id": str(deceased_id),
+            "holder_person_id": str(holder_id),
+            "beneficiary_person_id": str(beneficiary_id),
+        },
+        follow_redirects=True,
+    )
+    assert create_response.status_code == 200
+    with app.app_context():
+        case = OperationCase.query.order_by(OperationCase.id.desc()).first()
+        assert case is not None
+        case_id = case.id
+
+    _prepare_case_for_close(app, client, case_id)
+    close_response = client.post(
+        f"/cementerio/expedientes/{case_id}/cerrar",
+        data={"reason": "cierre inhumacion"},
+        follow_redirects=True,
+    )
+    assert close_response.status_code == 200
+    assert b"Expediente cerrado" in close_response.data
+
+    with app.app_context():
+        refreshed = db.session.get(OperationCase, case_id)
+        assert refreshed is not None
+        assert refreshed.status == OperationStatus.CERRADA
+        assert refreshed.contract_id is not None
+
+        contract = db.session.get(DerechoFunerarioContrato, refreshed.contract_id)
+        assert contract is not None
+        assert contract.tipo == DerechoTipo.CONCESION
+        assert contract.annual_fee_amount == Decimal("0.00")
+        assert contract.fecha_inicio == refreshed.concession_start_date
+        assert contract.fecha_fin == refreshed.concession_end_date
+
+        owner = OwnershipRecord.query.filter_by(contract_id=contract.id, person_id=holder_id).first()
+        assert owner is not None
+        beneficiary_row = Beneficiario.query.filter_by(contrato_id=contract.id, person_id=beneficiary_id).first()
+        assert beneficiary_row is not None
+
+
+def test_close_inhumacion_with_active_contract_reuses_existing_contract(
+    app, client, login_admin
+):
+    login_admin()
+    with app.app_context():
+        active_contract = (
+            DerechoFunerarioContrato.query.filter_by(estado="ACTIVO")
+            .order_by(DerechoFunerarioContrato.id.asc())
+            .first()
+        )
+        deceased = Person.query.filter_by(first_name="Antoni", last_name="Ferrer").first()
+        holder = Person.query.filter_by(first_name="Marta", last_name="Soler").first()
+        assert active_contract is not None
+        assert deceased is not None
+        assert holder is not None
+        contract_id = active_contract.id
+        sepultura_id = active_contract.sepultura_id
+        deceased_id = deceased.id
+        holder_id = holder.id
+        before_count = DerechoFunerarioContrato.query.filter_by(
+            sepultura_id=sepultura_id
+        ).count()
+
+    create_response = client.post(
+        "/cementerio/expedientes",
+        data={
+            "type": "INHUMACION",
+            "source_sepultura_id": str(sepultura_id),
+            "deceased_person_id": str(deceased_id),
+            "holder_person_id": str(holder_id),
+        },
+        follow_redirects=True,
+    )
+    assert create_response.status_code == 200
+    with app.app_context():
+        case = OperationCase.query.order_by(OperationCase.id.desc()).first()
+        assert case is not None
+        case_id = case.id
+
+    _prepare_case_for_close(app, client, case_id)
+    close_response = client.post(
+        f"/cementerio/expedientes/{case_id}/cerrar",
+        data={"reason": "cierre con contrato existente"},
+        follow_redirects=True,
+    )
+    assert close_response.status_code == 200
+
+    with app.app_context():
+        refreshed = db.session.get(OperationCase, case_id)
+        assert refreshed is not None
+        assert refreshed.status == OperationStatus.CERRADA
+        assert refreshed.contract_id == contract_id
+        after_count = DerechoFunerarioContrato.query.filter_by(
+            sepultura_id=sepultura_id
+        ).count()
+        assert after_count == before_count
+
+
+def test_non_inhumacion_has_no_concession_card_and_concession_endpoint_fails(
+    app, client, login_admin
+):
+    login_admin()
+    with app.app_context():
+        source = Sepultura.query.filter_by(bloque="B-12", numero=127).first()
+        target = Sepultura.query.filter_by(bloque="B-12", numero=128).first()
+        assert source is not None
+        assert target is not None
+
+    create_response = client.post(
+        "/cementerio/expedientes",
+        data={
+            "type": "TRASLADO_CORTO",
+            "source_sepultura_id": str(source.id),
+            "target_sepultura_id": str(target.id),
+            "destination_municipality": "Terrassa",
+        },
+        follow_redirects=True,
+    )
+    assert create_response.status_code == 200
+    with app.app_context():
+        case = OperationCase.query.order_by(OperationCase.id.desc()).first()
+        assert case is not None
+        case_id = case.id
+
+    detail_response = client.get(f"/cementerio/expedientes/{case_id}")
+    assert detail_response.status_code == 200
+    assert b"Concesion" not in detail_response.data
+
+    update_response = client.post(
+        f"/cementerio/expedientes/{case_id}/concesion",
+        data={
+            "concession_start_date": "2026-01-01",
+            "concession_end_date": "2051-01-01",
+        },
+        follow_redirects=True,
+    )
+    assert update_response.status_code == 200
+    assert b"Solo INHUMACION permite editar la concesion" in update_response.data
+
+    with app.app_context():
+        refreshed = db.session.get(OperationCase, case_id)
+        assert refreshed is not None
+        assert refreshed.concession_start_date is None
+        assert refreshed.concession_end_date is None
